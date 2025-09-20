@@ -523,13 +523,16 @@ export default async function handler(req, res) {
   }
 
   try {
+    console.log('🚀 SMART ITINERARY: Handler started');
     const { city, audience, interests, date, budget } = req.body;
-    console.log('🚀 FLIPTRIP CLEAN: Генерация плана для:', { city, audience, interests, date, budget });
+    console.log('📝 Request data:', { city, audience, interests, date, budget });
 
     // Проверяем API ключи
     if (!process.env.OPENAI_API_KEY || !process.env.GOOGLE_MAPS_KEY) {
+      console.log('❌ API keys missing');
       throw new Error('API keys required');
     }
+    console.log('✅ API keys present');
 
     // МОДУЛЬ 0: Создаем концепцию дня
     const dayConcept = await generateDayConcept(city, audience, interests, date, budget);
@@ -617,10 +620,14 @@ export default async function handler(req, res) {
     return res.status(200).json(result);
 
   } catch (error) {
-    console.error('❌ FLIPTRIP CLEAN: Ошибка:', error);
+    console.error('❌ SMART ITINERARY ERROR:', error.message);
+    console.error('❌ Stack trace:', error.stack);
+    console.error('❌ Full error:', error);
+    
     return res.status(500).json({ 
       error: 'Generation failed', 
-      message: error.message 
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 }
