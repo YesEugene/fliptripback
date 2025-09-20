@@ -225,7 +225,55 @@ Create the tips:`;
   }
 }
 
-// Старые функции погоды удалены - теперь OpenAI получает реальную погоду напрямую
+// =============================================================================
+// МОДУЛЬ ЦЕНООБРАЗОВАНИЯ: Google Places price_level → реальные цены
+// =============================================================================
+
+function calculateRealPrice(category, priceLevel, city) {
+  console.log(`💰 МОДУЛЬ ЦЕНЫ: Расчет для ${category}, уровень ${priceLevel}, город ${city}`);
+  
+  // Базовые цены по категориям (price_level: 0=бесплатно, 1=дешево, 2=средне, 3=дорого, 4=очень дорого)
+  const basePrices = {
+    'cafe': { 0: 0, 1: 5, 2: 12, 3: 20, 4: 35 },
+    'restaurant': { 0: 0, 1: 15, 2: 30, 3: 55, 4: 90 },
+    'tourist_attraction': { 0: 0, 1: 8, 2: 18, 3: 35, 4: 60 },
+    'museum': { 0: 0, 1: 10, 2: 20, 3: 40, 4: 70 },
+    'park': { 0: 0, 1: 0, 2: 5, 3: 15, 4: 25 },
+    'bar': { 0: 0, 1: 8, 2: 15, 3: 25, 4: 45 }
+  };
+
+  // Коэффициенты по городам (относительно базовых цен)
+  const cityMultipliers = {
+    'Dubai': 1.8,      // Дорогой город
+    'Moscow': 1.2,     // Средне-дорогой
+    'Paris': 1.5,      // Дорогой
+    'London': 1.6,     // Очень дорогой
+    'Barcelona': 1.3,  // Средне-дорогой
+    'Berlin': 1.1,     // Умеренный
+    'Amsterdam': 1.4,  // Дорогой
+    'Copenhagen': 1.7, // Очень дорогой
+    'Rome': 1.2,       // Средне-дорогой
+    'Prague': 0.8      // Недорогой
+  };
+
+  const basePrice = basePrices[category]?.[priceLevel] || basePrices['restaurant'][2];
+  const multiplier = cityMultipliers[city] || 1.0;
+  const realPrice = Math.round(basePrice * multiplier);
+  
+  console.log(`💰 Цена рассчитана: ${realPrice}€ (база: ${basePrice}€, множитель: ${multiplier})`);
+  return realPrice;
+}
+
+function formatPriceRange(category, priceLevel, city) {
+  const price = calculateRealPrice(category, priceLevel, city);
+  
+  if (price === 0) return 'Free';
+  if (price <= 10) return `${price}€`;
+  
+  const rangeMin = Math.max(0, price - 5);
+  const rangeMax = price + 5;
+  return `${rangeMin}-${rangeMax}€`;
+}
 
 // =============================================================================
 // МОДУЛЬ 4: ГЕНЕРАЦИЯ МЕТА-ИНФОРМАЦИИ
@@ -402,6 +450,10 @@ export default async function handler(req, res) {
         generateLocationRecommendations(place.name, slot.category, interests, audience, dayConcept.concept)
       ]);
 
+      // Рассчитываем реальную цену на основе Google Places price_level
+      const realPrice = calculateRealPrice(slot.category, place.priceLevel, city);
+      const priceRange = formatPriceRange(slot.category, place.priceLevel, city);
+
       return {
         time: slot.time,
         name: place.name,
@@ -409,13 +461,13 @@ export default async function handler(req, res) {
         description: description,
         category: slot.category,
         duration: 90,
-        price: 25,
+        price: realPrice,
         location: place.address,
         photos: place.photos.length > 0 ? place.photos : [
           'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=800&h=600&fit=crop&q=80'
         ],
         recommendations: recommendations,
-        priceRange: '20-30€',
+        priceRange: priceRange,
         rating: place.rating
       };
     }));
