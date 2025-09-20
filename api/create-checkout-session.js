@@ -37,8 +37,8 @@ export default async function handler(req, res) {
         },
       ],
       mode: 'payment',
-      success_url: `https://fliptripfront.vercel.app/success?city=${encodeURIComponent(city)}&audience=${encodeURIComponent(audience)}&interests=${encodeURIComponent(Array.isArray(interests) ? interests.join(',') : interests)}&date=${encodeURIComponent(date)}&budget=${encodeURIComponent(budget)}&email=${encodeURIComponent(email)}&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `https://fliptripfront.vercel.app/preview?city=${encodeURIComponent(city)}&audience=${encodeURIComponent(audience)}&interests=${encodeURIComponent(Array.isArray(interests) ? interests.join(',') : interests)}&date=${encodeURIComponent(date)}&budget=${encodeURIComponent(budget)}`,
+      success_url: `https://flip-trip.com/success?city=${encodeURIComponent(city)}&audience=${encodeURIComponent(audience)}&interests=${encodeURIComponent(Array.isArray(interests) ? interests.join(',') : interests)}&date=${encodeURIComponent(date)}&budget=${encodeURIComponent(budget)}&email=${encodeURIComponent(email)}&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `https://flip-trip.com/preview?city=${encodeURIComponent(city)}&audience=${encodeURIComponent(audience)}&interests=${encodeURIComponent(Array.isArray(interests) ? interests.join(',') : interests)}&date=${encodeURIComponent(date)}&budget=${encodeURIComponent(budget)}`,
       metadata: {
         city,
         audience,
