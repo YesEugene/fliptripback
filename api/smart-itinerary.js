@@ -102,9 +102,7 @@ async function findRealLocations(timeSlots, city) {
             address: place.formatted_address,
             rating: place.rating || 4.0,
             priceLevel: place.price_level || 2,
-            photos: place.photos ? place.photos.slice(0, 3).map(photo => 
-              `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photo.photo_reference}&key=${process.env.GOOGLE_MAPS_KEY}`
-            ) : []
+            photos: place.photos || [] // Сохраняем raw данные для обработки в модуле фото
           }
         });
         console.log(`✅ Найдено: ${place.name}`);
@@ -223,6 +221,67 @@ Create the tips:`;
     console.error(`❌ МОДУЛЬ 3: Ошибка рекомендаций для ${locationName}:`, error.message);
     return `Plan to spend quality time at ${locationName} to fully appreciate its unique character and authentic atmosphere. Ask locals for their personal recommendations and insider tips - they're usually delighted to share their favorite aspects of this special place. Consider visiting during different times to experience various moods and energy levels that this location offers throughout the day.`;
   }
+}
+
+// =============================================================================
+// МОДУЛЬ ФОТОГРАФИЙ: 4 фото для каждой локации
+// =============================================================================
+
+function generateLocationPhotos(place, category, locationName) {
+  console.log(`📸 МОДУЛЬ ФОТО: Генерация 4 фото для ${locationName}...`);
+  
+  const photos = [];
+  
+  // 1. Добавляем фото из Google Places (до 3 шт)
+  if (place.photos && place.photos.length > 0) {
+    const googlePhotos = place.photos.slice(0, 3).map(photo => 
+      `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photo.photo_reference}&key=${process.env.GOOGLE_MAPS_KEY}`
+    );
+    photos.push(...googlePhotos);
+    console.log(`📸 Добавлено ${googlePhotos.length} Google Places фото`);
+  }
+  
+  // 2. Дополняем тематическими Unsplash фото до 4 штук
+  const thematicPhotos = getThematicPhotos(category, locationName);
+  const needed = 4 - photos.length;
+  if (needed > 0) {
+    photos.push(...thematicPhotos.slice(0, needed));
+    console.log(`📸 Добавлено ${needed} тематических фото`);
+  }
+  
+  console.log(`📸 Итого фото для ${locationName}: ${photos.length}`);
+  return photos.slice(0, 4); // Гарантируем максимум 4 фото
+}
+
+function getThematicPhotos(category, locationName) {
+  const photoCollections = {
+    'cafe': [
+      'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=800&h=600&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=800&h=600&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?w=800&h=600&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=800&h=600&fit=crop&q=80'
+    ],
+    'restaurant': [
+      'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&h=600&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=800&h=600&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1551632436-cbf8dd35adfa?w=800&h=600&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=800&h=600&fit=crop&q=80'
+    ],
+    'tourist_attraction': [
+      'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=800&h=600&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=600&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1539650116574-75c0c6d73f6e?w=800&h=600&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800&h=600&fit=crop&q=80'
+    ],
+    'museum': [
+      'https://images.unsplash.com/photo-1554907984-15263bfd63bd?w=800&h=600&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=800&h=600&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1581833971358-2c8b550f87b3?w=800&h=600&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1594736797933-d0d7c1e8b2be?w=800&h=600&fit=crop&q=80'
+    ]
+  };
+  
+  return photoCollections[category] || photoCollections['tourist_attraction'];
 }
 
 // =============================================================================
@@ -463,9 +522,7 @@ export default async function handler(req, res) {
         duration: 90,
         price: realPrice,
         location: place.address,
-        photos: place.photos.length > 0 ? place.photos : [
-          'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=800&h=600&fit=crop&q=80'
-        ],
+        photos: generateLocationPhotos(place, slot.category, place.name),
         recommendations: recommendations,
         priceRange: priceRange,
         rating: place.rating
