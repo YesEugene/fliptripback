@@ -248,29 +248,49 @@ Create the tips:`;
 // =============================================================================
 
 function generateLocationPhotos(place, category, locationName) {
-  console.log(`📸 МОДУЛЬ ФОТО: Генерация 4 фото для ${locationName}...`);
+  console.log(`📸 МОДУЛЬ ФОТО: Генерация фото для ${locationName}...`);
   
   const photos = [];
   
-  // 1. Добавляем фото из Google Places (до 3 шт)
+  // 1. Добавляем ВСЕ доступные фото из Google Places
   if (place.photos && place.photos.length > 0) {
-    const googlePhotos = place.photos.slice(0, 3).map(photo => 
+    const googlePhotos = place.photos.map(photo => 
       `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photo.photo_reference}&key=${process.env.GOOGLE_MAPS_KEY}`
     );
     photos.push(...googlePhotos);
-    console.log(`📸 Добавлено ${googlePhotos.length} Google Places фото`);
+    console.log(`📸 Добавлено ${googlePhotos.length} реальных Google Places фото`);
   }
   
-  // 2. Дополняем тематическими Unsplash фото до 4 штук
-  const thematicPhotos = getThematicPhotos(category, locationName);
-  const needed = 4 - photos.length;
-  if (needed > 0) {
-    photos.push(...thematicPhotos.slice(0, needed));
-    console.log(`📸 Добавлено ${needed} тематических фото`);
+  // 2. НЕ добавляем случайные фото - показываем только реальные фото заведения
+  // Если Google Places дал меньше фото, это нормально - лучше меньше, но реальных
+  
+  console.log(`📸 Итого фото для ${locationName}: ${photos.length} (приоритет реальным фото)`);
+  return photos; // Возвращаем только релевантные фото
+}
+
+function getLocationSpecificPhotos(locationName, category) {
+  // Более релевантные фото на основе названия места и категории
+  console.log(`📸 Поиск тематических фото для: ${locationName} (${category})`);
+  
+  // Если есть ключевые слова в названии, используем более специфичные фото
+  const name = locationName.toLowerCase();
+  
+  // Специфичные фото для известных мест
+  if (name.includes('sagrada') || name.includes('familia')) {
+    return ['https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=800&h=600&fit=crop&q=80'];
+  }
+  if (name.includes('park') || name.includes('güell') || name.includes('garden')) {
+    return ['https://images.unsplash.com/photo-1539650116574-75c0c6d73f6e?w=800&h=600&fit=crop&q=80'];
+  }
+  if (name.includes('beach') || name.includes('sea') || name.includes('ocean')) {
+    return ['https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&h=600&fit=crop&q=80'];
+  }
+  if (name.includes('museum') || name.includes('art') || name.includes('gallery')) {
+    return ['https://images.unsplash.com/photo-1554907984-15263bfd63bd?w=800&h=600&fit=crop&q=80'];
   }
   
-  console.log(`📸 Итого фото для ${locationName}: ${photos.length}`);
-  return photos.slice(0, 4); // Гарантируем максимум 4 фото
+  // Fallback к категориям
+  return getThematicPhotos(category, locationName);
 }
 
 function getThematicPhotos(category, locationName) {
