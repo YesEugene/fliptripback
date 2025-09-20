@@ -265,9 +265,11 @@ On September 10th, Paris is yours to discover — from sunrise runs along the Se
 
 Create the subtitle:`;
 
-  const weatherPrompt = `Write 2 short sentences in English about the weather in the chosen city and date.
+  const weatherPrompt = `Write 2 short sentences in English about realistic weather in ${city} on ${date}.
+Consider the city's climate, season, and typical weather patterns for this time of year.
 Give a specific suggestion on what to wear to stay comfortable all day.
 Keep the tone light, friendly, and aligned with the overall concept of the day.
+Make the weather description realistic and location-specific.
 
 City: ${city}
 Date: ${date}
@@ -276,7 +278,7 @@ Creative concept: ${concept}
 Example Output:
 The September sun will be warm but gentle over Paris, with a cool breeze by the river. Light layers and comfortable shoes will keep you ready for every moment.
 
-Create the weather description:`;
+Create realistic weather description for ${city} on ${date}:`;
 
   try {
     const [titleResponse, subtitleResponse, weatherResponse] = await Promise.all([
@@ -318,9 +320,9 @@ Create the weather description:`;
       title: `Epic amazing discoveries in ${city}`,
       subtitle: `${date} for ${audience} - discover the magic of ${city}. Experience authentic moments, create lasting memories, and let the city's unique charm captivate your heart.`,
       weather: {
-        forecast: `Perfect weather for exploring ${city} - 26°C with clear skies`,
+        forecast: `Perfect weather for exploring ${city} - ideal conditions for your adventure`,
         clothing: 'Comfortable walking shoes and light layers',
-        tips: 'Stay hydrated and bring a camera!'
+        tips: 'Perfect day for discovering the city!'
       }
     };
   }
