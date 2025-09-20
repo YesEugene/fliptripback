@@ -83,7 +83,7 @@ function generateItineraryLink(formData) {
     budget: formData.budget
   });
   
-  return `https://fliptripfront.vercel.app/itinerary?${params.toString()}`;
+  return `https://flip-trip.com/itinerary?${params.toString()}`;
 }
 
 // =============================================================================
