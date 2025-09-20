@@ -191,12 +191,11 @@ Create the description:`;
 async function generateLocationRecommendations(locationName, category, interests, audience, concept) {
   console.log(`💡 МОДУЛЬ 3: Генерация рекомендаций для ${locationName}...`);
   
-  const prompt = `IMPORTANT: Write EXACTLY 3-4 complete sentences in English with practical tips for visiting this location.
-Include specific advice about timing, what to order/see/do, insider secrets, and how to make the most of the experience.
-Make the tips personal, caring, and inspiring — like advice from a knowledgeable local friend.
-Include practical details that enhance the visit and connect to the user's interests.
-Follow the creative concept of the day and make the user feel expertly guided.
-REQUIREMENT: Your response must contain at least 3 complete sentences with periods.
+  const prompt = `IMPORTANT: Write EXACTLY 1 complete sentence in English with practical tips for visiting this location.
+Include specific advice about timing, what to order/see/do, or insider secrets that enhance the experience.
+Make the tip personal, caring, and inspiring — like advice from a knowledgeable local friend.
+Include practical details that connect to the user's interests and the creative concept of the day.
+REQUIREMENT: Your response must be exactly 1 complete sentence with a period.
 
 Location: ${locationName}
 Category: ${category}
@@ -205,7 +204,7 @@ Audience: ${audience}
 Creative concept: ${concept}
 
 Example Output:
-Arrive a little early to find the perfect spot and watch the market come alive with the morning energy — this is when vendors are most passionate about their offerings and happy to share stories. Don't miss trying the Moroccan tagine from the corner stall; the owner, Hassan, has been perfecting his grandmother's recipe for over twenty years and loves explaining the spices to curious visitors. Take your time to wander through each section — the cheese corner offers free tastings if you smile and show genuine interest, and the wine merchant often pairs recommendations with whatever you're planning to eat.
+Start your day of adventure at this location by getting there early to savor their famed specialties, as the morning atmosphere provides the perfect energy and authentic local experience that perfectly matches your interests.
 
 Create the tips:`;
 
@@ -213,7 +212,7 @@ Create the tips:`;
     const response = await openai.chat.completions.create({
       model: "gpt-4",
       messages: [{ role: "user", content: prompt }],
-      max_tokens: 350,
+      max_tokens: 100,
       temperature: 0.8
     });
 
