@@ -95,14 +95,34 @@ async function findRealLocations(timeSlots, city) {
 
       if (response.data.results.length > 0) {
         const place = response.data.results[0];
+        
+        // Получаем детальную информацию о месте, включая все фото
+        let detailedPlace = place;
+        if (place.place_id) {
+          try {
+            console.log(`📸 Получаем детали места: ${place.name}`);
+            const detailsResponse = await googleMapsClient.placeDetails({
+              params: {
+                place_id: place.place_id,
+                fields: ['photos', 'rating', 'price_level', 'formatted_address', 'name'],
+                key: process.env.GOOGLE_MAPS_KEY
+              }
+            });
+            detailedPlace = detailsResponse.data.result;
+            console.log(`📸 Получено ${detailedPlace.photos?.length || 0} фото для ${place.name}`);
+          } catch (detailError) {
+            console.log(`⚠️ Не удалось получить детали для ${place.name}, используем базовые данные`);
+          }
+        }
+        
         locations.push({
           ...slot,
           realPlace: {
-            name: place.name,
-            address: place.formatted_address,
-            rating: place.rating || 4.0,
-            priceLevel: place.price_level || 2,
-            photos: place.photos || [] // Сохраняем raw данные для обработки в модуле фото
+            name: detailedPlace.name || place.name,
+            address: detailedPlace.formatted_address || place.formatted_address,
+            rating: detailedPlace.rating || place.rating || 4.0,
+            priceLevel: detailedPlace.price_level || place.price_level || 2,
+            photos: detailedPlace.photos || [] // Реальные фото заведения
           }
         });
         console.log(`✅ Найдено: ${place.name}`);
