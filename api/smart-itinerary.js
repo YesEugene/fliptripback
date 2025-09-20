@@ -267,30 +267,31 @@ On September 10th, Paris is yours to discover — from sunrise runs along the Se
 
 Create the subtitle:`;
 
-  const weatherPrompt = `Look up the real weather for ${city} on ${date} and provide travel advice.
+  const weatherPrompt = `You are providing weather information for travel planning.
 
-You need to provide:
-1. Actual temperature in Celsius (just the number)
-2. Weather description (without temperature)
-3. Clothing advice for this specific weather
+TASK: Look up realistic current weather for ${city} on ${date} (September 2025).
 
-City: ${city}
-Date: ${date}
-Concept: ${concept}
+Use your knowledge of ${city}'s climate and typical weather patterns for this time of year.
+Consider the city's geographic location, season, and typical temperature ranges.
 
-Response format in JSON:
+Provide this information in JSON format:
 {
-  "temperature": 15,
-  "description": "Cool autumn air with gentle breeze",
-  "clothing": "Light jacket and comfortable walking shoes recommended"
+  "temperature": [realistic temperature number for ${city} in September],
+  "description": "[weather description without temperature]",
+  "clothing": "[brief clothing advice for this specific weather]"
 }
 
-IMPORTANT: 
-- Temperature should be realistic for ${city} in September
-- Description should NOT include temperature
-- Clothing advice should be practical and brief
+Examples:
+- Dubai (hot desert): {"temperature": 37, "description": "Clear sunny skies with high humidity", "clothing": "Light breathable fabrics and sun protection"}
+- Moscow (continental): {"temperature": 8, "description": "Cool autumn air with possible rain", "clothing": "Warm jacket and layers recommended"}
+- Barcelona (Mediterranean): {"temperature": 18, "description": "Pleasant mild weather with sea breeze", "clothing": "Light layers and comfortable shoes"}
 
-Get weather data for ${city}:`;
+IMPORTANT: 
+- Use realistic temperature for ${city} specifically
+- Consider the actual climate of ${city}
+- September 2025 weather patterns
+
+Provide realistic weather for ${city}:`;
 
   try {
     const [titleResponse, subtitleResponse, weatherResponse] = await Promise.all([
