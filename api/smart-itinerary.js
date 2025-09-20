@@ -267,31 +267,30 @@ On September 10th, Paris is yours to discover — from sunrise runs along the Se
 
 Create the subtitle:`;
 
-  const weatherPrompt = `Get the real current weather for ${city} on ${date} and provide clothing recommendations.
+  const weatherPrompt = `Look up the real weather for ${city} on ${date} and provide travel advice.
 
-IMPORTANT: Look up the actual weather conditions for ${city} on ${date} using your knowledge of weather patterns and current data.
-Provide the real temperature in Celsius and weather description.
-Then give specific clothing advice for staying comfortable all day.
+You need to provide:
+1. Actual temperature in Celsius (just the number)
+2. Weather description (without temperature)
+3. Clothing advice for this specific weather
 
 City: ${city}
 Date: ${date}
-Creative concept: ${concept}
+Concept: ${concept}
 
 Response format in JSON:
 {
-  "temperature": "actual temperature number",
-  "description": "actual weather description",
-  "clothing": "specific clothing advice for this weather"
+  "temperature": 15,
+  "description": "Cool autumn air with gentle breeze",
+  "clothing": "Light jacket and comfortable walking shoes recommended"
 }
 
-Example Output:
-{
-  "temperature": "15",
-  "description": "cool air with changing leaves",
-  "clothing": "With the cool air, a light jacket or a comfortable sweater paired with your favorite jeans would be ideal. Don't forget your comfortable shoes for exploring!"
-}
+IMPORTANT: 
+- Temperature should be realistic for ${city} in September
+- Description should NOT include temperature
+- Clothing advice should be practical and brief
 
-Get real weather for ${city} on ${date}:`;
+Get weather data for ${city}:`;
 
   try {
     const [titleResponse, subtitleResponse, weatherResponse] = await Promise.all([
@@ -333,8 +332,9 @@ Get real weather for ${city} on ${date}:`;
       title: titleResponse.choices[0].message.content.trim().replace(/^["']|["']$/g, ''),
       subtitle: subtitleResponse.choices[0].message.content.trim().replace(/^["']|["']$/g, ''),
       weather: {
-        forecast: `${weatherData.description}, ${weatherData.temperature}°C`,
-        clothing: weatherData.clothing,
+        temperature: weatherData.temperature, // Число для отображения вверху
+        forecast: weatherData.description,    // Описание без температуры
+        clothing: weatherData.clothing,       // Советы по одежде
         tips: 'Perfect weather for exploring!'
       }
     };
@@ -347,6 +347,7 @@ Get real weather for ${city} on ${date}:`;
       title: `Epic amazing discoveries in ${city}`,
       subtitle: `${date} for ${audience} - discover the magic of ${city}. Experience authentic moments, create lasting memories, and let the city's unique charm captivate your heart.`,
       weather: {
+        temperature: 22, // Fallback температура
         forecast: `Perfect weather for exploring ${city} - ideal conditions for your adventure`,
         clothing: 'Comfortable walking shoes and light layers',
         tips: 'Perfect day for discovering the city!'
