@@ -147,13 +147,13 @@ async function findRealLocations(timeSlots, city) {
 async function generateLocationDescription(locationName, address, category, interests, audience, concept) {
   console.log(`✍️ МОДУЛЬ 2: Генерация описания для ${locationName}...`);
   
-  const prompt = `IMPORTANT: Write EXACTLY 4-5 complete sentences in English about this location.
+  const prompt = `IMPORTANT: Write EXACTLY 3 complete sentences in English about this location.
 Create a rich, immersive description that captures the essence, atmosphere, history, and unique character of the place.
 Describe what makes this location special, what visitors will experience, feel, see, hear, and discover.
 Include sensory details, emotional impact, and cultural significance.
 Connect the description to the user's interests and the creative concept of the day.
 Make it so vivid that the reader can almost be there.
-REQUIREMENT: Your response must contain at least 4 complete sentences with periods.
+REQUIREMENT: Your response must contain exactly 3 complete sentences with periods.
 
 Location: ${locationName}
 Address: ${address}
