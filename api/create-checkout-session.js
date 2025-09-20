@@ -37,6 +37,7 @@ export default async function handler(req, res) {
         },
       ],
       mode: 'payment',
+      customer_email: email, // Автоматически заполняет email в Stripe
       success_url: `https://flip-trip.com/success?city=${encodeURIComponent(city)}&audience=${encodeURIComponent(audience)}&interests=${encodeURIComponent(Array.isArray(interests) ? interests.join(',') : interests)}&date=${encodeURIComponent(date)}&budget=${encodeURIComponent(budget)}&email=${encodeURIComponent(email)}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `https://flip-trip.com/preview?city=${encodeURIComponent(city)}&audience=${encodeURIComponent(audience)}&interests=${encodeURIComponent(Array.isArray(interests) ? interests.join(',') : interests)}&date=${encodeURIComponent(date)}&budget=${encodeURIComponent(budget)}`,
       metadata: {
