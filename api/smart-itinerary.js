@@ -1,4 +1,4 @@
-// FlipTrip Clean Backend - Smart Itinerary Generator
+// FlipTrip Clean Backend - Smart Itinerary Generator (RESTORED)
 // Модульная архитектура для генерации плана на день
 
 import OpenAI from 'openai';
