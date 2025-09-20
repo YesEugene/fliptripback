@@ -233,22 +233,15 @@ async function getRealWeather(city, date) {
   console.log(`🌤️ Получение реальной погоды для ${city} на ${date}...`);
   
   try {
-    // Используем OpenWeatherMap API для получения реальной погоды
-    const response = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${process.env.OPENWEATHER_API_KEY}&units=metric&lang=en`);
+    // ВРЕМЕННО: Используем только сезонную систему для тестирования
+    console.log('🧪 ТЕСТ: Используем сезонную погоду вместо API');
+    const month = new Date(date).getMonth() + 1;
+    const cityWeather = getCitySeasonalWeather(city, month);
+    console.log(`🔄 Сезонная погода для ${city}: ${cityWeather.temperature}°C, ${cityWeather.description}`);
+    return cityWeather;
     
-    if (response.ok) {
-      const data = await response.json();
-      const result = {
-        temperature: Math.round(data.main.temp),
-        description: data.weather[0].description,
-        humidity: data.main.humidity,
-        windSpeed: data.wind?.speed || 0
-      };
-      console.log(`✅ Реальная погода получена: ${result.temperature}°C, ${result.description}`);
-      return result;
-    } else {
-      throw new Error('Weather API failed');
-    }
+    // TODO: Включить OpenWeatherMap API позже
+    // const response = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${process.env.OPENWEATHER_API_KEY}&units=metric&lang=en`);
   } catch (error) {
     console.error('❌ Ошибка получения погоды:', error.message);
     
