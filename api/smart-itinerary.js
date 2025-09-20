@@ -225,69 +225,7 @@ Create the tips:`;
   }
 }
 
-// =============================================================================
-// ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ: РЕАЛЬНАЯ ПОГОДА
-// =============================================================================
-
-async function getRealWeather(city, date) {
-  console.log(`🌤️ Получение реальной погоды для ${city} на ${date}...`);
-  
-  try {
-    // ВРЕМЕННО: Используем только сезонную систему для тестирования
-    console.log('🧪 ТЕСТ: Используем сезонную погоду вместо API');
-    const month = new Date(date).getMonth() + 1;
-    const cityWeather = getCitySeasonalWeather(city, month);
-    console.log(`🔄 Сезонная погода для ${city}: ${cityWeather.temperature}°C, ${cityWeather.description}`);
-    return cityWeather;
-    
-    // TODO: Включить OpenWeatherMap API позже
-    // const response = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${process.env.OPENWEATHER_API_KEY}&units=metric&lang=en`);
-  } catch (error) {
-    console.error('❌ Ошибка получения погоды:', error.message);
-    
-    // Fallback: умная оценка по городу и сезону
-    const month = new Date(date).getMonth() + 1;
-    const cityWeather = getCitySeasonalWeather(city, month);
-    console.log(`🔄 Используем сезонную погоду для ${city}: ${cityWeather.temperature}°C`);
-    return cityWeather;
-  }
-}
-
-// Функция для получения сезонной погоды по городу
-function getCitySeasonalWeather(city, month) {
-  const cityClimate = {
-    'Berlin': { summer: 22, winter: 5, spring: 15, autumn: 12 },
-    'Paris': { summer: 25, winter: 8, spring: 16, autumn: 14 },
-    'Barcelona': { summer: 28, winter: 15, spring: 20, autumn: 18 },
-    'Copenhagen': { summer: 20, winter: 3, spring: 12, autumn: 10 },
-    'Amsterdam': { summer: 22, winter: 6, spring: 14, autumn: 12 },
-    'Rome': { summer: 30, winter: 12, spring: 20, autumn: 18 },
-    'Moscow': { summer: 24, winter: -5, spring: 10, autumn: 8 },
-    'London': { summer: 23, winter: 7, spring: 15, autumn: 13 }
-  };
-
-  let season = 'spring';
-  if (month >= 6 && month <= 8) season = 'summer';
-  else if (month >= 9 && month <= 11) season = 'autumn';
-  else if (month >= 12 || month <= 2) season = 'winter';
-
-  const climate = cityClimate[city] || { summer: 25, winter: 10, spring: 18, autumn: 15 };
-  const temperature = climate[season];
-  
-  const weatherDescriptions = {
-    'summer': 'clear skies and warm sunshine',
-    'winter': 'crisp air with possible clouds',
-    'spring': 'mild weather with gentle breeze',
-    'autumn': 'cool air with changing leaves'
-  };
-
-  return {
-    temperature,
-    description: weatherDescriptions[season],
-    humidity: 60,
-    windSpeed: 3
-  };
-}
+// Старые функции погоды удалены - теперь OpenAI получает реальную погоду напрямую
 
 // =============================================================================
 // МОДУЛЬ 4: ГЕНЕРАЦИЯ МЕТА-ИНФОРМАЦИИ
@@ -329,22 +267,34 @@ On September 10th, Paris is yours to discover — from sunrise runs along the Se
 
 Create the subtitle:`;
 
-  // Получаем реальные данные о погоде
-  const realWeather = await getRealWeather(city, date);
-  
-  const clothingPrompt = `Based on the real weather data, give specific clothing advice for ${city} on ${date}.
-Weather: ${realWeather.description}, ${realWeather.temperature}°C
-Keep the tone light, friendly, and aligned with the concept: ${concept}
+  const weatherPrompt = `Get the real current weather for ${city} on ${date} and provide clothing recommendations.
 
-Give 1-2 sentences about what to wear to stay comfortable all day.
+IMPORTANT: Look up the actual weather conditions for ${city} on ${date} using your knowledge of weather patterns and current data.
+Provide the real temperature in Celsius and weather description.
+Then give specific clothing advice for staying comfortable all day.
+
+City: ${city}
+Date: ${date}
+Creative concept: ${concept}
+
+Response format in JSON:
+{
+  "temperature": "actual temperature number",
+  "description": "actual weather description",
+  "clothing": "specific clothing advice for this weather"
+}
 
 Example Output:
-Light layers and comfortable shoes will keep you ready for every moment.
+{
+  "temperature": "15",
+  "description": "cool air with changing leaves",
+  "clothing": "With the cool air, a light jacket or a comfortable sweater paired with your favorite jeans would be ideal. Don't forget your comfortable shoes for exploring!"
+}
 
-Create clothing advice:`;
+Get real weather for ${city} on ${date}:`;
 
   try {
-    const [titleResponse, subtitleResponse, clothingResponse] = await Promise.all([
+    const [titleResponse, subtitleResponse, weatherResponse] = await Promise.all([
       openai.chat.completions.create({
         model: "gpt-4",
         messages: [{ role: "user", content: titlePrompt }],
@@ -359,18 +309,32 @@ Create clothing advice:`;
       }),
       openai.chat.completions.create({
         model: "gpt-4",
-        messages: [{ role: "user", content: clothingPrompt }],
-        max_tokens: 80,
+        messages: [{ role: "user", content: weatherPrompt }],
+        max_tokens: 150,
         temperature: 0.7
       })
     ]);
+
+    // Парсим погодный ответ от OpenAI
+    let weatherData;
+    try {
+      const weatherContent = weatherResponse.choices[0].message.content.trim();
+      weatherData = JSON.parse(weatherContent);
+    } catch (parseError) {
+      console.log('Weather response not in JSON format, using fallback');
+      weatherData = {
+        temperature: "22",
+        description: "pleasant weather",
+        clothing: "Comfortable clothing recommended"
+      };
+    }
 
     const result = {
       title: titleResponse.choices[0].message.content.trim().replace(/^["']|["']$/g, ''),
       subtitle: subtitleResponse.choices[0].message.content.trim().replace(/^["']|["']$/g, ''),
       weather: {
-        forecast: `${realWeather.description}, ${realWeather.temperature}°C`,
-        clothing: clothingResponse.choices[0].message.content.trim(),
+        forecast: `${weatherData.description}, ${weatherData.temperature}°C`,
+        clothing: weatherData.clothing,
         tips: 'Perfect weather for exploring!'
       }
     };
