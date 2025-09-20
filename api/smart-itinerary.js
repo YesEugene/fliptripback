@@ -472,7 +472,33 @@ export default async function handler(req, res) {
       };
     }));
 
-    const totalCost = activities.reduce((sum, act) => sum + act.price, 0);
+    // МОДУЛЬ КОНТРОЛЯ БЮДЖЕТА: корректируем цены под бюджет ±30%
+    const targetBudget = parseInt(budget);
+    const budgetMin = targetBudget * 0.7;
+    const budgetMax = targetBudget * 1.3;
+    
+    let totalCost = activities.reduce((sum, act) => sum + act.price, 0);
+    console.log(`💰 БЮДЖЕТ-КОНТРОЛЬ: Начальная сумма ${totalCost}€, целевой бюджет ${targetBudget}€ (${budgetMin}-${budgetMax}€)`);
+    
+    // Если сумма не в пределах бюджета, корректируем цены пропорционально
+    if (totalCost < budgetMin || totalCost > budgetMax) {
+      const adjustmentFactor = targetBudget / totalCost;
+      console.log(`💰 Корректируем цены с коэффициентом ${adjustmentFactor.toFixed(2)}`);
+      
+      activities = activities.map(activity => {
+        const adjustedPrice = Math.round(activity.price * adjustmentFactor);
+        const adjustedRange = formatPriceRange(activity.category, 2, city); // Пересчитываем диапазон
+        
+        return {
+          ...activity,
+          price: adjustedPrice,
+          priceRange: adjustedRange
+        };
+      });
+      
+      totalCost = activities.reduce((sum, act) => sum + act.price, 0);
+      console.log(`💰 БЮДЖЕТ-КОНТРОЛЬ: Скорректированная сумма ${totalCost}€`);
+    }
 
     const result = {
       title: metaInfo.title,
