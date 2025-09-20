@@ -527,3 +527,4 @@ export default async function handler(req, res) {
     });
   }
 }
+// FORCE DEPLOY: Current state with budget control and realistic pricing
