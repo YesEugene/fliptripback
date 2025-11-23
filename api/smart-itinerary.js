@@ -524,8 +524,8 @@ export default async function handler(req, res) {
 
   try {
     console.log('🚀 SMART ITINERARY: Handler started');
-    const { city, audience, interests, date, budget } = req.body;
-    console.log('📝 Request data:', { city, audience, interests, date, budget });
+    const { city, audience, interests, date, budget, previewOnly } = req.body;
+    console.log('📝 Request data:', { city, audience, interests, date, budget, previewOnly });
 
     // Проверяем API ключи
     if (!process.env.OPENAI_API_KEY || !process.env.GOOGLE_MAPS_KEY) {
@@ -543,8 +543,12 @@ export default async function handler(req, res) {
     // МОДУЛЬ 4: Генерируем мета-информацию
     const metaInfo = await generateMetaInfo(city, audience, interests, date, dayConcept.concept);
 
+    // Если previewOnly=true, генерируем только первые 2 локации
+    const locationsToProcess = previewOnly ? locations.slice(0, 2) : locations;
+    console.log(`📋 Processing ${locationsToProcess.length} locations (previewOnly: ${previewOnly})`);
+
     // МОДУЛИ 2-3: Генерируем описания и рекомендации для каждого места
-    let activities = await Promise.all(locations.map(async (slot) => {
+    let activities = await Promise.all(locationsToProcess.map(async (slot) => {
       const place = slot.realPlace;
       
       const [description, recommendations] = await Promise.all([
@@ -606,6 +610,8 @@ export default async function handler(req, res) {
       city,
       date,
       budget,
+      audience,
+      interests,
       conceptual_plan: {
         concept: dayConcept.concept,
         architecture: "clean_modular"
@@ -613,10 +619,15 @@ export default async function handler(req, res) {
       weather: metaInfo.weather,
       activities,
       totalCost,
-      withinBudget: totalCost <= parseInt(budget)
+      withinBudget: totalCost <= parseInt(budget),
+      previewOnly: previewOnly || false,
+      totalLocations: locations.length, // Общее количество локаций для полного плана
+      // Сохраняем dayConcept и timeSlots для генерации полного плана позже
+      dayConcept: previewOnly ? dayConcept : undefined, // Сохраняем только для preview
+      timeSlots: previewOnly ? dayConcept.timeSlots : undefined // Сохраняем только для preview
     };
 
-    console.log('✅ FLIPTRIP CLEAN: План успешно создан');
+    console.log(`✅ FLIPTRIP CLEAN: План успешно создан (${activities.length} activities, previewOnly: ${previewOnly})`);
     return res.status(200).json(result);
 
   } catch (error) {

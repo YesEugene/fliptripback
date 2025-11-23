@@ -21,10 +21,10 @@ export default async function handler(req, res) {
     console.log('📧 EMAIL: Starting email send process...');
     console.log('📝 Request body:', JSON.stringify(req.body, null, 2));
 
-    const { email, formData } = req.body;
+    const { email, formData, itineraryId } = req.body;
 
-    if (!email || !formData) {
-      return res.status(400).json({ error: 'Missing required fields: email, formData' });
+    if (!email) {
+      return res.status(400).json({ error: 'Missing required field: email' });
     }
 
     // Проверяем API ключи
@@ -36,7 +36,7 @@ export default async function handler(req, res) {
     console.log('✅ EMAIL: API keys present');
 
     // Генерируем ссылку на страницу результатов
-    const itineraryLink = generateItineraryLink(formData);
+    const itineraryLink = generateItineraryLink(formData, itineraryId);
     
     // Генерируем простой HTML email со ссылкой
     const htmlContent = generateSimpleEmailHTML(formData, itineraryLink);
@@ -74,16 +74,26 @@ export default async function handler(req, res) {
 // ГЕНЕРАЦИЯ ССЫЛКИ НА СТРАНИЦУ РЕЗУЛЬТАТОВ
 // =============================================================================
 
-function generateItineraryLink(formData) {
-  const params = new URLSearchParams({
-    city: formData.city,
-    audience: formData.audience,
-    interests: Array.isArray(formData.interests) ? formData.interests.join(',') : formData.interests,
-    date: formData.date,
-    budget: formData.budget
-  });
+function generateItineraryLink(formData, itineraryId) {
+  // If itineraryId is provided, use it (preferred method)
+  if (itineraryId) {
+    return `https://flip-trip.com/itinerary?id=${encodeURIComponent(itineraryId)}&full=true`;
+  }
   
-  return `https://flip-trip.com/itinerary?${params.toString()}`;
+  // Fallback to form data params
+  if (formData) {
+    const params = new URLSearchParams({
+      city: formData.city,
+      audience: formData.audience,
+      interests: Array.isArray(formData.interests) ? formData.interests.join(',') : formData.interests,
+      date: formData.date,
+      budget: formData.budget
+    });
+    return `https://flip-trip.com/itinerary?${params.toString()}`;
+  }
+  
+  // Last resort
+  return 'https://flip-trip.com';
 }
 
 // =============================================================================
