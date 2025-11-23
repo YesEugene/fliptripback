@@ -1,6 +1,11 @@
 // FlipTrip Clean Backend - Complete Itinerary API
 // Генерирует полный план на основе сохраненного частичного плана
-import { kv } from '@vercel/kv';
+import { Redis } from '@upstash/redis';
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN,
+});
 import OpenAI from 'openai';
 import { Client } from '@googlemaps/google-maps-services-js';
 
@@ -133,8 +138,8 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Itinerary ID is required' });
     }
 
-    // Load saved partial itinerary from Vercel KV
-    const itineraryData = await kv.get(`itinerary:${itineraryId}`);
+    // Load saved partial itinerary from Upstash Redis
+    const itineraryData = await redis.get(`itinerary:${itineraryId}`);
     
     if (!itineraryData) {
       return res.status(404).json({ error: 'Itinerary not found' });
@@ -280,8 +285,8 @@ export default async function handler(req, res) {
       updatedAt: new Date().toISOString()
     };
 
-    // Save complete itinerary to Vercel KV
-    await kv.set(`itinerary:${itineraryId}`, JSON.stringify(completeItinerary), {
+    // Save complete itinerary to Upstash Redis
+    await redis.set(`itinerary:${itineraryId}`, JSON.stringify(completeItinerary), {
       ex: 60 * 60 * 24 * 30 // Expire after 30 days
     });
 
@@ -294,11 +299,11 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('❌ COMPLETE ITINERARY ERROR:', error.message);
     
-    // Fallback: if KV is not configured
-    if (error.message.includes('KV') || error.message.includes('vercel')) {
+    // Fallback: if Redis is not configured
+    if (error.message.includes('UPSTASH') || error.message.includes('Redis')) {
       return res.status(500).json({ 
-        error: 'Vercel KV not configured. Please set up KV storage in Vercel dashboard.',
-        message: 'Go to Vercel Dashboard > Storage > Create KV Database'
+        error: 'Upstash Redis not configured. Please set up Redis in Vercel Marketplace.',
+        message: 'Go to Vercel Dashboard > Storage > Marketplace > Create Upstash Redis'
       });
     }
     

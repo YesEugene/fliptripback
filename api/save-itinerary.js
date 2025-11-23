@@ -1,5 +1,10 @@
-// FlipTrip Clean Backend - Save Itinerary API (using Vercel KV)
-import { kv } from '@vercel/kv';
+// FlipTrip Clean Backend - Save Itinerary API (using Upstash Redis)
+import { Redis } from '@upstash/redis';
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN,
+});
 
 // Generate unique ID
 function generateId() {
@@ -39,12 +44,12 @@ export default async function handler(req, res) {
       updatedAt: new Date().toISOString()
     };
 
-    // Save to Vercel KV
-    await kv.set(`itinerary:${id}`, JSON.stringify(itineraryData), {
+    // Save to Upstash Redis
+    await redis.set(`itinerary:${id}`, JSON.stringify(itineraryData), {
       ex: 60 * 60 * 24 * 30 // Expire after 30 days
     });
 
-    console.log(`✅ SAVE ITINERARY: Saved itinerary with ID ${id} to Vercel KV`);
+    console.log(`✅ SAVE ITINERARY: Saved itinerary with ID ${id} to Upstash Redis`);
     return res.status(200).json({ 
       success: true, 
       itineraryId: id,
@@ -54,11 +59,11 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('❌ SAVE ITINERARY ERROR:', error.message);
     
-    // Fallback: if KV is not configured, return error with instructions
-    if (error.message.includes('KV') || error.message.includes('vercel')) {
+    // Fallback: if Redis is not configured, return error with instructions
+    if (error.message.includes('UPSTASH') || error.message.includes('Redis')) {
       return res.status(500).json({ 
-        error: 'Vercel KV not configured. Please set up KV storage in Vercel dashboard.',
-        message: 'Go to Vercel Dashboard > Storage > Create KV Database'
+        error: 'Upstash Redis not configured. Please set up Redis in Vercel Marketplace.',
+        message: 'Go to Vercel Dashboard > Storage > Marketplace > Create Upstash Redis'
       });
     }
     

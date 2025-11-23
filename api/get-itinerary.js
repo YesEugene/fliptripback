@@ -1,5 +1,10 @@
-// FlipTrip Clean Backend - Get Itinerary API (using Vercel KV)
-import { kv } from '@vercel/kv';
+// FlipTrip Clean Backend - Get Itinerary API (using Upstash Redis)
+import { Redis } from '@upstash/redis';
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN,
+});
 
 export default async function handler(req, res) {
   // CORS headers
@@ -22,10 +27,10 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Itinerary ID is required' });
     }
 
-    console.log(`📖 GET ITINERARY: Loading itinerary ${id} from Vercel KV...`);
+    console.log(`📖 GET ITINERARY: Loading itinerary ${id} from Upstash Redis...`);
     
-    // Get from Vercel KV
-    const itineraryData = await kv.get(`itinerary:${id}`);
+    // Get from Upstash Redis
+    const itineraryData = await redis.get(`itinerary:${id}`);
 
     if (!itineraryData) {
       return res.status(404).json({ error: 'Itinerary not found' });
@@ -45,11 +50,11 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('❌ GET ITINERARY ERROR:', error.message);
     
-    // Fallback: if KV is not configured
-    if (error.message.includes('KV') || error.message.includes('vercel')) {
+    // Fallback: if Redis is not configured
+    if (error.message.includes('UPSTASH') || error.message.includes('Redis')) {
       return res.status(500).json({ 
-        error: 'Vercel KV not configured. Please set up KV storage in Vercel dashboard.',
-        message: 'Go to Vercel Dashboard > Storage > Create KV Database'
+        error: 'Upstash Redis not configured. Please set up Redis in Vercel Marketplace.',
+        message: 'Go to Vercel Dashboard > Storage > Marketplace > Create Upstash Redis'
       });
     }
     
