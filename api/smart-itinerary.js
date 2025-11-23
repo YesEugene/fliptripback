@@ -29,7 +29,7 @@ CONTEXT:
 
 Step 1. Build a Creative Concept of the Day
 • Take into account the city and what it has to offer.
-• Consider the audience (for him, for her, for a couple, for a child) and adapt the tone of the day accordingly.
+• Consider the audience (solo traveler, couple, family with children, or kids) and adapt the tone of the day accordingly.
 • Use the chosen interests to design a unique and memorable plan, with a balance between activities and meals across time slots (breakfast, lunch, dinner, snacks, activities, nightlife).
 • Respect the budget: the total cost of all locations must fit within the user's budget, with a maximum deviation of ±30%. If the budget is small, include free or affordable activities; if large, suggest exclusive experiences.
 • Enrich the interests with associative ideas (e.g. "sports" → running, cycling, gyms, outdoor activities, sports cafés).
