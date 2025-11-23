@@ -1,40 +1,5 @@
-// FlipTrip Clean Backend - Save Itinerary API
-import { promises as fs } from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const ITINERARIES_FILE = path.join(__dirname, '../data/itineraries.json');
-
-// Ensure data directory exists
-async function ensureDataDir() {
-  const dataDir = path.dirname(ITINERARIES_FILE);
-  try {
-    await fs.access(dataDir);
-  } catch {
-    await fs.mkdir(dataDir, { recursive: true });
-  }
-}
-
-// Load itineraries from file
-async function loadItineraries() {
-  try {
-    await ensureDataDir();
-    const data = await fs.readFile(ITINERARIES_FILE, 'utf-8');
-    return JSON.parse(data);
-  } catch (error) {
-    // If file doesn't exist, return empty object
-    return {};
-  }
-}
-
-// Save itineraries to file
-async function saveItineraries(itineraries) {
-  await ensureDataDir();
-  await fs.writeFile(ITINERARIES_FILE, JSON.stringify(itineraries, null, 2), 'utf-8');
-}
+// FlipTrip Clean Backend - Save Itinerary API (using Vercel KV)
+import { kv } from '@vercel/kv';
 
 // Generate unique ID
 function generateId() {
@@ -63,34 +28,43 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Itinerary data is required' });
     }
 
-    const itineraries = await loadItineraries();
-    
     // Use provided ID or generate new one
     const id = itineraryId || generateId();
     
-    // Save itinerary with timestamp
-    itineraries[id] = {
+    // Prepare itinerary data with metadata
+    const itineraryData = {
       ...itinerary,
       id,
       createdAt: itinerary.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
 
-    await saveItineraries(itineraries);
+    // Save to Vercel KV
+    await kv.set(`itinerary:${id}`, JSON.stringify(itineraryData), {
+      ex: 60 * 60 * 24 * 30 // Expire after 30 days
+    });
 
-    console.log(`✅ SAVE ITINERARY: Saved itinerary with ID ${id}`);
+    console.log(`✅ SAVE ITINERARY: Saved itinerary with ID ${id} to Vercel KV`);
     return res.status(200).json({ 
       success: true, 
       itineraryId: id,
-      itinerary: itineraries[id]
+      itinerary: itineraryData
     });
 
   } catch (error) {
     console.error('❌ SAVE ITINERARY ERROR:', error.message);
+    
+    // Fallback: if KV is not configured, return error with instructions
+    if (error.message.includes('KV') || error.message.includes('vercel')) {
+      return res.status(500).json({ 
+        error: 'Vercel KV not configured. Please set up KV storage in Vercel dashboard.',
+        message: 'Go to Vercel Dashboard > Storage > Create KV Database'
+      });
+    }
+    
     return res.status(500).json({ 
       error: 'Failed to save itinerary', 
       message: error.message
     });
   }
 }
-

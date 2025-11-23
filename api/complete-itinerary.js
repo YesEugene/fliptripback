@@ -1,42 +1,14 @@
 // FlipTrip Clean Backend - Complete Itinerary API
 // Генерирует полный план на основе сохраненного частичного плана
-import { promises as fs } from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { kv } from '@vercel/kv';
 import OpenAI from 'openai';
 import { Client } from '@googlemaps/google-maps-services-js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const ITINERARIES_FILE = path.join(__dirname, '../data/itineraries.json');
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
 const googleMapsClient = new Client({});
-
-// Load itineraries from file
-async function loadItineraries() {
-  try {
-    const data = await fs.readFile(ITINERARIES_FILE, 'utf-8');
-    return JSON.parse(data);
-  } catch (error) {
-    return {};
-  }
-}
-
-// Save itineraries to file
-async function saveItineraries(itineraries) {
-  const dataDir = path.dirname(ITINERARIES_FILE);
-  try {
-    await fs.access(dataDir);
-  } catch {
-    await fs.mkdir(dataDir, { recursive: true });
-  }
-  await fs.writeFile(ITINERARIES_FILE, JSON.stringify(itineraries, null, 2), 'utf-8');
-}
 
 // Import functions from smart-itinerary.js
 // We'll need to duplicate the logic or import it
@@ -161,13 +133,16 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Itinerary ID is required' });
     }
 
-    // Load saved partial itinerary
-    const itineraries = await loadItineraries();
-    const partialItinerary = itineraries[itineraryId];
-
-    if (!partialItinerary) {
+    // Load saved partial itinerary from Vercel KV
+    const itineraryData = await kv.get(`itinerary:${itineraryId}`);
+    
+    if (!itineraryData) {
       return res.status(404).json({ error: 'Itinerary not found' });
     }
+    
+    const partialItinerary = typeof itineraryData === 'string' 
+      ? JSON.parse(itineraryData) 
+      : itineraryData;
 
     if (!partialItinerary.previewOnly) {
       // Already complete
@@ -305,9 +280,10 @@ export default async function handler(req, res) {
       updatedAt: new Date().toISOString()
     };
 
-    // Save complete itinerary
-    itineraries[itineraryId] = completeItinerary;
-    await saveItineraries(itineraries);
+    // Save complete itinerary to Vercel KV
+    await kv.set(`itinerary:${itineraryId}`, JSON.stringify(completeItinerary), {
+      ex: 60 * 60 * 24 * 30 // Expire after 30 days
+    });
 
     console.log(`✅ COMPLETE ITINERARY: Full plan generated with ${allActivities.length} activities`);
     return res.status(200).json({ 
@@ -317,6 +293,15 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('❌ COMPLETE ITINERARY ERROR:', error.message);
+    
+    // Fallback: if KV is not configured
+    if (error.message.includes('KV') || error.message.includes('vercel')) {
+      return res.status(500).json({ 
+        error: 'Vercel KV not configured. Please set up KV storage in Vercel dashboard.',
+        message: 'Go to Vercel Dashboard > Storage > Create KV Database'
+      });
+    }
+    
     return res.status(500).json({ 
       error: 'Failed to complete itinerary', 
       message: error.message
