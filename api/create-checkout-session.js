@@ -21,7 +21,7 @@ export default async function handler(req, res) {
     console.log('💳 PAYMENT: Creating checkout session...');
     console.log('📝 Form data received:', req.body);
 
-    const { city, audience, interests, date, budget, email } = req.body;
+    const { city, audience, interests, date, budget, email, itineraryId } = req.body;
 
     if (!city || !audience || !email) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -37,15 +37,16 @@ export default async function handler(req, res) {
         },
       ],
       mode: 'payment',
-      success_url: `https://fliptripfront.vercel.app/itinerary?city=${encodeURIComponent(city)}&audience=${encodeURIComponent(audience)}&interests=${encodeURIComponent(Array.isArray(interests) ? interests.join(',') : interests)}&date=${encodeURIComponent(date)}&budget=${encodeURIComponent(budget)}&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `https://fliptripfront.vercel.app/preview?city=${encodeURIComponent(city)}&audience=${encodeURIComponent(audience)}&interests=${encodeURIComponent(Array.isArray(interests) ? interests.join(',') : interests)}&date=${encodeURIComponent(date)}&budget=${encodeURIComponent(budget)}`,
+      success_url: `https://flip-trip.com/success?city=${encodeURIComponent(city)}&audience=${encodeURIComponent(audience)}&interests=${encodeURIComponent(Array.isArray(interests) ? interests.join(',') : interests)}&date=${encodeURIComponent(date)}&budget=${encodeURIComponent(budget)}&email=${encodeURIComponent(email)}&session_id={CHECKOUT_SESSION_ID}${itineraryId ? `&id=${encodeURIComponent(itineraryId)}&full=true` : ''}`,
+      cancel_url: `https://flip-trip.com/itinerary?city=${encodeURIComponent(city)}&audience=${encodeURIComponent(audience)}&interests=${encodeURIComponent(Array.isArray(interests) ? interests.join(',') : interests)}&date=${encodeURIComponent(date)}&budget=${encodeURIComponent(budget)}${itineraryId ? `&id=${encodeURIComponent(itineraryId)}` : ''}`,
       metadata: {
         city,
         audience,
         interests: Array.isArray(interests) ? interests.join(',') : interests,
         date,
         budget,
-        email
+        email,
+        itineraryId: itineraryId || ''
       }
     });
 
