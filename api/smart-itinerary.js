@@ -147,13 +147,20 @@ async function findRealLocations(timeSlots, city) {
 async function generateLocationDescription(locationName, address, category, interests, audience, concept) {
   console.log(`✍️ МОДУЛЬ 2: Генерация описания для ${locationName}...`);
   
-  const prompt = `IMPORTANT: Write EXACTLY 3 complete sentences in English about this location.
-Create a rich, immersive description that captures the essence, atmosphere, history, and unique character of the place.
-Describe what makes this location special, what visitors will experience, feel, see, hear, and discover.
-Include sensory details, emotional impact, and cultural significance.
-Connect the description to the user's interests and the creative concept of the day.
-Make it so vivid that the reader can almost be there.
-REQUIREMENT: Your response must contain exactly 3 complete sentences with periods.
+  const prompt = `You are a masterful travel writer creating an immersive, vivid description of ${locationName} in ${address}.
+
+TASK: Write a rich, detailed description in EXACTLY 3-5 complete sentences (aim for 4-5 sentences for depth).
+
+REQUIREMENTS:
+- Capture the essence, atmosphere, history, and unique character of this ${category}
+- Describe what makes this location special and memorable
+- Include sensory details: what visitors will see, hear, smell, taste, and feel
+- Mention the emotional impact and cultural significance
+- Connect to the user's interests: ${Array.isArray(interests) ? interests.join(', ') : interests}
+- Reflect the creative concept: ${concept}
+- Make it vivid and engaging - the reader should feel they are already there
+- Use descriptive, evocative language
+- Each sentence should add new information and depth
 
 Location: ${locationName}
 Address: ${address}
@@ -162,17 +169,17 @@ User interests: ${Array.isArray(interests) ? interests.join(', ') : interests}
 Audience: ${audience}
 Creative concept: ${concept}
 
-Example Output:
-Your afternoon unfolds at Marché des Enfants Rouges, Paris's oldest covered market, where centuries of culinary tradition come alive in a symphony of colors, aromas, and flavors. The moment you step inside, the bustling energy envelops you — vendors calling out their daily specials, the sizzle of fresh ingredients hitting hot pans, and the cheerful chatter of locals sharing their favorite discoveries. Here, food transcends mere sustenance to become a celebration of cultures from around the world, each stall telling its own story through authentic recipes passed down through generations. The market's historic iron and glass architecture creates a cathedral-like space where natural light filters through, illuminating displays of vibrant produce, artisanal cheeses, and exotic spices that awaken all your senses.
+Example of rich description:
+Your afternoon unfolds at Marché des Enfants Rouges, Paris's oldest covered market, where centuries of culinary tradition come alive in a symphony of colors, aromas, and flavors. The moment you step inside, the bustling energy envelops you — vendors calling out their daily specials, the sizzle of fresh ingredients hitting hot pans, and the cheerful chatter of locals sharing their favorite discoveries. Here, food transcends mere sustenance to become a celebration of cultures from around the world, each stall telling its own story through authentic recipes passed down through generations. The market's historic iron and glass architecture creates a cathedral-like space where natural light filters through, illuminating displays of vibrant produce, artisanal cheeses, and exotic spices that awaken all your senses. This is where locals and travelers alike gather to experience the true heartbeat of Parisian culinary culture, making it an essential stop for anyone seeking authentic flavors and genuine connections.
 
-Create the description:`;
+Now create a similarly rich, detailed description for ${locationName}:`;
 
   try {
     const response = await openai.chat.completions.create({
       model: "gpt-4",
       messages: [{ role: "user", content: prompt }],
-      max_tokens: 400,
-      temperature: 0.8
+      max_tokens: 500,
+      temperature: 0.9
     });
 
     const description = response.choices[0].message.content.trim();
@@ -282,27 +289,43 @@ function formatPriceRange(category, priceLevel, city) {
 async function generateMetaInfo(city, audience, interests, date, concept) {
   console.log('🏷️ МОДУЛЬ 4: Генерация заголовков и погоды...');
   
-  const titlePrompt = `Write a short and inspiring title in English for the day's itinerary.
-It must include the city name and reflect the chosen interests.
-Always follow the creative concept of the day. Maximum one sentence.
+  const titlePrompt = `Write a short, inspiring, and memorable title in English for the day's itinerary.
+
+REQUIREMENTS:
+* Be creative, unique, and evocative
+* Include or reflect the city name: ${city}
+* Reflect the chosen interests: ${Array.isArray(interests) ? interests.join(', ') : interests}
+* Consider the audience: ${audience}
+* Connect to the creative concept: ${concept}
+* Make it exciting and memorable
+* Length: 3–7 words maximum
+* Use dynamic, engaging language
 
 City: ${city}
 Interests: ${Array.isArray(interests) ? interests.join(', ') : interests}
 Audience: ${audience}
 Creative concept: ${concept}
 
-Example Output:
-Paris in Motion: A Day Built for Him
+Examples:
+- "Paris Romance" (for romantic interests)
+- "Barcelona Culinary Journey" (for food interests)
+- "Rome Cultural Heritage" (for culture/history interests)
+- "Barcelona Adventure Discovery" (for adventure interests)
 
-Create the title:`;
+Create a personalized, dynamic title for this itinerary:`;
 
-  const subtitlePrompt = `Write a long and inspiring subtitle in English for the day's itinerary.
-* Mention the date,
-* Reflect the city,
-* Include the chosen interests and selected locations,
-* Describe the rhythm of the day from morning to night,
-* Always follow the creative concept of the day. A tone of voice should make the reader want to experience this day immediately.
-Length: 3–4 sentences.
+  const subtitlePrompt = `Write a long, inspiring, and detailed subtitle in English for the day's itinerary.
+
+REQUIREMENTS:
+* Mention the date: ${date}
+* Reflect the city: ${city}
+* Include the chosen interests: ${Array.isArray(interests) ? interests.join(', ') : interests}
+* Consider the audience: ${audience}
+* Describe the rhythm and flow of the day from morning to night
+* Connect to the creative concept: ${concept}
+* Use evocative, engaging language that makes the reader want to experience this day immediately
+* Create anticipation and excitement
+* Length: 4–5 sentences for depth and richness
 
 City: ${city}
 Date: ${date}
@@ -311,9 +334,9 @@ Audience: ${audience}
 Creative concept: ${concept}
 
 Example Output:
-On September 10th, Paris is yours to discover — from sunrise runs along the Seine to local markets alive with flavor, from bold art and rooftop skies to the pulse of its legendary nightlife. Every step is planned, every hour alive with energy, and the city carries you through a day made to be unforgettable.
+On September 10th, Paris is yours to discover — from sunrise runs along the Seine to local markets alive with flavor, from bold art and rooftop skies to the pulse of its legendary nightlife. Every step is planned, every hour alive with energy, and the city carries you through a day made to be unforgettable. Experience authentic moments, create lasting memories, and let the city's unique charm captivate your heart. An extraordinary adventure awaits your arrival.
 
-Create the subtitle:`;
+Create a similarly rich, detailed subtitle for this itinerary:`;
 
   const weatherPrompt = `You are providing weather information for travel planning.
 
@@ -424,7 +447,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { city, audience, interests, date, budget } = req.body;
+    const { city, audience, interests, date, budget, previewOnly } = req.body;
     console.log('🚀 FLIPTRIP CLEAN: Генерация плана для:', { city, audience, interests, date, budget });
 
     // Проверяем API ключи
@@ -472,6 +495,12 @@ export default async function handler(req, res) {
       };
     }));
 
+    // Если previewOnly, ограничиваем до первых 2 активностей
+    if (previewOnly) {
+      console.log('👁️ PREVIEW MODE: Ограничиваем до первых 2 активностей');
+      activities = activities.slice(0, 2);
+    }
+
     // МОДУЛЬ КОНТРОЛЯ БЮДЖЕТА: корректируем цены под бюджет ±30%
     const targetBudget = parseInt(budget);
     const budgetMin = targetBudget * 0.7;
@@ -508,12 +537,14 @@ export default async function handler(req, res) {
       budget,
       conceptual_plan: {
         concept: dayConcept.concept,
-        architecture: "clean_modular"
+        architecture: "clean_modular",
+        timeSlots: dayConcept.timeSlots // Сохраняем полный список слотов для последующей генерации
       },
       weather: metaInfo.weather,
       activities,
       totalCost,
-      withinBudget: totalCost <= parseInt(budget)
+      withinBudget: totalCost <= parseInt(budget),
+      previewOnly: previewOnly || false // Сохраняем флаг preview режима
     };
 
     console.log('✅ FLIPTRIP CLEAN: План успешно создан');
