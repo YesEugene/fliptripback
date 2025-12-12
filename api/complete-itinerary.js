@@ -53,13 +53,15 @@ export default async function handler(req, res) {
     }
 
     console.log(`🔄 COMPLETE ITINERARY: Loading preview plan for ID: ${itineraryId}`);
-    const savedItineraryString = await redis.get(`itinerary:${itineraryId}`);
+    const savedItineraryData = await redis.get(`itinerary:${itineraryId}`);
 
-    if (!savedItineraryString) {
+    if (!savedItineraryData) {
       return res.status(404).json({ success: false, error: 'Preview itinerary not found' });
     }
 
-    const savedItinerary = JSON.parse(savedItineraryString);
+    // Upstash Redis может вернуть уже распарсенный объект или строку
+    const savedItinerary = typeof savedItineraryData === 'string' ? JSON.parse(savedItineraryData) : savedItineraryData;
+    console.log('✅ Loaded preview itinerary, activities count:', savedItinerary.activities?.length);
     const { city, audience, interests, date, budget } = formData;
 
     // Ensure API keys are present
