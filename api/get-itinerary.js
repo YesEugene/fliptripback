@@ -34,11 +34,14 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, error: 'Itinerary ID is required' });
     }
 
-    const itineraryString = await redis.get(`itinerary:${id}`);
+    const itineraryData = await redis.get(`itinerary:${id}`);
 
-    if (itineraryString) {
-      const itinerary = JSON.parse(itineraryString);
+    if (itineraryData) {
+      // Upstash Redis может вернуть уже распарсенный объект или строку
+      const itinerary = typeof itineraryData === 'string' ? JSON.parse(itineraryData) : itineraryData;
       console.log(`✅ Itinerary loaded from Redis with ID: ${id}`);
+      console.log(`📊 Itinerary previewOnly flag: ${itinerary.previewOnly}`);
+      console.log(`📊 Itinerary activities count: ${itinerary.activities?.length || 0}`);
       return res.status(200).json({ success: true, itinerary });
     } else {
       console.log(`⚠️ Itinerary with ID: ${id} not found in Redis`);
