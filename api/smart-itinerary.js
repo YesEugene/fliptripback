@@ -448,7 +448,7 @@ export default async function handler(req, res) {
 
   try {
     const { city, audience, interests, date, budget, previewOnly } = req.body;
-    console.log('🚀 FLIPTRIP CLEAN: Генерация плана для:', { city, audience, interests, date, budget });
+    console.log('🚀 FLIPTRIP CLEAN: Генерация плана для:', { city, audience, interests, date, budget, previewOnly });
 
     // Проверяем API ключи
     if (!process.env.OPENAI_API_KEY || !process.env.GOOGLE_MAPS_KEY) {
@@ -498,7 +498,9 @@ export default async function handler(req, res) {
     // Если previewOnly, ограничиваем до первых 2 активностей
     if (previewOnly) {
       console.log('👁️ PREVIEW MODE: Ограничиваем до первых 2 активностей');
+      console.log(`📊 До ограничения: ${activities.length} активностей`);
       activities = activities.slice(0, 2);
+      console.log(`📊 После ограничения: ${activities.length} активностей`);
     }
 
     // МОДУЛЬ КОНТРОЛЯ БЮДЖЕТА: корректируем цены под бюджет ±30%
