@@ -496,9 +496,13 @@ export default async function handler(req, res) {
     }));
 
     // Если previewOnly, ограничиваем до первых 2 активностей
-    if (previewOnly) {
+    if (previewOnly === true || previewOnly === 'true') {
       console.log('👁️ PREVIEW MODE: Ограничиваем до первых 2 активностей');
+      console.log(`📊 До ограничения: ${activities.length} активностей`);
       activities = activities.slice(0, 2);
+      console.log(`📊 После ограничения: ${activities.length} активностей`);
+    } else {
+      console.log('📊 FULL MODE: Генерируем полный план, previewOnly:', previewOnly);
     }
 
     // МОДУЛЬ КОНТРОЛЯ БЮДЖЕТА: корректируем цены под бюджет ±30%
