@@ -478,7 +478,7 @@ export default async function handler(req, res) {
     const metaInfo = await generateMetaInfo(city, audience, interests, date, dayConcept.concept);
 
     // МОДУЛИ 2-3: Генерируем описания и рекомендации для каждого места
-    const activities = await Promise.all(locations.map(async (slot) => {
+    let activities = await Promise.all(locations.map(async (slot) => {
       const place = slot.realPlace;
       
       const [description, recommendations] = await Promise.all([
