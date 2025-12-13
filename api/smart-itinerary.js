@@ -15,7 +15,7 @@ const googleMapsClient = new Client({});
 // МОДУЛЬ 0: ГЕНЕРАЦИЯ КОНЦЕПЦИИ ДНЯ
 // =============================================================================
 
-export async function generateDayConcept(city, audience, interests, date, budget) {
+async function generateDayConcept(city, audience, interests, date, budget) {
   console.log('🎨 МОДУЛЬ 0: Создание концепции дня...');
   
   const prompt = `You are a creative travel planner. Based on the input data (city, date, interests, audience, budget), create a full-day itinerary that runs from 9:00 AM to around 9:30 PM.
@@ -75,7 +75,7 @@ Make it creative, locally relevant, and perfectly suited for ${audience} interes
 // МОДУЛЬ 1: ПОИСК РЕАЛЬНЫХ МЕСТ
 // =============================================================================
 
-export async function findRealLocations(timeSlots, city) {
+async function findRealLocations(timeSlots, city) {
   console.log('📍 МОДУЛЬ 1: Поиск реальных мест...');
   
   const locations = [];
@@ -144,7 +144,7 @@ export async function findRealLocations(timeSlots, city) {
 // МОДУЛЬ 2: ГЕНЕРАЦИЯ ОПИСАНИЙ ЛОКАЦИЙ
 // =============================================================================
 
-export async function generateLocationDescription(locationName, address, category, interests, audience, concept) {
+async function generateLocationDescription(locationName, address, category, interests, audience, concept) {
   console.log(`✍️ МОДУЛЬ 2: Генерация описания для ${locationName}...`);
   
   const prompt = `You are a masterful travel writer creating an immersive, vivid description of ${locationName} in ${address}.
@@ -195,7 +195,7 @@ Now create a similarly rich, detailed description for ${locationName}:`;
 // МОДУЛЬ 3: ГЕНЕРАЦИЯ РЕКОМЕНДАЦИЙ
 // =============================================================================
 
-export async function generateLocationRecommendations(locationName, category, interests, audience, concept) {
+async function generateLocationRecommendations(locationName, category, interests, audience, concept) {
   console.log(`💡 МОДУЛЬ 3: Генерация рекомендаций для ${locationName}...`);
   
   const prompt = `IMPORTANT: Write EXACTLY 1 complete sentence in English with practical tips for visiting this location.
@@ -236,7 +236,7 @@ Create the tips:`;
 // МОДУЛЬ ЦЕНООБРАЗОВАНИЯ: Google Places price_level → реальные цены
 // =============================================================================
 
-export function calculateRealPrice(category, priceLevel, city) {
+function calculateRealPrice(category, priceLevel, city) {
   console.log(`💰 МОДУЛЬ ЦЕНЫ: Расчет для ${category}, уровень ${priceLevel}, город ${city}`);
   
   // Базовые цены по категориям (price_level: 0=бесплатно, 1=дешево, 2=средне, 3=дорого, 4=очень дорого)
@@ -271,7 +271,7 @@ export function calculateRealPrice(category, priceLevel, city) {
   return realPrice;
 }
 
-export function formatPriceRange(category, priceLevel, city) {
+function formatPriceRange(category, priceLevel, city) {
   const price = calculateRealPrice(category, priceLevel, city);
   
   if (price === 0) return 'Free';
@@ -465,7 +465,7 @@ export default async function handler(req, res) {
     const metaInfo = await generateMetaInfo(city, audience, interests, date, dayConcept.concept);
 
     // МОДУЛИ 2-3: Генерируем описания и рекомендации для каждого места
-    let activities = await Promise.all(locations.map(async (slot) => {
+    const activities = await Promise.all(locations.map(async (slot) => {
       const place = slot.realPlace;
       
       const [description, recommendations] = await Promise.all([
@@ -498,9 +498,7 @@ export default async function handler(req, res) {
     // Если previewOnly, ограничиваем до первых 2 активностей
     if (previewOnly) {
       console.log('👁️ PREVIEW MODE: Ограничиваем до первых 2 активностей');
-      console.log(`📊 До ограничения: ${activities.length} активностей`);
       activities = activities.slice(0, 2);
-      console.log(`📊 После ограничения: ${activities.length} активностей`);
     }
 
     // МОДУЛЬ КОНТРОЛЯ БЮДЖЕТА: корректируем цены под бюджет ±30%
