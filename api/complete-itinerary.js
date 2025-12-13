@@ -29,20 +29,13 @@ function getRedis() {
 
 export default async function handler(req, res) {
   // CORS headers - УСТАНАВЛИВАЕМ ПЕРВЫМИ, ДО ЛЮБЫХ ДРУГИХ ОПЕРАЦИЙ
-  try {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-    res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
-    
-    // Handle preflight OPTIONS request
-    if (req.method === 'OPTIONS') {
-      return res.status(200).end();
-    }
-  } catch (corsError) {
-    console.error('❌ CORS setup error:', corsError);
-    // Even if CORS setup fails, try to return something
-    return res.status(200).json({ error: 'CORS setup failed' });
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
   }
 
   if (req.method !== 'POST') {
@@ -51,14 +44,10 @@ export default async function handler(req, res) {
 
   try {
     const redis = getRedis();
-    const { itineraryId, formData } = req.body;
+    const { itineraryId, ...formData } = req.body; // Извлекаем itineraryId, остальное - formData
 
     if (!itineraryId) {
       return res.status(400).json({ success: false, error: 'Itinerary ID is required' });
-    }
-
-    if (!formData) {
-      return res.status(400).json({ success: false, error: 'Form data is required' });
     }
 
     console.log(`🔄 COMPLETE ITINERARY: Loading preview plan for ID: ${itineraryId}`);
@@ -69,9 +58,7 @@ export default async function handler(req, res) {
     }
 
     // Upstash Redis может вернуть уже распарсенный объект или строку
-    const savedItinerary = typeof savedItineraryData === 'string' 
-      ? JSON.parse(savedItineraryData) 
-      : savedItineraryData;
+    const savedItinerary = typeof savedItineraryData === 'string' ? JSON.parse(savedItineraryData) : savedItineraryData;
     const { city, audience, interests, date, budget } = formData;
 
     // Ensure API keys are present
@@ -158,16 +145,13 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true, itinerary: fullItinerary });
 
   } catch (error) {
+    // Убеждаемся, что CORS заголовки установлены даже при ошибке
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    
     console.error('❌ COMPLETE ITINERARY ERROR:', error.message);
     console.error('❌ Stack trace:', error.stack);
-    // Убеждаемся, что CORS headers установлены даже при ошибке
-    try {
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-    } catch (corsErr) {
-      console.error('❌ Failed to set CORS headers in error handler:', corsErr);
-    }
     return res.status(500).json({
       success: false,
       error: 'Failed to complete itinerary generation',

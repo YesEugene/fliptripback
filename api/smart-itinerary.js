@@ -75,7 +75,7 @@ Make it creative, locally relevant, and perfectly suited for ${audience} interes
 // МОДУЛЬ 1: ПОИСК РЕАЛЬНЫХ МЕСТ
 // =============================================================================
 
-export async function findRealLocations(timeSlots, city) {
+async function findRealLocations(timeSlots, city) {
   console.log('📍 МОДУЛЬ 1: Поиск реальных мест...');
   
   const locations = [];
@@ -144,16 +144,14 @@ export async function findRealLocations(timeSlots, city) {
 // МОДУЛЬ 2: ГЕНЕРАЦИЯ ОПИСАНИЙ ЛОКАЦИЙ
 // =============================================================================
 
-export async function generateLocationDescription(locationName, address, category, interests, audience, concept) {
+async function generateLocationDescription(locationName, address, category, interests, audience, concept) {
   console.log(`✍️ МОДУЛЬ 2: Генерация описания для ${locationName}...`);
   
   const prompt = `You are a masterful travel writer creating an immersive, vivid description of ${locationName} in ${address}.
 
-CRITICAL: Write a RICH, DETAILED description in EXACTLY 4-5 complete sentences. DO NOT write short or truncated descriptions. Each sentence must be substantial and descriptive.
+TASK: Write a rich, detailed description in EXACTLY 3-5 complete sentences (aim for 4-5 sentences for depth).
 
-REQUIREMENTS (MANDATORY):
-- Write MINIMUM 4 complete sentences, aim for 5 sentences for maximum depth
-- Each sentence must be 15-25 words long - substantial and descriptive
+REQUIREMENTS:
 - Capture the essence, atmosphere, history, and unique character of this ${category}
 - Describe what makes this location special and memorable
 - Include sensory details: what visitors will see, hear, smell, taste, and feel
@@ -161,9 +159,8 @@ REQUIREMENTS (MANDATORY):
 - Connect to the user's interests: ${Array.isArray(interests) ? interests.join(', ') : interests}
 - Reflect the creative concept: ${concept}
 - Make it vivid and engaging - the reader should feel they are already there
-- Use descriptive, evocative language with rich vocabulary
+- Use descriptive, evocative language
 - Each sentence should add new information and depth
-- DO NOT write brief or summary-style descriptions
 
 Location: ${locationName}
 Address: ${address}
@@ -172,16 +169,16 @@ User interests: ${Array.isArray(interests) ? interests.join(', ') : interests}
 Audience: ${audience}
 Creative concept: ${concept}
 
-Example of rich description (5 sentences):
+Example of rich description:
 Your afternoon unfolds at Marché des Enfants Rouges, Paris's oldest covered market, where centuries of culinary tradition come alive in a symphony of colors, aromas, and flavors. The moment you step inside, the bustling energy envelops you — vendors calling out their daily specials, the sizzle of fresh ingredients hitting hot pans, and the cheerful chatter of locals sharing their favorite discoveries. Here, food transcends mere sustenance to become a celebration of cultures from around the world, each stall telling its own story through authentic recipes passed down through generations. The market's historic iron and glass architecture creates a cathedral-like space where natural light filters through, illuminating displays of vibrant produce, artisanal cheeses, and exotic spices that awaken all your senses. This is where locals and travelers alike gather to experience the true heartbeat of Parisian culinary culture, making it an essential stop for anyone seeking authentic flavors and genuine connections.
 
-Now create a similarly rich, detailed description for ${locationName} with MINIMUM 4-5 complete sentences:`;
+Now create a similarly rich, detailed description for ${locationName}:`;
 
   try {
     const response = await openai.chat.completions.create({
       model: "gpt-4",
       messages: [{ role: "user", content: prompt }],
-      max_tokens: 600, // Увеличено для более полных описаний
+      max_tokens: 500,
       temperature: 0.9
     });
 
@@ -198,7 +195,7 @@ Now create a similarly rich, detailed description for ${locationName} with MINIM
 // МОДУЛЬ 3: ГЕНЕРАЦИЯ РЕКОМЕНДАЦИЙ
 // =============================================================================
 
-export async function generateLocationRecommendations(locationName, category, interests, audience, concept) {
+async function generateLocationRecommendations(locationName, category, interests, audience, concept) {
   console.log(`💡 МОДУЛЬ 3: Генерация рекомендаций для ${locationName}...`);
   
   const prompt = `IMPORTANT: Write EXACTLY 1 complete sentence in English with practical tips for visiting this location.
@@ -239,7 +236,7 @@ Create the tips:`;
 // МОДУЛЬ ЦЕНООБРАЗОВАНИЯ: Google Places price_level → реальные цены
 // =============================================================================
 
-export function calculateRealPrice(category, priceLevel, city) {
+function calculateRealPrice(category, priceLevel, city) {
   console.log(`💰 МОДУЛЬ ЦЕНЫ: Расчет для ${category}, уровень ${priceLevel}, город ${city}`);
   
   // Базовые цены по категориям (price_level: 0=бесплатно, 1=дешево, 2=средне, 3=дорого, 4=очень дорого)
@@ -274,7 +271,7 @@ export function calculateRealPrice(category, priceLevel, city) {
   return realPrice;
 }
 
-export function formatPriceRange(category, priceLevel, city) {
+function formatPriceRange(category, priceLevel, city) {
   const price = calculateRealPrice(category, priceLevel, city);
   
   if (price === 0) return 'Free';
@@ -437,20 +434,13 @@ Provide realistic weather for ${city}:`;
 
 export default async function handler(req, res) {
   // CORS headers - УСТАНАВЛИВАЕМ ПЕРВЫМИ, ДО ЛЮБЫХ ДРУГИХ ОПЕРАЦИЙ
-  try {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-    res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
-    
-    // Handle preflight OPTIONS request
-    if (req.method === 'OPTIONS') {
-      return res.status(200).end();
-    }
-  } catch (corsError) {
-    console.error('❌ CORS setup error:', corsError);
-    // Even if CORS setup fails, try to return something
-    return res.status(200).json({ error: 'CORS setup failed' });
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
+  
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
   }
 
   if (req.method !== 'POST') {
@@ -459,9 +449,8 @@ export default async function handler(req, res) {
 
   try {
     const { city, audience, interests, date, budget, previewOnly } = req.body;
-    // Нормализуем previewOnly - может прийти как строка "true"/"false" или boolean
     const isPreviewOnly = previewOnly === true || previewOnly === 'true' || previewOnly === 'True';
-    console.log('🚀 FLIPTRIP CLEAN: Генерация плана для:', { city, audience, interests, date, budget, previewOnly, isPreviewOnly });
+    console.log('🚀 FLIPTRIP CLEAN: Генерация плана для:', { city, audience, interests, date, budget, previewOnly: isPreviewOnly });
 
     // Проверяем API ключи
     if (!process.env.OPENAI_API_KEY || !process.env.GOOGLE_MAPS_KEY) {
@@ -511,11 +500,7 @@ export default async function handler(req, res) {
     // Если previewOnly, ограничиваем до первых 2 активностей
     if (isPreviewOnly) {
       console.log('👁️ PREVIEW MODE: Ограничиваем до первых 2 активностей');
-      console.log(`📊 До ограничения: ${activities.length} активностей`);
       activities = activities.slice(0, 2);
-      console.log(`📊 После ограничения: ${activities.length} активностей`);
-    } else {
-      console.log('📊 FULL MODE: Генерируем полный план, previewOnly:', previewOnly, 'isPreviewOnly:', isPreviewOnly);
     }
 
     // МОДУЛЬ КОНТРОЛЯ БЮДЖЕТА: корректируем цены под бюджет ±30%
@@ -561,7 +546,7 @@ export default async function handler(req, res) {
       activities,
       totalCost,
       withinBudget: totalCost <= parseInt(budget),
-      previewOnly: isPreviewOnly // Используем нормализованное значение
+      previewOnly: isPreviewOnly // Сохраняем флаг preview режима
     };
 
     console.log('✅ FLIPTRIP CLEAN: План успешно создан');
@@ -569,15 +554,9 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('❌ FLIPTRIP CLEAN: Ошибка:', error);
-    console.error('❌ Stack trace:', error.stack);
-    // Убеждаемся, что CORS headers установлены даже при ошибке
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
     return res.status(500).json({ 
       error: 'Generation failed', 
-      message: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      message: error.message 
     });
   }
 }

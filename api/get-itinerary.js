@@ -14,9 +14,11 @@ function getRedis() {
 }
 
 export default async function handler(req, res) {
+  // CORS headers - УСТАНАВЛИВАЕМ ПЕРВЫМИ, ДО ЛЮБЫХ ДРУГИХ ОПЕРАЦИЙ
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -39,15 +41,18 @@ export default async function handler(req, res) {
     if (itineraryData) {
       // Upstash Redis может вернуть уже распарсенный объект или строку
       const itinerary = typeof itineraryData === 'string' ? JSON.parse(itineraryData) : itineraryData;
-      console.log(`✅ Itinerary loaded from Redis with ID: ${id}`);
-      console.log(`📊 Itinerary previewOnly flag: ${itinerary.previewOnly}`);
-      console.log(`📊 Itinerary activities count: ${itinerary.activities?.length || 0}`);
+      console.log(`✅ Itinerary loaded from Redis with ID: ${id}`, { previewOnly: itinerary.previewOnly, activitiesCount: itinerary.activities?.length });
       return res.status(200).json({ success: true, itinerary });
     } else {
       console.log(`⚠️ Itinerary with ID: ${id} not found in Redis`);
       return res.status(404).json({ success: false, error: 'Itinerary not found' });
     }
   } catch (error) {
+    // Убеждаемся, что CORS заголовки установлены даже при ошибке
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    
     console.error('❌ Error getting itinerary from Redis:', error);
     console.error('❌ Environment variables check:', {
       url: process.env.FTSTORAGE_KV_REST_API_URL ? 'set' : 'not set',
