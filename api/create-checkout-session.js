@@ -27,6 +27,19 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
+    if (!itineraryId) {
+      return res.status(400).json({ error: 'Itinerary ID is required' });
+    }
+
+    const frontendUrl = process.env.FRONTEND_URL || 'https://fliptripfront.vercel.app';
+    const interestsParam = Array.isArray(interests) ? interests.join(',') : interests;
+    
+    // Success URL should redirect to success page with all necessary params
+    const successUrl = `${frontendUrl}/success?city=${encodeURIComponent(city)}&audience=${encodeURIComponent(audience)}&interests=${encodeURIComponent(interestsParam)}&date=${encodeURIComponent(date)}&budget=${encodeURIComponent(budget)}&email=${encodeURIComponent(email)}&id=${encodeURIComponent(itineraryId)}&session_id={CHECKOUT_SESSION_ID}`;
+    
+    // Cancel URL should redirect back to itinerary preview
+    const cancelUrl = `${frontendUrl}/itinerary?city=${encodeURIComponent(city)}&audience=${encodeURIComponent(audience)}&interests=${encodeURIComponent(interestsParam)}&date=${encodeURIComponent(date)}&budget=${encodeURIComponent(budget)}&id=${encodeURIComponent(itineraryId)}`;
+
     // Создаем Stripe checkout session
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -37,15 +50,16 @@ export default async function handler(req, res) {
         },
       ],
       mode: 'payment',
-      success_url: `https://fliptripfront.vercel.app/success?city=${encodeURIComponent(city)}&audience=${encodeURIComponent(audience)}&interests=${encodeURIComponent(Array.isArray(interests) ? interests.join(',') : interests)}&date=${encodeURIComponent(date)}&budget=${encodeURIComponent(budget)}&email=${encodeURIComponent(email)}&session_id={CHECKOUT_SESSION_ID}${itineraryId ? `&id=${encodeURIComponent(itineraryId)}` : ''}`,
-      cancel_url: `https://fliptripfront.vercel.app/itinerary?city=${encodeURIComponent(city)}&audience=${encodeURIComponent(audience)}&interests=${encodeURIComponent(Array.isArray(interests) ? interests.join(',') : interests)}&date=${encodeURIComponent(date)}&budget=${encodeURIComponent(budget)}${itineraryId ? `&id=${encodeURIComponent(itineraryId)}` : ''}`,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
       metadata: {
         city,
         audience,
-        interests: Array.isArray(interests) ? interests.join(',') : interests,
+        interests: interestsParam,
         date,
         budget,
-        email
+        email,
+        itineraryId
       }
     });
 
