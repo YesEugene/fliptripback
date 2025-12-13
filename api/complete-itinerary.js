@@ -28,12 +28,21 @@ function getRedis() {
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+  // CORS headers - УСТАНАВЛИВАЕМ ПЕРВЫМИ, ДО ЛЮБЫХ ДРУГИХ ОПЕРАЦИЙ
+  try {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
+    
+    // Handle preflight OPTIONS request
+    if (req.method === 'OPTIONS') {
+      return res.status(200).end();
+    }
+  } catch (corsError) {
+    console.error('❌ CORS setup error:', corsError);
+    // Even if CORS setup fails, try to return something
+    return res.status(200).json({ error: 'CORS setup failed' });
   }
 
   if (req.method !== 'POST') {
@@ -60,8 +69,9 @@ export default async function handler(req, res) {
     }
 
     // Upstash Redis может вернуть уже распарсенный объект или строку
-    const savedItinerary = typeof savedItineraryData === 'string' ? JSON.parse(savedItineraryData) : savedItineraryData;
-    console.log('✅ Loaded preview itinerary, activities count:', savedItinerary.activities?.length);
+    const savedItinerary = typeof savedItineraryData === 'string' 
+      ? JSON.parse(savedItineraryData) 
+      : savedItineraryData;
     const { city, audience, interests, date, budget } = formData;
 
     // Ensure API keys are present
@@ -150,6 +160,14 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('❌ COMPLETE ITINERARY ERROR:', error.message);
     console.error('❌ Stack trace:', error.stack);
+    // Убеждаемся, что CORS headers установлены даже при ошибке
+    try {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    } catch (corsErr) {
+      console.error('❌ Failed to set CORS headers in error handler:', corsErr);
+    }
     return res.status(500).json({
       success: false,
       error: 'Failed to complete itinerary generation',
