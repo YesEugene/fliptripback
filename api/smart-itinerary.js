@@ -550,6 +550,7 @@ export default async function handler(req, res) {
       activities,
       totalCost,
       withinBudget: totalCost <= parseInt(budget),
+      previewOnly: isPreviewOnly // Используем нормализованное значение
       previewOnly: previewOnly || false // Сохраняем флаг preview режима
     };
 
