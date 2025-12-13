@@ -149,9 +149,11 @@ async function generateLocationDescription(locationName, address, category, inte
   
   const prompt = `You are a masterful travel writer creating an immersive, vivid description of ${locationName} in ${address}.
 
-TASK: Write a rich, detailed description in EXACTLY 3-5 complete sentences (aim for 4-5 sentences for depth).
+CRITICAL: Write a RICH, DETAILED description in EXACTLY 4-5 complete sentences. DO NOT write short or truncated descriptions. Each sentence must be substantial and descriptive.
 
-REQUIREMENTS:
+REQUIREMENTS (MANDATORY):
+- Write MINIMUM 4 complete sentences, aim for 5 sentences for maximum depth
+- Each sentence must be 15-25 words long - substantial and descriptive
 - Capture the essence, atmosphere, history, and unique character of this ${category}
 - Describe what makes this location special and memorable
 - Include sensory details: what visitors will see, hear, smell, taste, and feel
@@ -159,8 +161,9 @@ REQUIREMENTS:
 - Connect to the user's interests: ${Array.isArray(interests) ? interests.join(', ') : interests}
 - Reflect the creative concept: ${concept}
 - Make it vivid and engaging - the reader should feel they are already there
-- Use descriptive, evocative language
+- Use descriptive, evocative language with rich vocabulary
 - Each sentence should add new information and depth
+- DO NOT write brief or summary-style descriptions
 
 Location: ${locationName}
 Address: ${address}
@@ -169,16 +172,16 @@ User interests: ${Array.isArray(interests) ? interests.join(', ') : interests}
 Audience: ${audience}
 Creative concept: ${concept}
 
-Example of rich description:
+Example of rich description (5 sentences):
 Your afternoon unfolds at Marché des Enfants Rouges, Paris's oldest covered market, where centuries of culinary tradition come alive in a symphony of colors, aromas, and flavors. The moment you step inside, the bustling energy envelops you — vendors calling out their daily specials, the sizzle of fresh ingredients hitting hot pans, and the cheerful chatter of locals sharing their favorite discoveries. Here, food transcends mere sustenance to become a celebration of cultures from around the world, each stall telling its own story through authentic recipes passed down through generations. The market's historic iron and glass architecture creates a cathedral-like space where natural light filters through, illuminating displays of vibrant produce, artisanal cheeses, and exotic spices that awaken all your senses. This is where locals and travelers alike gather to experience the true heartbeat of Parisian culinary culture, making it an essential stop for anyone seeking authentic flavors and genuine connections.
 
-Now create a similarly rich, detailed description for ${locationName}:`;
+Now create a similarly rich, detailed description for ${locationName} with MINIMUM 4-5 complete sentences:`;
 
   try {
     const response = await openai.chat.completions.create({
       model: "gpt-4",
       messages: [{ role: "user", content: prompt }],
-      max_tokens: 500,
+      max_tokens: 600, // Увеличено для более полных описаний
       temperature: 0.9
     });
 
