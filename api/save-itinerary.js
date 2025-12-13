@@ -16,19 +16,15 @@ function getRedis() {
 
 export default async function handler(req, res) {
   // CORS headers - УСТАНАВЛИВАЕМ ПЕРВЫМИ, ДО ЛЮБЫХ ДРУГИХ ОПЕРАЦИЙ
-  try {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-    res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
-    
-    // Handle preflight OPTIONS request
-    if (req.method === 'OPTIONS') {
-      return res.status(200).end();
-    }
-  } catch (corsError) {
-    console.error('❌ CORS setup error:', corsError);
-    return res.status(200).json({ error: 'CORS setup failed' });
+  // Это должно быть ДО любых try-catch или других операций
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
+  
+  // Handle preflight OPTIONS request - обрабатываем СРАЗУ
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
   }
 
   if (req.method !== 'POST') {
