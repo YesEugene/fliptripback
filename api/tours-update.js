@@ -56,6 +56,10 @@ function normalizeTour(tourData) {
       type: tourData.duration?.type || 'hours',
       value: tourData.duration?.value || 6
     },
+    duration: {
+      type: tourData.duration?.type || 'hours',
+      value: tourData.duration?.value || 6
+    },
     languages: tourData.languages || ['en'],
     format: tourData.format || 'self-guided', // Can be 'self-guided' or 'guided' (or both)
     withGuide: tourData.withGuide !== undefined ? tourData.withGuide : (tourData.format === 'guided'), // Checkbox for "With Guide" option
