@@ -41,6 +41,7 @@ function normalizeTour(tourData) {
     },
     languages: tourData.languages || ['en'],
     format: tourData.format || 'self-guided',
+    additionalOptions: tourData.additionalOptions || [],
     price: {
       amount: tourData.price?.amount || 0,
       currency: tourData.price?.currency || 'EUR',
