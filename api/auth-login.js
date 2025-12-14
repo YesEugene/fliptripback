@@ -28,15 +28,17 @@ function generateToken(userId) {
 }
 
 export default async function handler(req, res) {
-  // CORS headers - устанавливаем в самом начале, ДО любых других операций
+  // CORS headers - ВСЕГДА устанавливаем первыми
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS, GET');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
   res.setHeader('Access-Control-Max-Age', '86400');
 
-  // Обработка preflight запроса - возвращаем сразу, БЕЗ вызова getRedis()
+  // OPTIONS запрос - обрабатываем СРАЗУ, без каких-либо других операций
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    res.status(200);
+    res.end();
+    return;
   }
 
   if (req.method !== 'POST') {
