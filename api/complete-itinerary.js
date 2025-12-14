@@ -28,9 +28,11 @@ function getRedis() {
 }
 
 export default async function handler(req, res) {
+  // CORS headers must be set at the very beginning
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -187,14 +189,17 @@ export default async function handler(req, res) {
       previewOnly: false // Mark as full plan
     };
 
-    // Save the complete full itinerary back to Redis
+    // Save the complete full itinerary back to Redis (OVERWRITE the preview)
     await redis.set(`itinerary:${itineraryId}`, JSON.stringify(fullItinerary), { ex: 60 * 60 * 24 * 30 });
     console.log(`✅ Full itinerary saved to Redis with ID: ${itineraryId}`);
     console.log(`📊 Full itinerary contains:`, {
       activitiesCount: fullActivities.length,
+      dailyPlanBlocks: dailyPlan[0]?.blocks?.length || 0,
+      totalItems: dailyPlan[0]?.blocks?.reduce((sum, block) => sum + (block.items?.length || 0), 0) || 0,
       hasDailyPlan: !!dailyPlan.length,
       previewOnly: false
     });
+    console.log(`🔄 PREVIEW OVERWRITTEN: Old preview (2 locations) replaced with full day (${fullActivities.length} locations)`);
 
     return res.status(200).json({ success: true, itinerary: fullItinerary });
 
