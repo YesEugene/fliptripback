@@ -448,7 +448,7 @@ export default async function handler(req, res) {
 
   try {
     const { city, audience, interests, date, budget, previewOnly } = req.body;
-    console.log('🚀 FLIPTRIP CLEAN: Генерация плана для:', { city, audience, interests, date, budget });
+    console.log('🚀 FLIPTRIP CLEAN: Генерация плана для:', { city, audience, interests, date, budget, previewOnly });
 
     // Проверяем API ключи
     if (!process.env.OPENAI_API_KEY || !process.env.GOOGLE_MAPS_KEY) {
