@@ -28,11 +28,9 @@ function getRedis() {
 }
 
 export default async function handler(req, res) {
-  // CORS headers - УСТАНАВЛИВАЕМ ПЕРВЫМИ, ДО ЛЮБЫХ ДРУГИХ ОПЕРАЦИЙ
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -44,21 +42,24 @@ export default async function handler(req, res) {
 
   try {
     const redis = getRedis();
-    const { itineraryId, ...formData } = req.body; // Извлекаем itineraryId, остальное - formData
+    const { itineraryId, formData } = req.body;
 
     if (!itineraryId) {
       return res.status(400).json({ success: false, error: 'Itinerary ID is required' });
     }
 
-    console.log(`🔄 COMPLETE ITINERARY: Loading preview plan for ID: ${itineraryId}`);
-    const savedItineraryData = await redis.get(`itinerary:${itineraryId}`);
+    if (!formData) {
+      return res.status(400).json({ success: false, error: 'Form data is required' });
+    }
 
-    if (!savedItineraryData) {
+    console.log(`🔄 COMPLETE ITINERARY: Loading preview plan for ID: ${itineraryId}`);
+    const savedItineraryString = await redis.get(`itinerary:${itineraryId}`);
+
+    if (!savedItineraryString) {
       return res.status(404).json({ success: false, error: 'Preview itinerary not found' });
     }
 
-    // Upstash Redis может вернуть уже распарсенный объект или строку
-    const savedItinerary = typeof savedItineraryData === 'string' ? JSON.parse(savedItineraryData) : savedItineraryData;
+    const savedItinerary = JSON.parse(savedItineraryString);
     const { city, audience, interests, date, budget } = formData;
 
     // Ensure API keys are present
@@ -145,11 +146,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true, itinerary: fullItinerary });
 
   } catch (error) {
-    // Убеждаемся, что CORS заголовки установлены даже при ошибке
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-    
     console.error('❌ COMPLETE ITINERARY ERROR:', error.message);
     console.error('❌ Stack trace:', error.stack);
     return res.status(500).json({

@@ -75,7 +75,7 @@ Make it creative, locally relevant, and perfectly suited for ${audience} interes
 // МОДУЛЬ 1: ПОИСК РЕАЛЬНЫХ МЕСТ
 // =============================================================================
 
-export async function findRealLocations(timeSlots, city) {
+async function findRealLocations(timeSlots, city) {
   console.log('📍 МОДУЛЬ 1: Поиск реальных мест...');
   
   const locations = [];
@@ -144,24 +144,23 @@ export async function findRealLocations(timeSlots, city) {
 // МОДУЛЬ 2: ГЕНЕРАЦИЯ ОПИСАНИЙ ЛОКАЦИЙ
 // =============================================================================
 
-export async function generateLocationDescription(locationName, address, category, interests, audience, concept) {
+async function generateLocationDescription(locationName, address, category, interests, audience, concept) {
   console.log(`✍️ МОДУЛЬ 2: Генерация описания для ${locationName}...`);
   
   const prompt = `You are a masterful travel writer creating an immersive, vivid description of ${locationName} in ${address}.
 
-TASK: Write a rich, detailed description in EXACTLY 2-3 complete sentences (aim for 3 sentences for optimal balance of depth and conciseness).
+TASK: Write a rich, detailed description in EXACTLY 3-5 complete sentences (aim for 4-5 sentences for depth).
 
 REQUIREMENTS:
-- Capture the essence, atmosphere, and unique character of this ${category}
+- Capture the essence, atmosphere, history, and unique character of this ${category}
 - Describe what makes this location special and memorable
-- Include key sensory details: what visitors will see, hear, smell, taste, or feel
-- Mention the emotional impact or cultural significance
+- Include sensory details: what visitors will see, hear, smell, taste, and feel
+- Mention the emotional impact and cultural significance
 - Connect to the user's interests: ${Array.isArray(interests) ? interests.join(', ') : interests}
 - Reflect the creative concept: ${concept}
 - Make it vivid and engaging - the reader should feel they are already there
 - Use descriptive, evocative language
 - Each sentence should add new information and depth
-- Be concise but impactful
 
 Location: ${locationName}
 Address: ${address}
@@ -170,16 +169,16 @@ User interests: ${Array.isArray(interests) ? interests.join(', ') : interests}
 Audience: ${audience}
 Creative concept: ${concept}
 
-Example of concise but rich description:
-Your afternoon unfolds at Marché des Enfants Rouges, Paris's oldest covered market, where centuries of culinary tradition come alive in a symphony of colors, aromas, and flavors. The moment you step inside, the bustling energy envelops you — vendors calling out their daily specials, the sizzle of fresh ingredients hitting hot pans, and the cheerful chatter of locals sharing their favorite discoveries. This is where locals and travelers alike gather to experience the true heartbeat of Parisian culinary culture, making it an essential stop for anyone seeking authentic flavors and genuine connections.
+Example of rich description:
+Your afternoon unfolds at Marché des Enfants Rouges, Paris's oldest covered market, where centuries of culinary tradition come alive in a symphony of colors, aromas, and flavors. The moment you step inside, the bustling energy envelops you — vendors calling out their daily specials, the sizzle of fresh ingredients hitting hot pans, and the cheerful chatter of locals sharing their favorite discoveries. Here, food transcends mere sustenance to become a celebration of cultures from around the world, each stall telling its own story through authentic recipes passed down through generations. The market's historic iron and glass architecture creates a cathedral-like space where natural light filters through, illuminating displays of vibrant produce, artisanal cheeses, and exotic spices that awaken all your senses. This is where locals and travelers alike gather to experience the true heartbeat of Parisian culinary culture, making it an essential stop for anyone seeking authentic flavors and genuine connections.
 
-Now create a similarly rich but concise description for ${locationName}:`;
+Now create a similarly rich, detailed description for ${locationName}:`;
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo", // Используем GPT-3.5-turbo для экономии (в 20 раз дешевле)
+      model: "gpt-4",
       messages: [{ role: "user", content: prompt }],
-      max_tokens: 300, // Уменьшено с 500 до 300
+      max_tokens: 500,
       temperature: 0.9
     });
 
@@ -188,7 +187,7 @@ Now create a similarly rich but concise description for ${locationName}:`;
     return description;
   } catch (error) {
     console.error(`❌ МОДУЛЬ 2: Ошибка описания для ${locationName}:`, error.message);
-    return `Experience the authentic charm of ${locationName}, a beloved ${category} that captures the essence of the city. This location offers a perfect blend of local culture and unique atmosphere that resonates with your interests. The vibrant energy and distinctive character make it an unforgettable stop on your journey.`;
+    return `Experience the authentic charm of ${locationName}, a beloved ${category} that captures the essence of ${city}. This location offers a perfect blend of local culture and unique atmosphere that resonates with ${audience}'s passion for ${Array.isArray(interests) ? interests.join(' and ') : interests}. The vibrant energy and distinctive character make it an unforgettable stop on your journey through the city. Every moment here connects you to the authentic spirit of the destination, creating memories that will last long after your visit ends.`;
   }
 }
 
@@ -196,7 +195,7 @@ Now create a similarly rich but concise description for ${locationName}:`;
 // МОДУЛЬ 3: ГЕНЕРАЦИЯ РЕКОМЕНДАЦИЙ
 // =============================================================================
 
-export async function generateLocationRecommendations(locationName, category, interests, audience, concept) {
+async function generateLocationRecommendations(locationName, category, interests, audience, concept) {
   console.log(`💡 МОДУЛЬ 3: Генерация рекомендаций для ${locationName}...`);
   
   const prompt = `IMPORTANT: Write EXACTLY 1 complete sentence in English with practical tips for visiting this location.
@@ -218,7 +217,7 @@ Create the tips:`;
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo", // Используем GPT-3.5-turbo для экономии (в 20 раз дешевле)
+      model: "gpt-4",
       messages: [{ role: "user", content: prompt }],
       max_tokens: 100,
       temperature: 0.8
@@ -229,7 +228,7 @@ Create the tips:`;
     return tips;
   } catch (error) {
     console.error(`❌ МОДУЛЬ 3: Ошибка рекомендаций для ${locationName}:`, error.message);
-    return `Plan to spend quality time at ${locationName} to fully appreciate its unique character and authentic atmosphere.`;
+    return `Plan to spend quality time at ${locationName} to fully appreciate its unique character and authentic atmosphere. Ask locals for their personal recommendations and insider tips - they're usually delighted to share their favorite aspects of this special place. Consider visiting during different times to experience various moods and energy levels that this location offers throughout the day.`;
   }
 }
 
@@ -237,7 +236,7 @@ Create the tips:`;
 // МОДУЛЬ ЦЕНООБРАЗОВАНИЯ: Google Places price_level → реальные цены
 // =============================================================================
 
-export function calculateRealPrice(category, priceLevel, city) {
+function calculateRealPrice(category, priceLevel, city) {
   console.log(`💰 МОДУЛЬ ЦЕНЫ: Расчет для ${category}, уровень ${priceLevel}, город ${city}`);
   
   // Базовые цены по категориям (price_level: 0=бесплатно, 1=дешево, 2=средне, 3=дорого, 4=очень дорого)
@@ -272,7 +271,7 @@ export function calculateRealPrice(category, priceLevel, city) {
   return realPrice;
 }
 
-export function formatPriceRange(category, priceLevel, city) {
+function formatPriceRange(category, priceLevel, city) {
   const price = calculateRealPrice(category, priceLevel, city);
   
   if (price === 0) return 'Free';
@@ -315,7 +314,7 @@ Examples:
 
 Create a personalized, dynamic title for this itinerary:`;
 
-  const subtitlePrompt = `Write an inspiring and detailed subtitle in English for the day's itinerary.
+  const subtitlePrompt = `Write a long, inspiring, and detailed subtitle in English for the day's itinerary.
 
 REQUIREMENTS:
 * Mention the date: ${date}
@@ -326,7 +325,7 @@ REQUIREMENTS:
 * Connect to the creative concept: ${concept}
 * Use evocative, engaging language that makes the reader want to experience this day immediately
 * Create anticipation and excitement
-* Length: 2–3 sentences for optimal balance of detail and conciseness
+* Length: 4–5 sentences for depth and richness
 
 City: ${city}
 Date: ${date}
@@ -335,9 +334,9 @@ Audience: ${audience}
 Creative concept: ${concept}
 
 Example Output:
-On September 10th, Paris is yours to discover — from sunrise runs along the Seine to local markets alive with flavor, from bold art and rooftop skies to the pulse of its legendary nightlife. Experience authentic moments, create lasting memories, and let the city's unique charm captivate your heart as an extraordinary adventure awaits your arrival.
+On September 10th, Paris is yours to discover — from sunrise runs along the Seine to local markets alive with flavor, from bold art and rooftop skies to the pulse of its legendary nightlife. Every step is planned, every hour alive with energy, and the city carries you through a day made to be unforgettable. Experience authentic moments, create lasting memories, and let the city's unique charm captivate your heart. An extraordinary adventure awaits your arrival.
 
-Create a similarly inspiring but concise subtitle for this itinerary:`;
+Create a similarly rich, detailed subtitle for this itinerary:`;
 
   const weatherPrompt = `You are providing weather information for travel planning.
 
@@ -374,9 +373,9 @@ Provide realistic weather for ${city}:`;
         temperature: 0.8
       }),
       openai.chat.completions.create({
-        model: "gpt-4", // Оставляем GPT-4 для заголовков (качество важно)
+        model: "gpt-4",
         messages: [{ role: "user", content: subtitlePrompt }],
-        max_tokens: 120, // Уменьшено с 150 до 120
+        max_tokens: 150,
         temperature: 0.8
       }),
       openai.chat.completions.create({
@@ -434,11 +433,10 @@ Provide realistic weather for ${city}:`;
 // =============================================================================
 
 export default async function handler(req, res) {
-  // CORS headers - УСТАНАВЛИВАЕМ ПЕРВЫМИ, ДО ЛЮБЫХ ДРУГИХ ОПЕРАЦИЙ
+  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
   
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -450,8 +448,7 @@ export default async function handler(req, res) {
 
   try {
     const { city, audience, interests, date, budget, previewOnly } = req.body;
-    const isPreviewOnly = previewOnly === true || previewOnly === 'true' || previewOnly === 'True';
-    console.log('🚀 FLIPTRIP CLEAN: Генерация плана для:', { city, audience, interests, date, budget, previewOnly: isPreviewOnly });
+    console.log('🚀 FLIPTRIP CLEAN: Генерация плана для:', { city, audience, interests, date, budget });
 
     // Проверяем API ключи
     if (!process.env.OPENAI_API_KEY || !process.env.GOOGLE_MAPS_KEY) {
@@ -468,7 +465,7 @@ export default async function handler(req, res) {
     const metaInfo = await generateMetaInfo(city, audience, interests, date, dayConcept.concept);
 
     // МОДУЛИ 2-3: Генерируем описания и рекомендации для каждого места
-    let activities = await Promise.all(locations.map(async (slot) => {
+    const activities = await Promise.all(locations.map(async (slot) => {
       const place = slot.realPlace;
       
       const [description, recommendations] = await Promise.all([
@@ -499,7 +496,7 @@ export default async function handler(req, res) {
     }));
 
     // Если previewOnly, ограничиваем до первых 2 активностей
-    if (isPreviewOnly) {
+    if (previewOnly) {
       console.log('👁️ PREVIEW MODE: Ограничиваем до первых 2 активностей');
       activities = activities.slice(0, 2);
     }
@@ -547,7 +544,7 @@ export default async function handler(req, res) {
       activities,
       totalCost,
       withinBudget: totalCost <= parseInt(budget),
-      previewOnly: isPreviewOnly // Сохраняем флаг preview режима
+      previewOnly: previewOnly || false // Сохраняем флаг preview режима
     };
 
     console.log('✅ FLIPTRIP CLEAN: План успешно создан');

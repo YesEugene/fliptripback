@@ -15,11 +15,9 @@ function getRedis() {
 }
 
 export default async function handler(req, res) {
-  // CORS headers - УСТАНАВЛИВАЕМ ПЕРВЫМИ, ДО ЛЮБЫХ ДРУГИХ ОПЕРАЦИЙ
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -45,11 +43,6 @@ export default async function handler(req, res) {
     console.log(`✅ Itinerary saved to Redis with ID: ${id}`);
     return res.status(200).json({ success: true, itineraryId: id, itinerary });
   } catch (error) {
-    // Убеждаемся, что CORS заголовки установлены даже при ошибке
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-    
     console.error('❌ Error saving itinerary to Redis:', error);
     console.error('❌ Environment variables check:', {
       url: process.env.FTSTORAGE_KV_REST_API_URL ? 'set' : 'not set',
