@@ -38,10 +38,15 @@ function getUserId(req) {
 
 // Нормализация тура
 function normalizeTour(tourData) {
+  // Handle legacy data structure (backward compatibility)
+  const legacyPrice = tourData.price?.amount !== undefined;
+  const legacyOptions = Array.isArray(tourData.additionalOptions);
+  
   return {
     id: tourData.id || `tour-${Date.now()}`,
     guideId: tourData.guideId || null,
     title: tourData.title || '',
+    description: tourData.description || '', // New: Tour description
     city: tourData.city || '',
     duration: {
       type: tourData.duration?.type || 'hours',
@@ -49,12 +54,30 @@ function normalizeTour(tourData) {
     },
     languages: tourData.languages || ['en'],
     format: tourData.format || 'self-guided',
-    additionalOptions: tourData.additionalOptions || [],
-    price: {
-      amount: tourData.price?.amount || 0,
-      currency: tourData.price?.currency || 'EUR',
-      format: tourData.price?.format || 'pdf'
+    // Updated price structure
+    price: legacyPrice ? {
+      pdfPrice: tourData.price?.format === 'pdf' ? (tourData.price?.amount || 16) : 16,
+      guidedPrice: tourData.price?.format === 'guided' ? (tourData.price?.amount || 0) : 0,
+      currency: tourData.price?.currency || 'USD',
+      availableDates: tourData.price?.availableDates || [],
+      meetingPoint: tourData.price?.meetingPoint || '',
+      meetingTime: tourData.price?.meetingTime || ''
+    } : {
+      pdfPrice: tourData.price?.pdfPrice || 16,
+      guidedPrice: tourData.price?.guidedPrice || 0,
+      currency: tourData.price?.currency || 'USD',
+      availableDates: tourData.price?.availableDates || [],
+      meetingPoint: tourData.price?.meetingPoint || '',
+      meetingTime: tourData.price?.meetingTime || ''
     },
+    // Split additional options
+    additionalOptions: legacyOptions ? {
+      platformOptions: tourData.additionalOptions.filter(id => ['insurance', 'accommodation'].includes(id)),
+      creatorOptions: tourData.additionalOptions.filter(id => ['photography', 'food', 'transport'].includes(id))
+    } : (tourData.additionalOptions || {
+      platformOptions: [],
+      creatorOptions: []
+    }),
     daily_plan: tourData.daily_plan || [],
     meta: {
       interests: tourData.meta?.interests || [],

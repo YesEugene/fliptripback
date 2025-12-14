@@ -34,6 +34,7 @@ function normalizeTour(tourData) {
     id: tourData.id || `tour-${Date.now()}`,
     guideId: tourData.guideId || null,
     title: tourData.title || '',
+    description: tourData.description || '', // New: Tour description
     city: tourData.city || '',
     duration: {
       type: tourData.duration?.type || 'hours',
@@ -41,11 +42,19 @@ function normalizeTour(tourData) {
     },
     languages: tourData.languages || ['en'],
     format: tourData.format || 'self-guided',
-    additionalOptions: tourData.additionalOptions || [],
+    // Updated price structure
     price: {
-      amount: tourData.price?.amount || 0,
-      currency: tourData.price?.currency || 'EUR',
-      format: tourData.price?.format || 'pdf'
+      pdfPrice: tourData.price?.pdfPrice || 16, // Fixed PDF price
+      guidedPrice: tourData.price?.guidedPrice || 0, // Guided tour price
+      currency: tourData.price?.currency || 'USD',
+      availableDates: tourData.price?.availableDates || [], // Available dates for guided tours
+      meetingPoint: tourData.price?.meetingPoint || '', // Meeting point
+      meetingTime: tourData.price?.meetingTime || '' // Meeting time
+    },
+    // Split additional options
+    additionalOptions: {
+      platformOptions: tourData.additionalOptions?.platformOptions || [],
+      creatorOptions: tourData.additionalOptions?.creatorOptions || []
     },
     daily_plan: tourData.daily_plan || [],
     meta: {
