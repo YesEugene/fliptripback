@@ -39,7 +39,10 @@ export default async function handler(req, res) {
     if (itineraryData) {
       // Redis might return already parsed object or string
       const itinerary = typeof itineraryData === 'string' ? JSON.parse(itineraryData) : itineraryData;
+      const activitiesCount = itinerary.activities?.length || 0;
+      const itemsCount = itinerary.daily_plan?.[0]?.blocks?.reduce((sum, block) => sum + (block.items?.length || 0), 0) || 0;
       console.log(`✅ Itinerary loaded from Redis with ID: ${id}`);
+      console.log(`📊 Loaded itinerary stats: ${activitiesCount} activities, ${itemsCount} items, previewOnly: ${itinerary.previewOnly}`);
       return res.status(200).json({ success: true, itinerary });
     } else {
       console.log(`⚠️ Itinerary with ID: ${id} not found in Redis`);

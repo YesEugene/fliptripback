@@ -190,7 +190,9 @@ export default async function handler(req, res) {
     };
 
     // Save the complete full itinerary back to Redis (OVERWRITE the preview)
-    await redis.set(`itinerary:${itineraryId}`, JSON.stringify(fullItinerary), { ex: 60 * 60 * 24 * 30 });
+    const redisKey = `itinerary:${itineraryId}`;
+    console.log(`💾 Saving full itinerary to Redis key: ${redisKey}`);
+    await redis.set(redisKey, JSON.stringify(fullItinerary), { ex: 60 * 60 * 24 * 30 });
     console.log(`✅ Full itinerary saved to Redis with ID: ${itineraryId}`);
     console.log(`📊 Full itinerary contains:`, {
       activitiesCount: fullActivities.length,
@@ -200,6 +202,20 @@ export default async function handler(req, res) {
       previewOnly: false
     });
     console.log(`🔄 PREVIEW OVERWRITTEN: Old preview (2 locations) replaced with full day (${fullActivities.length} locations)`);
+    
+    // VERIFY: Read back from Redis to confirm it was saved correctly
+    const verifyData = await redis.get(redisKey);
+    if (verifyData) {
+      const verified = typeof verifyData === 'string' ? JSON.parse(verifyData) : verifyData;
+      const verifiedActivities = verified.activities?.length || 0;
+      const verifiedItems = verified.daily_plan?.[0]?.blocks?.reduce((sum, block) => sum + (block.items?.length || 0), 0) || 0;
+      console.log(`✅ VERIFIED: Redis contains ${verifiedActivities} activities and ${verifiedItems} items in daily_plan`);
+      if (verifiedActivities !== fullActivities.length) {
+        console.error(`❌ VERIFICATION FAILED: Expected ${fullActivities.length} activities, but Redis has ${verifiedActivities}`);
+      }
+    } else {
+      console.error(`❌ VERIFICATION FAILED: Could not read back from Redis after save!`);
+    }
 
     return res.status(200).json({ success: true, itinerary: fullItinerary });
 
