@@ -30,15 +30,17 @@ async function verifyToken(token, redis) {
 }
 
 export default async function handler(req, res) {
-  // CORS headers - устанавливаем в самом начале
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // CORS headers - устанавливаем в самом начале, ДО любых других операций
+  const origin = req.headers.origin || '*';
+  res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS, POST');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Max-Age', '86400');
 
-  // Обработка preflight запроса
+  // Обработка preflight запроса - возвращаем сразу
   if (req.method === 'OPTIONS') {
-    return res.status(200).json({});
+    return res.status(200).end();
   }
 
   if (req.method !== 'GET') {
