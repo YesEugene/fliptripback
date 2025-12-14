@@ -29,19 +29,20 @@ function generateToken(userId) {
 }
 
 export default async function handler(req, res) {
-  // CORS headers - устанавливаем в самом начале, ДО любых других операций
+  // CORS headers - ВСЕГДА устанавливаем первыми
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS, GET');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
   res.setHeader('Access-Control-Max-Age', '86400');
 
-  // Обработка preflight запроса - возвращаем сразу, БЕЗ вызова getRedis()
+  // OPTIONS запрос - обрабатываем СРАЗУ, без каких-либо других операций
   if (req.method === 'OPTIONS') {
     res.status(200);
     res.end();
     return;
   }
 
+  // Только POST запросы дальше
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, message: 'Method not allowed' });
   }
@@ -110,7 +111,7 @@ export default async function handler(req, res) {
     // Сохранение токена
     await redis.set(`token:${token}`, userId, { ex: 86400 * 7 }); // 7 дней
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       token,
       user: {
@@ -122,11 +123,10 @@ export default async function handler(req, res) {
     });
   } catch (error) {
     console.error('Registration error:', error);
-    res.status(500).json({ 
+    return res.status(500).json({ 
       success: false, 
       message: 'Ошибка регистрации',
       error: error.message 
     });
   }
 }
-
