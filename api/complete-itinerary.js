@@ -84,18 +84,24 @@ export default async function handler(req, res) {
 
     const conceptualTimeSlots = savedItinerary.conceptual_plan.timeSlots;
     console.log('✅ Using conceptual time slots from saved preview:', conceptualTimeSlots.length, 'slots');
+    console.log('📋 All time slots:', conceptualTimeSlots.map(s => `${s.time} - ${s.activity}`));
 
     // Keep the first two activities from the preview
     const previewActivities = savedItinerary.activities.slice(0, 2);
     console.log('✅ Keeping preview activities:', previewActivities.map(a => a.name));
+    console.log('📊 Preview activities count:', previewActivities.length);
 
     // Generate remaining activities based on the conceptual plan, skipping the first two
     const remainingTimeSlots = conceptualTimeSlots.slice(2);
+    console.log('🔄 Remaining time slots to generate:', remainingTimeSlots.length);
+    console.log('📋 Remaining slots:', remainingTimeSlots.map(s => `${s.time} - ${s.activity}`));
+    
     let newActivities = [];
 
     if (remainingTimeSlots.length > 0) {
       console.log('🌍 Finding real locations for remaining time slots...');
       const remainingLocations = await findRealLocations(remainingTimeSlots, city);
+      console.log('✅ Found locations:', remainingLocations.length);
 
       console.log('🎨 Generating descriptions and recommendations for remaining locations...');
       newActivities = await Promise.all(remainingLocations.map(async (slot) => {
@@ -131,11 +137,16 @@ export default async function handler(req, res) {
           rating: place.rating
         };
       }));
+      console.log('✅ Generated new activities:', newActivities.length);
+      console.log('📋 New activities:', newActivities.map(a => `${a.time} - ${a.name}`));
+    } else {
+      console.warn('⚠️ No remaining time slots to generate! Total slots:', conceptualTimeSlots.length);
     }
 
     // Combine preview activities with newly generated activities
     const fullActivities = [...previewActivities, ...newActivities];
-    console.log('✅ Combined full activities:', fullActivities.map(a => a.name));
+    console.log('✅ Combined full activities:', fullActivities.length, 'total');
+    console.log('📋 Full activities list:', fullActivities.map(a => `${a.time} - ${a.name}`));
 
     // Recalculate total cost for the full plan
     const totalCost = fullActivities.reduce((sum, act) => sum + act.price, 0);
