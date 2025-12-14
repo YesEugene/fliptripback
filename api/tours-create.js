@@ -41,11 +41,12 @@ function normalizeTour(tourData) {
       value: tourData.duration?.value || 6
     },
     languages: tourData.languages || ['en'],
-    format: tourData.format || 'self-guided',
+    format: tourData.format || 'self-guided', // Can be 'self-guided' or 'guided' (or both)
+    withGuide: tourData.withGuide || false, // Checkbox for "With Guide" option
     // Updated price structure
     price: {
-      pdfPrice: tourData.price?.pdfPrice || 16, // Fixed PDF price
-      guidedPrice: tourData.price?.guidedPrice || 0, // Guided tour price
+      pdfPrice: tourData.price?.pdfPrice || 16, // Fixed PDF price (always available)
+      guidedPrice: tourData.price?.guidedPrice || 0, // Guided tour price (if withGuide is true)
       currency: tourData.price?.currency || 'USD',
       availableDates: tourData.price?.availableDates || [], // Available dates for guided tours
       meetingPoint: tourData.price?.meetingPoint || '', // Meeting point
@@ -53,8 +54,8 @@ function normalizeTour(tourData) {
     },
     // Split additional options
     additionalOptions: {
-      platformOptions: tourData.additionalOptions?.platformOptions || [],
-      creatorOptions: tourData.additionalOptions?.creatorOptions || []
+      platformOptions: ['insurance', 'accommodation'], // Always available from platform (informational only)
+      creatorOptions: tourData.additionalOptions?.creatorOptions || {} // Object with optionId as key and price as value
     },
     daily_plan: tourData.daily_plan || [],
     meta: {
