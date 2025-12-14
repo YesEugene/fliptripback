@@ -38,7 +38,7 @@ export default async function handler(req, res) {
 
   // Обработка preflight запроса
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    return res.status(200).json({});
   }
 
   if (req.method !== 'GET') {
