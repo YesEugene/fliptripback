@@ -75,7 +75,7 @@ Make it creative, locally relevant, and perfectly suited for ${audience} interes
 // МОДУЛЬ 1: ПОИСК РЕАЛЬНЫХ МЕСТ
 // =============================================================================
 
-async function findRealLocations(timeSlots, city) {
+export async function findRealLocations(timeSlots, city) {
   console.log('📍 МОДУЛЬ 1: Поиск реальных мест...');
   
   const locations = [];
@@ -144,7 +144,7 @@ async function findRealLocations(timeSlots, city) {
 // МОДУЛЬ 2: ГЕНЕРАЦИЯ ОПИСАНИЙ ЛОКАЦИЙ
 // =============================================================================
 
-async function generateLocationDescription(locationName, address, category, interests, audience, concept) {
+export async function generateLocationDescription(locationName, address, category, interests, audience, concept) {
   console.log(`✍️ МОДУЛЬ 2: Генерация описания для ${locationName}...`);
   
   const prompt = `You are a masterful travel writer creating an immersive, vivid description of ${locationName} in ${address}.
@@ -195,7 +195,7 @@ Now create a similarly rich, detailed description for ${locationName}:`;
 // МОДУЛЬ 3: ГЕНЕРАЦИЯ РЕКОМЕНДАЦИЙ
 // =============================================================================
 
-async function generateLocationRecommendations(locationName, category, interests, audience, concept) {
+export async function generateLocationRecommendations(locationName, category, interests, audience, concept) {
   console.log(`💡 МОДУЛЬ 3: Генерация рекомендаций для ${locationName}...`);
   
   const prompt = `IMPORTANT: Write EXACTLY 1 complete sentence in English with practical tips for visiting this location.
@@ -236,7 +236,7 @@ Create the tips:`;
 // МОДУЛЬ ЦЕНООБРАЗОВАНИЯ: Google Places price_level → реальные цены
 // =============================================================================
 
-function calculateRealPrice(category, priceLevel, city) {
+export function calculateRealPrice(category, priceLevel, city) {
   console.log(`💰 МОДУЛЬ ЦЕНЫ: Расчет для ${category}, уровень ${priceLevel}, город ${city}`);
   
   // Базовые цены по категориям (price_level: 0=бесплатно, 1=дешево, 2=средне, 3=дорого, 4=очень дорого)
@@ -271,7 +271,7 @@ function calculateRealPrice(category, priceLevel, city) {
   return realPrice;
 }
 
-function formatPriceRange(category, priceLevel, city) {
+export function formatPriceRange(category, priceLevel, city) {
   const price = calculateRealPrice(category, priceLevel, city);
   
   if (price === 0) return 'Free';
