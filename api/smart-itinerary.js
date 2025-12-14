@@ -495,11 +495,8 @@ export default async function handler(req, res) {
       };
     }));
 
-    // Если previewOnly, ограничиваем до первых 2 активностей
-    if (previewOnly) {
-      console.log('👁️ PREVIEW MODE: Ограничиваем до первых 2 активностей');
-      activities = activities.slice(0, 2);
-    }
+    // NOTE: We always generate the full plan. Preview mode only affects display on frontend.
+    // No need to slice activities here - frontend will show only first 2 blocks in preview mode.
 
     // МОДУЛЬ КОНТРОЛЯ БЮДЖЕТА: корректируем цены под бюджет ±30%
     const targetBudget = parseInt(budget);
