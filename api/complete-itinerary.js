@@ -206,6 +206,10 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('❌ COMPLETE ITINERARY ERROR:', error.message);
     console.error('❌ Stack trace:', error.stack);
+    // Ensure CORS headers are set even in error responses
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
     return res.status(500).json({
       success: false,
       error: 'Failed to complete itinerary generation',
