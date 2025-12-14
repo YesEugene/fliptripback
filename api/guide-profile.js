@@ -34,8 +34,7 @@ export default async function handler(req, res) {
 
   // OPTIONS запрос - обрабатываем СРАЗУ
   if (req.method === 'OPTIONS') {
-    res.status(200);
-    res.end();
+    res.status(200).end();
     return;
   }
 
@@ -43,6 +42,7 @@ export default async function handler(req, res) {
     // Проверка авторизации
     const authHeader = req.headers.authorization;
     if (!authHeader) {
+      res.setHeader('Access-Control-Allow-Origin', '*');
       return res.status(401).json({ 
         success: false, 
         message: 'Authorization required' 
@@ -52,6 +52,7 @@ export default async function handler(req, res) {
     const redis = getRedis();
     const userId = await verifyToken(authHeader, redis);
     if (!userId) {
+      res.setHeader('Access-Control-Allow-Origin', '*');
       return res.status(401).json({ 
         success: false, 
         message: 'Invalid or expired token' 
@@ -61,6 +62,7 @@ export default async function handler(req, res) {
     // Проверка роли (только гиды могут управлять профилем)
     const userData = await redis.get(`user:${userId}`);
     if (!userData) {
+      res.setHeader('Access-Control-Allow-Origin', '*');
       return res.status(404).json({ 
         success: false, 
         message: 'User not found' 
@@ -69,6 +71,7 @@ export default async function handler(req, res) {
 
     const user = typeof userData === 'string' ? JSON.parse(userData) : userData;
     if (user.role !== 'guide') {
+      res.setHeader('Access-Control-Allow-Origin', '*');
       return res.status(403).json({ 
         success: false, 
         message: 'Only guides can manage profiles' 
@@ -131,6 +134,7 @@ export default async function handler(req, res) {
     });
   } catch (error) {
     console.error('Guide profile error:', error);
+    res.setHeader('Access-Control-Allow-Origin', '*');
     res.status(500).json({ 
       success: false, 
       message: 'Error processing request',
