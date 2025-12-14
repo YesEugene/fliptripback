@@ -1,6 +1,6 @@
 /**
- * Tours Database Module - List Tours Endpoint
- * Serverless function to get tours with filters
+ * Tours Database Module - Unified Tours Endpoint
+ * Serverless function to get a single tour or list tours with filters
  */
 
 import { Redis } from '@upstash/redis';
@@ -34,8 +34,29 @@ export default async function handler(req, res) {
 
   try {
     const redis = getRedis();
-    
-    // Получение параметров фильтрации
+    const { id } = req.query;
+
+    // If ID is provided, return single tour
+    if (id) {
+      const tourKey = `tour:${id}`;
+      const tourData = await redis.get(tourKey);
+
+      if (!tourData) {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Tour not found' 
+        });
+      }
+
+      const tour = typeof tourData === 'string' ? JSON.parse(tourData) : tourData;
+
+      return res.status(200).json({
+        success: true,
+        tour
+      });
+    }
+
+    // Otherwise, return list of tours with filters
     const { 
       city, 
       format, 
@@ -127,7 +148,7 @@ export default async function handler(req, res) {
       parseInt(offset) + parseInt(limit)
     );
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       tours: paginatedTours,
       total: filteredTours.length,
@@ -135,10 +156,10 @@ export default async function handler(req, res) {
       offset: parseInt(offset)
     });
   } catch (error) {
-    console.error('List tours error:', error);
+    console.error('Tours error:', error);
     res.status(500).json({ 
       success: false, 
-      message: 'Ошибка получения туров',
+      message: 'Error getting tours',
       error: error.message 
     });
   }
