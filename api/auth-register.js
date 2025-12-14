@@ -37,7 +37,9 @@ export default async function handler(req, res) {
 
   // Обработка preflight запроса - возвращаем сразу, БЕЗ вызова getRedis()
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    res.status(200);
+    res.end();
+    return;
   }
 
   if (req.method !== 'POST') {
