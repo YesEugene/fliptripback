@@ -45,9 +45,13 @@ function normalizeTour(tourData) {
   return {
     id: tourData.id || `tour-${Date.now()}`,
     guideId: tourData.guideId || null,
+    country: tourData.country || '', // New: Country field
+    city: tourData.city || '',
     title: tourData.title || '',
     description: tourData.description || '', // New: Tour description
-    city: tourData.city || '',
+    preview: tourData.preview || '', // New: Preview image/video (base64 or URL)
+    previewType: tourData.previewType || 'image', // 'image' or 'video'
+    tags: tourData.tags || [], // New: Tags array
     duration: {
       type: tourData.duration?.type || 'hours',
       value: tourData.duration?.value || 6

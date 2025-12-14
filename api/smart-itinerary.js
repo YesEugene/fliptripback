@@ -447,7 +447,68 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { city, audience, interests, date, budget, previewOnly } = req.body;
+    const { action, text, city, audience, interests, date, budget, previewOnly } = req.body;
+    
+    // Handle tag generation request
+    if (action === 'generateTags') {
+      if (!text || text.trim().length === 0) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Text is required' 
+        });
+      }
+
+      // Generate tags using OpenAI
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-3.5-turbo',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a travel tag generator. Generate 5-10 relevant, concise tags (single words or short phrases) based on the tour description. Tags should be travel-related keywords like: adventure, culture, food, nature, history, architecture, nightlife, family-friendly, romantic, budget, luxury, etc. Return only a JSON array of tag strings, no explanations.'
+          },
+          {
+            role: 'user',
+            content: `Generate tags for this tour description: ${text}`
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 150
+      });
+
+      const responseText = completion.choices[0]?.message?.content || '[]';
+      
+      // Try to parse as JSON array
+      let tags = [];
+      try {
+        tags = JSON.parse(responseText);
+        if (!Array.isArray(tags)) {
+          tags = responseText
+            .replace(/[\[\]"]/g, '')
+            .split(',')
+            .map(tag => tag.trim())
+            .filter(tag => tag.length > 0);
+        }
+      } catch (parseError) {
+        tags = responseText
+          .replace(/[\[\]"]/g, '')
+          .split(',')
+          .map(tag => tag.trim())
+          .filter(tag => tag.length > 0);
+      }
+
+      // Limit to 10 tags and clean them
+      tags = tags
+        .slice(0, 10)
+        .map(tag => tag.toLowerCase().trim())
+        .filter(tag => tag.length > 0 && tag.length < 30);
+
+      return res.status(200).json({
+        success: true,
+        tags
+      });
+    }
+    
+    // Regular itinerary generation
     console.log('🚀 FLIPTRIP CLEAN: Генерация плана для:', { city, audience, interests, date, budget, previewOnly });
 
     // Проверяем API ключи
