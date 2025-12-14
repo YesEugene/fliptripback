@@ -34,10 +34,11 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, error: 'Itinerary ID is required' });
     }
 
-    const itineraryString = await redis.get(`itinerary:${id}`);
+    const itineraryData = await redis.get(`itinerary:${id}`);
 
-    if (itineraryString) {
-      const itinerary = JSON.parse(itineraryString);
+    if (itineraryData) {
+      // Redis might return already parsed object or string
+      const itinerary = typeof itineraryData === 'string' ? JSON.parse(itineraryData) : itineraryData;
       console.log(`✅ Itinerary loaded from Redis with ID: ${id}`);
       return res.status(200).json({ success: true, itinerary });
     } else {
