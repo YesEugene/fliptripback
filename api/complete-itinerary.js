@@ -141,9 +141,36 @@ export default async function handler(req, res) {
     const totalCost = fullActivities.reduce((sum, act) => sum + act.price, 0);
     const withinBudget = totalCost <= parseInt(budget);
 
+    // Convert to display format (daily_plan) for frontend
+    const dailyPlan = [{
+      date: savedItinerary.date || date,
+      blocks: fullActivities.map(activity => ({
+        time: activity.time,
+        items: [{
+          title: activity.name || activity.title,
+          why: activity.description,
+          description: activity.description,
+          category: activity.category,
+          duration: `${activity.duration} min`,
+          price: activity.price,
+          location: activity.location,
+          address: activity.location,
+          photos: activity.photos ? activity.photos.map(photoUrl => ({
+            url: photoUrl,
+            thumbnail: photoUrl,
+            source: 'google_places'
+          })) : [],
+          approx_cost: activity.priceRange || `€${activity.price}`,
+          tips: activity.recommendations,
+          rating: activity.rating
+        }]
+      }))
+    }];
+
     const fullItinerary = {
       ...savedItinerary, // Keep existing meta info (title, subtitle, weather, etc.)
-      activities: fullActivities,
+      activities: fullActivities, // Keep activities for backend processing
+      daily_plan: dailyPlan, // Add converted daily_plan for frontend display
       totalCost,
       withinBudget,
       previewOnly: false // Mark as full plan
@@ -152,6 +179,11 @@ export default async function handler(req, res) {
     // Save the complete full itinerary back to Redis
     await redis.set(`itinerary:${itineraryId}`, JSON.stringify(fullItinerary), { ex: 60 * 60 * 24 * 30 });
     console.log(`✅ Full itinerary saved to Redis with ID: ${itineraryId}`);
+    console.log(`📊 Full itinerary contains:`, {
+      activitiesCount: fullActivities.length,
+      hasDailyPlan: !!dailyPlan.length,
+      previewOnly: false
+    });
 
     return res.status(200).json({ success: true, itinerary: fullItinerary });
 
