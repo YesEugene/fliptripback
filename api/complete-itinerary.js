@@ -53,13 +53,23 @@ export default async function handler(req, res) {
     }
 
     console.log(`🔄 COMPLETE ITINERARY: Loading preview plan for ID: ${itineraryId}`);
-    const savedItineraryString = await redis.get(`itinerary:${itineraryId}`);
+    const savedItineraryData = await redis.get(`itinerary:${itineraryId}`);
 
-    if (!savedItineraryString) {
+    if (!savedItineraryData) {
       return res.status(404).json({ success: false, error: 'Preview itinerary not found' });
     }
 
-    const savedItinerary = JSON.parse(savedItineraryString);
+    // Redis might return already parsed object or string
+    const savedItinerary = typeof savedItineraryData === 'string' 
+      ? JSON.parse(savedItineraryData) 
+      : savedItineraryData;
+    
+    console.log('✅ Loaded saved itinerary:', {
+      hasConceptualPlan: !!savedItinerary.conceptual_plan,
+      hasTimeSlots: !!savedItinerary.conceptual_plan?.timeSlots,
+      activitiesCount: savedItinerary.activities?.length,
+      previewOnly: savedItinerary.previewOnly
+    });
     const { city, audience, interests, date, budget } = formData;
 
     // Ensure API keys are present
