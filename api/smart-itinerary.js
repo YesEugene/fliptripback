@@ -101,7 +101,10 @@ export async function findRealLocations(timeSlots, city) {
           const categories = slot.category ? [slot.category] : [];
           const tags = slot.keywords || [];
           
-          const dbResult = await searchLocationsForItinerary(cityId, categories, tags, 5);
+          console.log(`🔍 Searching DB for: cityId=${cityId}, categories=${categories.join(',')}, tags=${tags.join(',')}`);
+          const dbResult = await searchLocationsForItinerary(cityId, categories, tags, 10);
+          
+          console.log(`📊 DB search result: ${dbResult.locations?.length || 0} locations found`);
           
           if (dbResult.success && dbResult.locations && dbResult.locations.length > 0) {
             // Use first matching location from DB
@@ -115,13 +118,18 @@ export async function findRealLocations(timeSlots, city) {
               fromDatabase: true,
               locationId: dbLocation.id,
               description: dbLocation.description,
-              recommendations: dbLocation.recommendations
+              recommendations: dbLocation.recommendations,
+              category: dbLocation.category
             };
-            console.log(`✅ Найдено в БД: ${dbLocation.name}`);
+            console.log(`✅ Найдено в БД: ${dbLocation.name} (category: ${dbLocation.category}, verified: ${dbLocation.verified})`);
+          } else {
+            console.log(`⚠️ No locations found in DB for category: ${categories.join(',')}`);
           }
         } catch (dbError) {
           console.error('Database search error:', dbError);
         }
+      } else {
+        console.log(`⚠️ City ID not found for city: ${city}`);
       }
       
       // STEP 2: If not found in DB, search in Google Places

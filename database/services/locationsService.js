@@ -174,7 +174,8 @@ export async function searchLocationsForItinerary(cityId, categories = [], tags 
         tags:location_tags(tag:tags(*))
       `)
       .eq('city_id', cityId)
-      .eq('verified', true)
+      // Search verified locations first, but also include admin-created locations
+      .or('verified.eq.true,source.eq.admin')
       .limit(limit);
 
     if (categories.length > 0) {
