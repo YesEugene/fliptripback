@@ -78,19 +78,27 @@ export default async function handler(req, res) {
     const remainingActivities = await Promise.all(remainingLocations.map(async (slot) => {
       const place = slot.realPlace;
       
-      // Use description and recommendations from DB if available, otherwise generate
-      let description = place.description;
-      let recommendations = place.recommendations;
+      // Always generate descriptions for new locations (they don't exist in DB yet)
+      console.log(`📝 Generating description for ${place.name} (new location after payment)`);
+      const [description, recommendations] = await Promise.all([
+        generateLocationDescription(
+          place.name, 
+          place.address, 
+          slot.category, 
+          interests || preview.meta?.interests || [], 
+          audience || preview.meta?.audience || 'him', 
+          preview.conceptual_plan?.concept || ''
+        ),
+        generateLocationRecommendations(
+          place.name, 
+          slot.category, 
+          interests || preview.meta?.interests || [], 
+          audience || preview.meta?.audience || 'him', 
+          preview.conceptual_plan?.concept || ''
+        )
+      ]);
       
-      if (!description || !recommendations) {
-        const [generatedDescription, generatedRecommendations] = await Promise.all([
-          description ? Promise.resolve(description) : generateLocationDescription(place.name, place.address, slot.category, interests || preview.meta?.interests || [], audience || preview.meta?.audience || 'him', preview.conceptual_plan?.concept || ''),
-          recommendations ? Promise.resolve(recommendations) : generateLocationRecommendations(place.name, slot.category, interests || preview.meta?.interests || [], audience || preview.meta?.audience || 'him', preview.conceptual_plan?.concept || '')
-        ]);
-        
-        description = generatedDescription;
-        recommendations = generatedRecommendations;
-      }
+      console.log(`✅ Generated description for ${place.name} (length: ${description?.length || 0})`);
 
       const realPrice = calculateRealPrice(slot.category, place.priceLevel, city || preview.city);
       const priceRange = formatPriceRange(slot.category, place.priceLevel, city || preview.city);
