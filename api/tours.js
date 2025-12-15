@@ -1,21 +1,9 @@
 /**
  * Tours Database Module - Unified Tours Endpoint
- * Serverless function to get a single tour or list tours with filters
+ * Serverless function to get a single tour or list tours with filters (using PostgreSQL/Supabase)
  */
 
-import { Redis } from '@upstash/redis';
-
-// Lazy initialization of Redis client
-function getRedis() {
-  const url = process.env.FTSTORAGE_KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const token = process.env.FTSTORAGE_KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-  
-  if (!url || !token) {
-    throw new Error('Redis environment variables not set');
-  }
-  
-  return new Redis({ url, token });
-}
+import { getTours, getTourById } from '../database/services/toursService.js';
 
 export default async function handler(req, res) {
   // CORS headers
@@ -33,130 +21,179 @@ export default async function handler(req, res) {
   }
 
   try {
-    const redis = getRedis();
-    const { id } = req.query;
+    const { id, city, city_id, format, interests, audience, duration, languages, minPrice, maxPrice, limit = 50, offset = 0 } = req.query;
 
     // If ID is provided, return single tour
     if (id) {
-      const tourKey = `tour:${id}`;
-      const tourData = await redis.get(tourKey);
-
-      if (!tourData) {
-        return res.status(404).json({ 
-          success: false, 
-          message: 'Tour not found' 
+      const result = await getTourById(id);
+      
+      if (!result.success) {
+        return res.status(404).json({
+          success: false,
+          message: result.error || 'Tour not found'
         });
       }
 
-      const tour = typeof tourData === 'string' ? JSON.parse(tourData) : tourData;
+      // Transform to frontend format
+      const tour = result.tour;
+      const transformedTour = {
+        id: tour.id,
+        guideId: tour.guide_id,
+        country: tour.country?.name || '',
+        city: tour.city?.name || '',
+        title: tour.title,
+        description: tour.description,
+        preview: tour.preview_media_url,
+        previewType: tour.preview_media_type,
+        tags: tour.tags?.map(tt => tt.tag?.name).filter(Boolean) || [],
+        duration: {
+          type: tour.duration_type,
+          value: tour.duration_value
+        },
+        languages: tour.languages || ['en'],
+        format: tour.default_format,
+        withGuide: tour.default_format === 'with_guide' || tour.default_format === 'both',
+        price: {
+          pdfPrice: tour.price_pdf,
+          guidedPrice: tour.price_guided,
+          currency: tour.currency,
+          availableDates: tour.available_dates || [],
+          meetingPoint: tour.meeting_point,
+          meetingTime: tour.meeting_time
+        },
+        additionalOptions: {
+          platformOptions: tour.additional_options?.filter(opt => opt.option_type === 'platform').map(opt => opt.option_key) || ['insurance', 'accommodation'],
+          creatorOptions: tour.additional_options?.filter(opt => opt.option_type === 'creator').reduce((acc, opt) => {
+            acc[opt.option_key] = opt.option_price;
+            return acc;
+          }, {}) || {}
+        },
+        daily_plan: tour.daily_plan || [],
+        status: tour.status,
+        is_published: tour.is_published,
+        createdAt: tour.created_at,
+        updatedAt: tour.updated_at
+      };
 
       return res.status(200).json({
         success: true,
-        tour
+        tour: transformedTour
       });
     }
 
     // Otherwise, return list of tours with filters
-    const { 
-      city, 
-      format, 
-      interests, 
-      audience,
-      duration,
-      languages,
-      minPrice,
-      maxPrice,
-      limit = 50,
-      offset = 0
-    } = req.query;
-
-    // Определение набора туров для поиска
-    let tourIds = [];
+    const filters = {};
     
-    if (city) {
-      // Фильтр по городу
-      const cityToursKey = `tours:city:${city}`;
-      tourIds = await redis.smembers(cityToursKey);
-    } else {
-      // Все туры
-      tourIds = await redis.smembers('tours:all');
+    if (city_id) {
+      filters.city_id = city_id;
+    } else if (city) {
+      // TODO: Get city_id from city name
+      // For now, we'll search by city name in the query
     }
-
-    // Получение туров
-    const tours = [];
-    for (const tourId of tourIds) {
-      const tourData = await redis.get(`tour:${tourId}`);
-      if (tourData) {
-        const tour = typeof tourData === 'string' ? JSON.parse(tourData) : tourData;
-        tours.push(tour);
-      }
-    }
-
-    // Применение фильтров
-    let filteredTours = tours;
-
+    
     if (format) {
-      filteredTours = filteredTours.filter(t => t.format === format);
+      filters.default_format = format;
+    }
+    
+    if (status) {
+      filters.status = status;
     }
 
+    const result = await getTours(filters);
+
+    if (!result.success) {
+      return res.status(500).json({
+        success: false,
+        message: result.error || 'Error getting tours'
+      });
+    }
+
+    // Transform tours to frontend format
+    let transformedTours = (result.tours || []).map(tour => ({
+      id: tour.id,
+      guideId: tour.guide_id,
+      country: tour.country?.name || '',
+      city: tour.city?.name || '',
+      title: tour.title,
+      description: tour.description,
+      preview: tour.preview_media_url,
+      previewType: tour.preview_media_type,
+      tags: tour.tags?.map(tt => tt.tag?.name).filter(Boolean) || [],
+      duration: {
+        type: tour.duration_type,
+        value: tour.duration_value
+      },
+      languages: tour.languages || ['en'],
+      format: tour.default_format,
+      withGuide: tour.default_format === 'with_guide' || tour.default_format === 'both',
+      price: {
+        pdfPrice: tour.price_pdf,
+        guidedPrice: tour.price_guided,
+        currency: tour.currency,
+        availableDates: tour.available_dates || [],
+        meetingPoint: tour.meeting_point,
+        meetingTime: tour.meeting_time
+      },
+      status: tour.status,
+      is_published: tour.is_published,
+      createdAt: tour.created_at,
+      updatedAt: tour.updated_at
+    }));
+
+    // Apply additional filters that aren't in DB query
     if (interests) {
       const interestList = Array.isArray(interests) ? interests : interests.split(',');
-      filteredTours = filteredTours.filter(t => 
-        t.meta?.interests?.some(interest => interestList.includes(interest))
+      // Filter by tags (tags contain interests)
+      transformedTours = transformedTours.filter(t => 
+        t.tags?.some(tag => interestList.includes(tag))
       );
     }
 
     if (audience) {
-      filteredTours = filteredTours.filter(t => t.meta?.audience === audience);
+      // TODO: Add audience to tours table or filter by tags
     }
 
     if (duration) {
-      filteredTours = filteredTours.filter(t => 
-        t.duration?.type === duration || 
-        (duration === 'hours' && t.duration?.value <= 12) ||
-        (duration === 'days' && t.duration?.type === 'days')
+      transformedTours = transformedTours.filter(t => 
+        t.duration?.type === duration
       );
     }
 
     if (languages) {
       const langList = Array.isArray(languages) ? languages : languages.split(',');
-      filteredTours = filteredTours.filter(t => 
+      transformedTours = transformedTours.filter(t => 
         t.languages?.some(lang => langList.includes(lang))
       );
     }
 
     if (minPrice !== undefined) {
-      filteredTours = filteredTours.filter(t => 
-        t.price?.amount >= parseFloat(minPrice)
+      transformedTours = transformedTours.filter(t => 
+        (t.price?.pdfPrice || 0) >= parseFloat(minPrice)
       );
     }
 
     if (maxPrice !== undefined) {
-      filteredTours = filteredTours.filter(t => 
-        t.price?.amount <= parseFloat(maxPrice)
+      transformedTours = transformedTours.filter(t => 
+        (t.price?.pdfPrice || 0) <= parseFloat(maxPrice)
       );
     }
 
-    // Сортировка по дате создания (новые первыми)
-    filteredTours.sort((a, b) => 
-      new Date(b.createdAt) - new Date(a.createdAt)
-    );
-
-    // Пагинация
-    const paginatedTours = filteredTours.slice(
-      parseInt(offset), 
+    // Pagination
+    const paginatedTours = transformedTours.slice(
+      parseInt(offset),
       parseInt(offset) + parseInt(limit)
     );
 
     return res.status(200).json({
       success: true,
       tours: paginatedTours,
-      total: filteredTours.length,
+      total: transformedTours.length,
       limit: parseInt(limit),
       offset: parseInt(offset)
     });
   } catch (error) {
     console.error('Tours error:', error);
+    res.setHeader('Access-Control-Allow-Origin', '*');
     res.status(500).json({ 
       success: false, 
       message: 'Error getting tours',
@@ -164,4 +201,3 @@ export default async function handler(req, res) {
     });
   }
 }
-

@@ -1,28 +1,26 @@
 /**
  * Guide Dashboard Module - Get Guide's Tours
- * Serverless function to get all tours created by a guide
+ * Serverless function to get all tours created by a guide (using PostgreSQL/Supabase)
  */
 
-import { Redis } from '@upstash/redis';
+import { getTours } from '../database/services/toursService.js';
 
-// Lazy initialization of Redis client
-function getRedis() {
-  const url = process.env.FTSTORAGE_KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const token = process.env.FTSTORAGE_KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-  
-  if (!url || !token) {
-    throw new Error('Redis environment variables not set');
+// Extract user ID from Authorization header
+function getUserId(req) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
   }
   
-  return new Redis({ url, token });
-}
-
-// Verify token and get user ID
-async function verifyToken(token, redis) {
-  if (!token) return null;
-  const cleanToken = token.startsWith('Bearer ') ? token.slice(7) : token;
-  const userId = await redis.get(`token:${cleanToken}`);
-  return userId;
+  try {
+    const token = authHeader.replace('Bearer ', '');
+    // Decode token (simple base64 for now)
+    const payload = JSON.parse(Buffer.from(token, 'base64').toString());
+    return payload.userId || payload.id || null;
+  } catch (error) {
+    console.error('Token decode error:', error);
+    return null;
+  }
 }
 
 export default async function handler(req, res) {
@@ -34,8 +32,7 @@ export default async function handler(req, res) {
 
   // OPTIONS запрос - обрабатываем СРАЗУ
   if (req.method === 'OPTIONS') {
-    res.status(200);
-    res.end();
+    res.status(200).end();
     return;
   }
 
@@ -45,54 +42,66 @@ export default async function handler(req, res) {
 
   try {
     // Проверка авторизации
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
+    const guideId = getUserId(req);
+    if (!guideId) {
       return res.status(401).json({ 
         success: false, 
-        message: 'Требуется авторизация' 
+        message: 'Unauthorized' 
       });
     }
 
-    const redis = getRedis();
-    const userId = await verifyToken(authHeader, redis);
-    if (!userId) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Неверный или истекший токен' 
+    // Получение туров гида из БД
+    const result = await getTours({ guide_id: guideId });
+
+    if (!result.success) {
+      return res.status(500).json({
+        success: false,
+        message: result.error || 'Error fetching tours'
       });
     }
 
-    // Получение списка туров гида
-    const guideToursKey = `guide:${userId}:tours`;
-    const tourIds = await redis.smembers(guideToursKey);
-
-    // Получение данных туров
-    const tours = [];
-    for (const tourId of tourIds) {
-      const tourData = await redis.get(`tour:${tourId}`);
-      if (tourData) {
-        const tour = typeof tourData === 'string' ? JSON.parse(tourData) : tourData;
-        tours.push(tour);
-      }
-    }
-
-    // Сортировка по дате создания (новые первыми)
-    tours.sort((a, b) => 
-      new Date(b.createdAt) - new Date(a.createdAt)
-    );
+    // Transform tours to match frontend format
+    const transformedTours = (result.tours || []).map(tour => ({
+      id: tour.id,
+      title: tour.title,
+      city: tour.city?.name || '',
+      country: tour.country?.name || '',
+      duration: {
+        type: tour.duration_type,
+        value: tour.duration_value
+      },
+      description: tour.description,
+      preview: tour.preview_media_url,
+      previewType: tour.preview_media_type,
+      tags: tour.tags?.map(tt => tt.tag?.name).filter(Boolean) || [],
+      format: tour.default_format,
+      withGuide: tour.default_format === 'with_guide' || tour.default_format === 'both',
+      price: {
+        pdfPrice: tour.price_pdf,
+        guidedPrice: tour.price_guided,
+        currency: tour.currency,
+        availableDates: tour.available_dates || [],
+        meetingPoint: tour.meeting_point,
+        meetingTime: tour.meeting_time
+      },
+      status: tour.status,
+      is_published: tour.is_published,
+      createdAt: tour.created_at,
+      updatedAt: tour.updated_at
+    }));
 
     res.status(200).json({
       success: true,
-      tours,
-      total: tours.length
+      tours: transformedTours,
+      total: transformedTours.length
     });
   } catch (error) {
     console.error('Get guide tours error:', error);
+    res.setHeader('Access-Control-Allow-Origin', '*');
     res.status(500).json({ 
       success: false, 
-      message: 'Ошибка получения туров гида',
+      message: 'Error fetching guide tours',
       error: error.message 
     });
   }
 }
-

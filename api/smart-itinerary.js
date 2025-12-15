@@ -3,6 +3,8 @@
 
 import OpenAI from 'openai';
 import { Client } from '@googlemaps/google-maps-services-js';
+import { searchLocationsForItinerary } from '../database/services/locationsService.js';
+import { getOrCreateCity } from '../database/services/citiesService.js';
 
 // Инициализация
 const openai = new OpenAI({
@@ -78,49 +80,97 @@ Make it creative, locally relevant, and perfectly suited for ${audience} interes
 export async function findRealLocations(timeSlots, city) {
   console.log('📍 МОДУЛЬ 1: Поиск реальных мест...');
   
+  // Get city_id from city name
+  let cityId = null;
+  try {
+    cityId = await getOrCreateCity(city, null);
+    console.log(`🏙️ City ID for ${city}: ${cityId}`);
+  } catch (error) {
+    console.error('Error getting city ID:', error);
+  }
+  
   const locations = [];
   
   for (const slot of timeSlots) {
     try {
-      const searchQuery = `${slot.keywords.join(' ')} ${slot.category} in ${city}`;
-      console.log(`🔍 Поиск: ${searchQuery}`);
+      let foundLocation = null;
       
-      const response = await googleMapsClient.textSearch({
-        params: {
-          query: searchQuery,
-          key: process.env.GOOGLE_MAPS_KEY,
-          language: 'en'
+      // STEP 1: Search in database first
+      if (cityId) {
+        try {
+          const categories = slot.category ? [slot.category] : [];
+          const tags = slot.keywords || [];
+          
+          const dbResult = await searchLocationsForItinerary(cityId, categories, tags, 5);
+          
+          if (dbResult.success && dbResult.locations && dbResult.locations.length > 0) {
+            // Use first matching location from DB
+            const dbLocation = dbResult.locations[0];
+            foundLocation = {
+              name: dbLocation.name,
+              address: dbLocation.address,
+              rating: 4.5, // Default rating for verified locations
+              priceLevel: dbLocation.price_level || 2,
+              photos: dbLocation.photos?.map(p => p.url) || [],
+              fromDatabase: true,
+              locationId: dbLocation.id,
+              description: dbLocation.description,
+              recommendations: dbLocation.recommendations
+            };
+            console.log(`✅ Найдено в БД: ${dbLocation.name}`);
+          }
+        } catch (dbError) {
+          console.error('Database search error:', dbError);
         }
-      });
+      }
+      
+      // STEP 2: If not found in DB, search in Google Places
+      if (!foundLocation) {
+        const searchQuery = `${slot.keywords.join(' ')} ${slot.category} in ${city}`;
+        console.log(`🔍 Поиск в Google Places: ${searchQuery}`);
+        
+        const response = await googleMapsClient.textSearch({
+          params: {
+            query: searchQuery,
+            key: process.env.GOOGLE_MAPS_KEY,
+            language: 'en'
+          }
+        });
 
-      if (response.data.results.length > 0) {
-        const place = response.data.results[0];
-        locations.push({
-          ...slot,
-          realPlace: {
+        if (response.data.results.length > 0) {
+          const place = response.data.results[0];
+          foundLocation = {
             name: place.name,
             address: place.formatted_address,
             rating: place.rating || 4.0,
             priceLevel: place.price_level || 2,
             photos: place.photos ? place.photos.slice(0, 3).map(photo => 
               `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photo.photo_reference}&key=${process.env.GOOGLE_MAPS_KEY}`
-            ) : []
-          }
-        });
-        console.log(`✅ Найдено: ${place.name}`);
-      } else {
-        console.log(`⚠️ Место не найдено для: ${slot.activity}`);
-        locations.push({
-          ...slot,
-          realPlace: {
-            name: slot.activity,
-            address: `${city} City Center`,
-            rating: 4.0,
-            priceLevel: 2,
-            photos: []
-          }
-        });
+            ) : [],
+            fromDatabase: false,
+            googlePlaceId: place.place_id
+          };
+          console.log(`✅ Найдено в Google: ${place.name}`);
+        }
       }
+      
+      // STEP 3: If still not found, use fallback
+      if (!foundLocation) {
+        console.log(`⚠️ Место не найдено для: ${slot.activity}`);
+        foundLocation = {
+          name: slot.activity,
+          address: `${city} City Center`,
+          rating: 4.0,
+          priceLevel: 2,
+          photos: [],
+          fromDatabase: false
+        };
+      }
+      
+      locations.push({
+        ...slot,
+        realPlace: foundLocation
+      });
     } catch (error) {
       console.error(`❌ Ошибка поиска для ${slot.activity}:`, error.message);
       locations.push({
@@ -130,7 +180,8 @@ export async function findRealLocations(timeSlots, city) {
           address: `${city} City Center`,
           rating: 4.0,
           priceLevel: 2,
-          photos: []
+          photos: [],
+          fromDatabase: false
         }
       });
     }

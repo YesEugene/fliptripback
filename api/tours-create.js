@@ -1,96 +1,27 @@
 /**
  * Tours Database Module - Create Tour Endpoint
- * Serverless function for guides to create tours
+ * Serverless function for guides to create tours (using PostgreSQL/Supabase)
  */
 
-import { Redis } from '@upstash/redis';
-import { v4 as uuidv4 } from 'uuid';
+import { createTour } from '../database/services/toursService.js';
+import { getOrCreateCountry, getOrCreateCity } from '../database/services/citiesService.js';
 
-// Валидация структуры тура
-function validateTourStructure(tour) {
-  const requiredFields = ['id', 'guideId', 'title', 'city', 'duration', 'daily_plan', 'meta'];
-  for (const field of requiredFields) {
-    if (!tour[field]) {
-      console.error(`Missing required field: ${field}`);
-      return false;
-    }
-  }
-  if (!Array.isArray(tour.daily_plan) || tour.daily_plan.length === 0) {
-    console.error('daily_plan must be a non-empty array');
-    return false;
-  }
-  for (const day of tour.daily_plan) {
-    if (!day.blocks || !Array.isArray(day.blocks)) {
-      console.error('Each day must have blocks array');
-      return false;
-    }
-  }
-  return true;
-}
-
-// Нормализация тура
-function normalizeTour(tourData) {
-  return {
-    id: tourData.id || `tour-${Date.now()}`,
-    guideId: tourData.guideId || null,
-    country: tourData.country || '', // New: Country field
-    city: tourData.city || '',
-    title: tourData.title || '',
-    description: tourData.description || '', // New: Tour description
-    preview: tourData.preview || '', // New: Preview image/video (base64 or URL)
-    previewType: tourData.previewType || 'image', // 'image' or 'video'
-    tags: tourData.tags || [], // New: Tags array
-    duration: {
-      type: tourData.duration?.type || 'hours',
-      value: tourData.duration?.value || 6
-    },
-    languages: tourData.languages || ['en'],
-    format: tourData.format || 'self-guided', // Can be 'self-guided' or 'guided' (or both)
-    withGuide: tourData.withGuide || false, // Checkbox for "With Guide" option
-    // Updated price structure
-    price: {
-      pdfPrice: tourData.price?.pdfPrice || 16, // Fixed PDF price (always available)
-      guidedPrice: tourData.price?.guidedPrice || 0, // Guided tour price (if withGuide is true)
-      currency: tourData.price?.currency || 'USD',
-      availableDates: tourData.price?.availableDates || [], // Available dates for guided tours
-      meetingPoint: tourData.price?.meetingPoint || '', // Meeting point
-      meetingTime: tourData.price?.meetingTime || '' // Meeting time
-    },
-    // Split additional options
-    additionalOptions: {
-      platformOptions: ['insurance', 'accommodation'], // Always available from platform (informational only)
-      creatorOptions: tourData.additionalOptions?.creatorOptions || {} // Object with optionId as key and price as value
-    },
-    daily_plan: tourData.daily_plan || [],
-    meta: {
-      interests: tourData.meta?.interests || [],
-      audience: tourData.meta?.audience || 'him',
-      total_estimated_cost: tourData.meta?.total_estimated_cost || '€0',
-      weather: tourData.meta?.weather || null
-    },
-    createdAt: tourData.createdAt || new Date().toISOString(),
-    updatedAt: tourData.updatedAt || new Date().toISOString()
-  };
-}
-
-// Lazy initialization of Redis client
-function getRedis() {
-  const url = process.env.FTSTORAGE_KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const token = process.env.FTSTORAGE_KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-  
-  if (!url || !token) {
-    throw new Error('Redis environment variables not set');
+// Extract user ID from Authorization header
+function getUserId(req) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
   }
   
-  return new Redis({ url, token });
-}
-
-// Verify token and get user ID
-async function verifyToken(token, redis) {
-  if (!token) return null;
-  const cleanToken = token.startsWith('Bearer ') ? token.slice(7) : token;
-  const userId = await redis.get(`token:${cleanToken}`);
-  return userId;
+  try {
+    const token = authHeader.replace('Bearer ', '');
+    // Decode token (simple base64 for now)
+    const payload = JSON.parse(Buffer.from(token, 'base64').toString());
+    return payload.userId || payload.id || null;
+  } catch (error) {
+    console.error('Token decode error:', error);
+    return null;
+  }
 }
 
 export default async function handler(req, res) {
@@ -102,8 +33,7 @@ export default async function handler(req, res) {
 
   // OPTIONS запрос - обрабатываем СРАЗУ
   if (req.method === 'OPTIONS') {
-    res.status(200);
-    res.end();
+    res.status(200).end();
     return;
   }
 
@@ -113,84 +43,76 @@ export default async function handler(req, res) {
 
   try {
     // Проверка авторизации
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
+    const guideId = getUserId(req);
+    if (!guideId) {
       return res.status(401).json({ 
         success: false, 
-        message: 'Требуется авторизация' 
-      });
-    }
-
-    const redis = getRedis();
-    const userId = await verifyToken(authHeader, redis);
-    if (!userId) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Неверный или истекший токен' 
-      });
-    }
-
-    // Проверка роли (только гиды могут создавать туры)
-    const userData = await redis.get(`user:${userId}`);
-    if (!userData) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Пользователь не найден' 
-      });
-    }
-
-    const user = typeof userData === 'string' ? JSON.parse(userData) : userData;
-    if (user.role !== 'guide') {
-      return res.status(403).json({ 
-        success: false, 
-        message: 'Только гиды могут создавать туры' 
+        message: 'Unauthorized' 
       });
     }
 
     // Получение данных тура
     const tourData = req.body;
 
-    // Нормализация тура
-    const normalizedTour = normalizeTour({
-      ...tourData,
-      id: `tour-${uuidv4()}`,
-      guideId: userId
-    });
+    // Get or create country and city
+    let countryId = tourData.country_id || null;
+    let cityId = tourData.city_id || null;
 
-    // Валидация структуры
-    if (!validateTourStructure(normalizedTour)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Неверная структура тура' 
+    if (tourData.country && !countryId) {
+      countryId = await getOrCreateCountry(tourData.country);
+    }
+
+    if (tourData.city && !cityId) {
+      cityId = await getOrCreateCity(tourData.city, countryId);
+    }
+
+    // Преобразование данных из формата frontend в формат БД
+    const dbTourData = {
+      country_id: countryId,
+      city_id: cityId,
+      title: tourData.title,
+      description: tourData.description || '',
+      preview_media_url: tourData.preview || '',
+      preview_media_type: tourData.previewType || 'image',
+      duration_type: tourData.duration?.type || 'hours',
+      duration_value: tourData.duration?.value || 6,
+      languages: tourData.languages || ['en'],
+      default_format: tourData.withGuide ? 'with_guide' : 'self_guided',
+      price_pdf: tourData.price?.pdfPrice || 16,
+      price_guided: tourData.price?.guidedPrice || null,
+      currency: tourData.price?.currency || 'USD',
+      meeting_point: tourData.price?.meetingPoint || '',
+      meeting_time: tourData.price?.meetingTime || '',
+      available_dates: tourData.price?.availableDates || [],
+      tags: tourData.tags || [],
+      additionalOptions: tourData.additionalOptions || {
+        platformOptions: ['insurance', 'accommodation'],
+        creatorOptions: {}
+      },
+      daily_plan: tourData.daily_plan || []
+    };
+
+    // Создание тура в БД
+    const result = await createTour(dbTourData, guideId);
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        message: result.error || 'Error creating tour'
       });
     }
 
-    // Сохранение тура в Redis
-    const tourKey = `tour:${normalizedTour.id}`;
-    await redis.set(tourKey, JSON.stringify(normalizedTour));
-
-    // Добавление тура в список туров гида
-    const guideToursKey = `guide:${userId}:tours`;
-    await redis.sadd(guideToursKey, normalizedTour.id);
-
-    // Добавление тура в общий индекс по городу
-    const cityToursKey = `tours:city:${normalizedTour.city}`;
-    await redis.sadd(cityToursKey, normalizedTour.id);
-
-    // Добавление в общий индекс всех туров
-    await redis.sadd('tours:all', normalizedTour.id);
-
     res.status(200).json({
       success: true,
-      tour: normalizedTour
+      tour: result.tour
     });
   } catch (error) {
     console.error('Create tour error:', error);
+    res.setHeader('Access-Control-Allow-Origin', '*');
     res.status(500).json({ 
       success: false, 
-      message: 'Ошибка создания тура',
+      message: 'Error creating tour',
       error: error.message 
     });
   }
 }
-

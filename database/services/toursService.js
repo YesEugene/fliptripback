@@ -118,18 +118,18 @@ export async function createTour(tourData, guideId) {
       city_id: tourData.city_id,
       title: tourData.title,
       description: tourData.description,
-      preview_media_url: tourData.preview,
-      preview_media_type: tourData.previewType || 'image',
-      duration_type: tourData.duration?.type || 'hours',
-      duration_value: tourData.duration?.value || 6,
+      preview_media_url: tourData.preview_media_url || tourData.preview,
+      preview_media_type: tourData.preview_media_type || tourData.previewType || 'image',
+      duration_type: tourData.duration_type || tourData.duration?.type || 'hours',
+      duration_value: tourData.duration_value || tourData.duration?.value || 6,
       languages: tourData.languages || ['en'],
-      default_format: tourData.withGuide ? 'with_guide' : 'self_guided',
-      price_pdf: tourData.price?.pdfPrice || 16,
-      price_guided: tourData.price?.guidedPrice,
-      currency: tourData.price?.currency || 'USD',
-      meeting_point: tourData.price?.meetingPoint,
-      meeting_time: tourData.price?.meetingTime,
-      available_dates: tourData.price?.availableDates || [],
+      default_format: tourData.default_format || (tourData.withGuide ? 'with_guide' : 'self_guided'),
+      price_pdf: tourData.price_pdf || tourData.price?.pdfPrice || 16,
+      price_guided: tourData.price_guided || tourData.price?.guidedPrice,
+      currency: tourData.currency || tourData.price?.currency || 'USD',
+      meeting_point: tourData.meeting_point || tourData.price?.meetingPoint,
+      meeting_time: tourData.meeting_time || tourData.price?.meetingTime,
+      available_dates: tourData.available_dates || tourData.price?.availableDates || [],
       status: 'draft'
     };
 
@@ -143,7 +143,6 @@ export async function createTour(tourData, guideId) {
 
     // 2. Add tags
     if (tourData.tags && tourData.tags.length > 0) {
-      // First, get or create tags
       const tagRelations = [];
       for (const tagName of tourData.tags) {
         // Check if tag exists
@@ -219,9 +218,9 @@ export async function createTour(tourData, guideId) {
           .from('tour_days')
           .insert({
             tour_id: createdTour.id,
-            day_number: dayData.day || 1,
+            day_number: dayData.day || dayData.day_number || 1,
             title: dayData.title,
-            date_hint: dayData.date
+            date_hint: dayData.date || dayData.date_hint
           })
           .select()
           .single();
@@ -238,8 +237,8 @@ export async function createTour(tourData, guideId) {
               .from('tour_blocks')
               .insert({
                 tour_day_id: day.id,
-                start_time: startTime || null,
-                end_time: endTime || null,
+                start_time: startTime || blockData.start_time || null,
+                end_time: endTime || blockData.end_time || null,
                 title: blockData.title,
                 order_index: blockIndex
               })
@@ -253,11 +252,11 @@ export async function createTour(tourData, guideId) {
               const items = blockData.items.map((itemData, itemIndex) => ({
                 tour_block_id: block.id,
                 location_id: itemData.location_id || null,
-                custom_title: itemData.title,
-                custom_description: itemData.description,
-                custom_recommendations: itemData.recommendations,
+                custom_title: itemData.title || itemData.custom_title,
+                custom_description: itemData.description || itemData.custom_description,
+                custom_recommendations: itemData.recommendations || itemData.custom_recommendations,
                 order_index: itemIndex,
-                duration_minutes: itemData.duration,
+                duration_minutes: itemData.duration || itemData.duration_minutes,
                 approx_cost: itemData.approx_cost
               }));
 
@@ -277,40 +276,200 @@ export async function createTour(tourData, guideId) {
 }
 
 /**
- * Update tour
+ * Update tour with full structure
  */
 export async function updateTour(tourId, tourData, guideId) {
   try {
-    // Similar to create, but update existing records
-    // This is a simplified version - full implementation would handle all nested updates
+    // 1. Update basic tour info
     const updateFields = {
       title: tourData.title,
       description: tourData.description,
-      preview_media_url: tourData.preview,
-      preview_media_type: tourData.previewType || 'image',
-      duration_type: tourData.duration?.type || 'hours',
-      duration_value: tourData.duration?.value || 6,
+      preview_media_url: tourData.preview_media_url || tourData.preview,
+      preview_media_type: tourData.preview_media_type || tourData.previewType || 'image',
+      duration_type: tourData.duration_type || tourData.duration?.type || 'hours',
+      duration_value: tourData.duration_value || tourData.duration?.value || 6,
       languages: tourData.languages || ['en'],
-      default_format: tourData.withGuide ? 'with_guide' : 'self_guided',
-      price_pdf: tourData.price?.pdfPrice || 16,
-      price_guided: tourData.price?.guidedPrice,
-      currency: tourData.price?.currency || 'USD',
-      meeting_point: tourData.price?.meetingPoint,
-      meeting_time: tourData.price?.meetingTime,
-      available_dates: tourData.price?.availableDates || []
+      default_format: tourData.default_format || (tourData.withGuide ? 'with_guide' : 'self_guided'),
+      price_pdf: tourData.price_pdf || tourData.price?.pdfPrice || 16,
+      price_guided: tourData.price_guided || tourData.price?.guidedPrice,
+      currency: tourData.currency || tourData.price?.currency || 'USD',
+      meeting_point: tourData.meeting_point || tourData.price?.meetingPoint,
+      meeting_time: tourData.meeting_time || tourData.price?.meetingTime,
+      available_dates: tourData.available_dates || tourData.price?.availableDates || []
     };
 
-    const { error } = await supabase
+    // Remove null/undefined fields
+    Object.keys(updateFields).forEach(key => {
+      if (updateFields[key] === undefined || updateFields[key] === null) {
+        delete updateFields[key];
+      }
+    });
+
+    const { error: updateError } = await supabase
       .from('tours')
       .update(updateFields)
       .eq('id', tourId)
-      .eq('guide_id', guideId); // Ensure guide owns the tour
+      .eq('guide_id', guideId);
 
-    if (error) throw error;
+    if (updateError) throw updateError;
 
-    // Update tags, options, daily_plan similarly...
-    // (Full implementation would handle all nested updates)
+    // 2. Update tags
+    if (tourData.tags !== undefined) {
+      // Delete existing tags
+      await supabase.from('tour_tags').delete().eq('tour_id', tourId);
+      
+      // Add new tags
+      if (tourData.tags.length > 0) {
+        const tagRelations = [];
+        for (const tagName of tourData.tags) {
+          let { data: existingTag } = await supabase
+            .from('tags')
+            .select('id')
+            .eq('name', tagName)
+            .single();
 
+          let tagId;
+          if (!existingTag) {
+            const { data: newTag } = await supabase
+              .from('tags')
+              .insert({ name: tagName, type: 'custom' })
+              .select()
+              .single();
+            tagId = newTag?.id;
+          } else {
+            tagId = existingTag.id;
+          }
+
+          if (tagId) {
+            tagRelations.push({ tour_id: tourId, tag_id: tagId });
+          }
+        }
+
+        if (tagRelations.length > 0) {
+          await supabase.from('tour_tags').insert(tagRelations);
+        }
+      }
+    }
+
+    // 3. Update additional options
+    if (tourData.additionalOptions) {
+      // Delete existing options
+      await supabase.from('tour_additional_options').delete().eq('tour_id', tourId);
+      
+      // Add new options
+      const options = [];
+      
+      if (tourData.additionalOptions.platformOptions) {
+        tourData.additionalOptions.platformOptions.forEach(key => {
+          options.push({
+            tour_id: tourId,
+            option_type: 'platform',
+            option_key: key,
+            option_price: 0
+          });
+        });
+      }
+
+      if (tourData.additionalOptions.creatorOptions) {
+        Object.entries(tourData.additionalOptions.creatorOptions).forEach(([key, price]) => {
+          if (price > 0) {
+            options.push({
+              tour_id: tourId,
+              option_type: 'creator',
+              option_key: key,
+              option_price: price
+            });
+          }
+        });
+      }
+
+      if (options.length > 0) {
+        await supabase.from('tour_additional_options').insert(options);
+      }
+    }
+
+    // 4. Update daily plan (delete and recreate for simplicity)
+    if (tourData.daily_plan !== undefined) {
+      // Get existing days to delete
+      const { data: existingDays } = await supabase
+        .from('tour_days')
+        .select('id')
+        .eq('tour_id', tourId);
+
+      if (existingDays && existingDays.length > 0) {
+        // Delete all related data (cascade should handle this, but we'll be explicit)
+        for (const day of existingDays) {
+          const { data: blocks } = await supabase
+            .from('tour_blocks')
+            .select('id')
+            .eq('tour_day_id', day.id);
+
+          if (blocks) {
+            for (const block of blocks) {
+              await supabase.from('tour_items').delete().eq('tour_block_id', block.id);
+            }
+            await supabase.from('tour_blocks').delete().eq('tour_day_id', day.id);
+          }
+        }
+        await supabase.from('tour_days').delete().eq('tour_id', tourId);
+      }
+
+      // Create new daily plan
+      if (tourData.daily_plan.length > 0) {
+        for (const dayData of tourData.daily_plan) {
+          const { data: day, error: dayError } = await supabase
+            .from('tour_days')
+            .insert({
+              tour_id: tourId,
+              day_number: dayData.day || dayData.day_number || 1,
+              title: dayData.title,
+              date_hint: dayData.date || dayData.date_hint
+            })
+            .select()
+            .single();
+
+          if (dayError) throw dayError;
+
+          if (dayData.blocks && dayData.blocks.length > 0) {
+            for (let blockIndex = 0; blockIndex < dayData.blocks.length; blockIndex++) {
+              const blockData = dayData.blocks[blockIndex];
+              const [startTime, endTime] = blockData.time?.split(' - ') || ['', ''];
+
+              const { data: block, error: blockError } = await supabase
+                .from('tour_blocks')
+                .insert({
+                  tour_day_id: day.id,
+                  start_time: startTime || blockData.start_time || null,
+                  end_time: endTime || blockData.end_time || null,
+                  title: blockData.title,
+                  order_index: blockIndex
+                })
+                .select()
+                .single();
+
+              if (blockError) throw blockError;
+
+              if (blockData.items && blockData.items.length > 0) {
+                const items = blockData.items.map((itemData, itemIndex) => ({
+                  tour_block_id: block.id,
+                  location_id: itemData.location_id || null,
+                  custom_title: itemData.title || itemData.custom_title,
+                  custom_description: itemData.description || itemData.custom_description,
+                  custom_recommendations: itemData.recommendations || itemData.custom_recommendations,
+                  order_index: itemIndex,
+                  duration_minutes: itemData.duration || itemData.duration_minutes,
+                  approx_cost: itemData.approx_cost
+                }));
+
+                await supabase.from('tour_items').insert(items);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Return updated tour
     return await getTourById(tourId);
   } catch (error) {
     console.error('Update tour error:', error);
@@ -348,4 +507,3 @@ export async function deleteTour(tourId, guideId) {
     return { success: false, error: error.message };
   }
 }
-
