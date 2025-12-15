@@ -51,6 +51,7 @@ export async function getLocationById(locationId) {
         *,
         city:cities(*, country:countries(*)),
         photos:location_photos(*),
+        interests:location_interests(interest:interests(*, category:interest_categories(*), subcategory:interest_subcategories(*))),
         tags:location_tags(tag:tags(*))
       `)
       .eq('id', locationId)
@@ -83,7 +84,17 @@ export async function createLocation(locationData, userId = null) {
 
     if (error) throw error;
 
-    // Add tags if provided
+    // Add interests if provided (new system)
+    if (locationData.interest_ids && locationData.interest_ids.length > 0) {
+      const interestRelations = locationData.interest_ids.map(interestId => ({
+        location_id: data.id,
+        interest_id: interestId,
+        relevance_score: 5 // Default relevance
+      }));
+      await supabase.from('location_interests').insert(interestRelations);
+    }
+    
+    // Legacy: Add tags if provided (for backward compatibility)
     if (locationData.tag_ids && locationData.tag_ids.length > 0) {
       const tagRelations = locationData.tag_ids.map(tagId => ({
         location_id: data.id,
@@ -122,7 +133,23 @@ export async function updateLocation(locationId, locationData, userId = null) {
 
     if (error) throw error;
 
-    // Update tags if provided
+    // Update interests if provided (new system)
+    if (locationData.interest_ids !== undefined) {
+      // Delete existing interests
+      await supabase.from('location_interests').delete().eq('location_id', locationId);
+      // Insert new interests
+      if (locationData.interest_ids.length > 0) {
+        const interestRelations = locationData.interest_ids.map(interestId => ({
+          location_id: locationId,
+          interest_id: interestId,
+          relevance_score: 5 // Default relevance
+        }));
+        await supabase.from('location_interests').insert(interestRelations);
+      }
+    }
+    
+    // Legacy: Update tags if provided (for backward compatibility)
+    const { tag_ids, interest_ids, ...updateFields } = updateData;
     if (tag_ids !== undefined) {
       // Delete existing tags
       await supabase.from('location_tags').delete().eq('location_id', locationId);
@@ -189,12 +216,16 @@ export async function searchLocationsForItinerary(cityId, categories = [], tags 
 
     if (error) throw error;
 
-    // Filter by tags if provided
+    // Filter by interests if provided (new system)
     let filtered = data || [];
     if (tags.length > 0) {
       filtered = filtered.filter(location => {
+        // Check interests first (new system)
+        const locationInterests = location.interests?.map(li => li.interest?.name) || [];
+        // Also check tags (legacy)
         const locationTags = location.tags?.map(lt => lt.tag?.name) || [];
-        return tags.some(tag => locationTags.includes(tag));
+        const allLocationTags = [...locationInterests, ...locationTags];
+        return tags.some(tag => allLocationTags.includes(tag));
       });
     }
 
