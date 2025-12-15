@@ -522,7 +522,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { action, text, city, audience, interests, interest_ids, date, budget, previewOnly } = req.body;
+    const { action, text, city, audience, interests, interest_ids, date, date_from, date_to, budget, previewOnly } = req.body;
     
     // Support both interests (legacy) and interest_ids (new system)
     // Handle both array and single value formats
@@ -601,7 +601,9 @@ export default async function handler(req, res) {
     }
     
     // Regular itinerary generation
-    console.log('🚀 FLIPTRIP CLEAN: Генерация плана для:', { city, audience, interests, date, budget, previewOnly });
+    // Use date_from if provided, otherwise fall back to date (legacy support)
+    const itineraryDate = date_from || date || new Date().toISOString().slice(0, 10);
+    console.log('🚀 FLIPTRIP CLEAN: Генерация плана для:', { city, audience, interests, interest_ids: interestIds, date: itineraryDate, date_from, date_to, budget, previewOnly });
 
     // Проверяем API ключи
     if (!process.env.OPENAI_API_KEY || !process.env.GOOGLE_MAPS_KEY) {
@@ -609,13 +611,13 @@ export default async function handler(req, res) {
     }
 
     // МОДУЛЬ 0: Создаем концепцию дня
-    const dayConcept = await generateDayConcept(city, audience, interests, date, budget);
+    const dayConcept = await generateDayConcept(city, audience, interests, itineraryDate, budget);
     
     // МОДУЛЬ 1: Находим реальные места (pass interestIds for DB filtering)
     const locations = await findRealLocations(dayConcept.timeSlots, city, interestIds);
     
     // МОДУЛЬ 4: Генерируем мета-информацию
-    const metaInfo = await generateMetaInfo(city, audience, interestsList, date, dayConcept.concept);
+    const metaInfo = await generateMetaInfo(city, audience, interestsList, itineraryDate, dayConcept.concept);
 
     // МОДУЛИ 2-3: Генерируем описания и рекомендации для каждого места
     let activities = await Promise.all(locations.map(async (slot) => {
