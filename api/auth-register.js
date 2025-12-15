@@ -29,7 +29,7 @@ function generateToken(userId) {
 }
 
 export default async function handler(req, res) {
-  // CORS headers - ВСЕГДА устанавливаем первыми
+  // CORS headers - ВСЕГДА устанавливаем первыми, ДО любых операций
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS, GET');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
@@ -37,8 +37,7 @@ export default async function handler(req, res) {
 
   // OPTIONS запрос - обрабатываем СРАЗУ, без каких-либо других операций
   if (req.method === 'OPTIONS') {
-    res.status(200);
-    res.end();
+    res.status(200).end();
     return;
   }
 
@@ -91,12 +90,14 @@ export default async function handler(req, res) {
 
     // Создание пользователя
     const userId = `user-${uuidv4()}`;
+    // Разрешаем создание админа через регистрацию (для первого админа)
+    const userRole = role === 'admin' ? 'admin' : (role === 'guide' ? 'guide' : 'user');
     const user = {
       id: userId,
       name,
       email,
       password: hashedPassword,
-      role: role === 'guide' ? 'guide' : 'user',
+      role: userRole,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -123,6 +124,10 @@ export default async function handler(req, res) {
     });
   } catch (error) {
     console.error('Registration error:', error);
+    // Убеждаемся, что CORS headers установлены даже в случае ошибки
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS, GET');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
     return res.status(500).json({ 
       success: false, 
       message: 'Ошибка регистрации',
