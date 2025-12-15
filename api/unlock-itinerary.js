@@ -64,7 +64,10 @@ export default async function handler(req, res) {
     });
   } catch (error) {
     console.error('Unlock itinerary error:', error);
+    // Убеждаемся, что CORS заголовки установлены даже при ошибке
     res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
     res.status(500).json({
       success: false,
       message: 'Error unlocking itinerary',
