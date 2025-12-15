@@ -580,10 +580,19 @@ export default async function handler(req, res) {
     let activities = await Promise.all(locations.map(async (slot) => {
       const place = slot.realPlace;
       
-      const [description, recommendations] = await Promise.all([
-        generateLocationDescription(place.name, place.address, slot.category, interests, audience, dayConcept.concept),
-        generateLocationRecommendations(place.name, slot.category, interests, audience, dayConcept.concept)
-      ]);
+      // Use description and recommendations from DB if available, otherwise generate
+      let description = place.description;
+      let recommendations = place.recommendations;
+      
+      if (!description || !recommendations) {
+        const [generatedDescription, generatedRecommendations] = await Promise.all([
+          description ? Promise.resolve(description) : generateLocationDescription(place.name, place.address, slot.category, interests, audience, dayConcept.concept),
+          recommendations ? Promise.resolve(recommendations) : generateLocationRecommendations(place.name, slot.category, interests, audience, dayConcept.concept)
+        ]);
+        
+        description = generatedDescription;
+        recommendations = generatedRecommendations;
+      }
 
       // Рассчитываем реальную цену на основе Google Places price_level
       const realPrice = calculateRealPrice(slot.category, place.priceLevel, city);
