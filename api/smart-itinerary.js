@@ -525,8 +525,21 @@ export default async function handler(req, res) {
     const { action, text, city, audience, interests, interest_ids, date, budget, previewOnly } = req.body;
     
     // Support both interests (legacy) and interest_ids (new system)
-    const interestIds = interest_ids && Array.isArray(interest_ids) ? interest_ids : [];
+    // Handle both array and single value formats
+    let interestIds = [];
+    if (interest_ids) {
+      if (Array.isArray(interest_ids)) {
+        interestIds = interest_ids;
+      } else if (typeof interest_ids === 'string') {
+        // Handle comma-separated string
+        interestIds = interest_ids.split(',').map(id => id.trim()).filter(id => id);
+      } else {
+        interestIds = [interest_ids];
+      }
+    }
     const interestsList = interests || [];
+    
+    console.log('📥 Received interest_ids:', interestIds, 'type:', typeof interestIds[0]);
     
     // Handle tag generation request
     if (action === 'generateTags') {

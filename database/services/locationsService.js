@@ -89,18 +89,21 @@ export async function createLocation(locationData, userId = null) {
 
     // Add interests if provided (new system)
     if (interest_ids && Array.isArray(interest_ids) && interest_ids.length > 0) {
-      // Filter out any invalid/null interest IDs
-      const validInterestIds = interest_ids.filter(id => id && typeof id === 'string');
+      // Filter out any invalid/null interest IDs (accept string, number, or UUID)
+      const validInterestIds = interest_ids.filter(id => id != null && id !== '');
+      console.log(`💾 Saving location with ${validInterestIds.length} interests:`, validInterestIds);
       if (validInterestIds.length > 0) {
         const interestRelations = validInterestIds.map(interestId => ({
           location_id: data.id,
-          interest_id: interestId,
+          interest_id: String(interestId), // Ensure string format
           relevance_score: 5 // Default relevance
         }));
         const { error: interestsError } = await supabase.from('location_interests').insert(interestRelations);
         if (interestsError) {
-          console.error('Error inserting interests:', interestsError);
+          console.error('❌ Error inserting interests:', interestsError);
           // Don't fail the whole operation, just log the error
+        } else {
+          console.log(`✅ Successfully saved ${validInterestIds.length} interests for location ${data.id}`);
         }
       }
     }
@@ -157,17 +160,20 @@ export async function updateLocation(locationId, locationData, userId = null) {
       }
       // Insert new interests if provided
       if (Array.isArray(interest_ids) && interest_ids.length > 0) {
-        // Filter out any invalid/null interest IDs
-        const validInterestIds = interest_ids.filter(id => id && typeof id === 'string');
+        // Filter out any invalid/null interest IDs (accept string, number, or UUID)
+        const validInterestIds = interest_ids.filter(id => id != null && id !== '');
+        console.log(`💾 Updating location ${locationId} with ${validInterestIds.length} interests:`, validInterestIds);
         if (validInterestIds.length > 0) {
           const interestRelations = validInterestIds.map(interestId => ({
             location_id: locationId,
-            interest_id: interestId,
+            interest_id: String(interestId), // Ensure string format
             relevance_score: 5 // Default relevance
           }));
           const { error: insertError } = await supabase.from('location_interests').insert(interestRelations);
           if (insertError) {
-            console.error('Error inserting interests:', insertError);
+            console.error('❌ Error inserting interests:', insertError);
+          } else {
+            console.log(`✅ Successfully updated ${validInterestIds.length} interests for location ${locationId}`);
           }
         }
       }
@@ -252,12 +258,36 @@ export async function searchLocationsForItinerary(cityId, categories = [], tags 
 
     // Filter by interest_ids if provided (new system - preferred)
     if (interestIds.length > 0) {
+      // Normalize interest IDs to strings for comparison
+      const normalizedInterestIds = interestIds.map(id => String(id));
+      console.log(`🔍 Filtering by interest_ids (normalized):`, normalizedInterestIds);
+      
       filtered = filtered.filter(location => {
-        const locationInterestIds = location.interests?.map(li => li.interest?.id || li.interest_id).filter(Boolean) || [];
+        // Extract interest IDs from the nested structure
+        const locationInterestIds = [];
+        if (location.interests && Array.isArray(location.interests)) {
+          location.interests.forEach(li => {
+            // Handle nested interest object structure from Supabase join
+            if (li.interest && li.interest.id) {
+              locationInterestIds.push(String(li.interest.id));
+            } else if (li.interest_id) {
+              locationInterestIds.push(String(li.interest_id));
+            }
+          });
+        }
+        
+        console.log(`📍 Location "${location.name}" (ID: ${location.id}) has interest_ids:`, locationInterestIds);
+        
         // Location matches if it has at least one of the requested interests
-        return interestIds.some(interestId => locationInterestIds.includes(interestId));
+        const matches = normalizedInterestIds.some(interestId => locationInterestIds.includes(interestId));
+        if (matches) {
+          console.log(`✅ Location "${location.name}" matches interest filter`);
+        } else if (locationInterestIds.length > 0) {
+          console.log(`❌ Location "${location.name}" does NOT match (has: ${locationInterestIds.join(', ')}, need: ${normalizedInterestIds.join(', ')})`);
+        }
+        return matches;
       });
-      console.log(`✅ Filtered by interest_ids: ${filtered.length} locations match`);
+      console.log(`✅ Filtered by interest_ids: ${filtered.length} locations match out of ${data.length} total`);
     }
     // Legacy: Filter by tags if provided (fallback)
     else if (tags.length > 0) {
