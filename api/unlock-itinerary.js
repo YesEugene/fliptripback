@@ -55,6 +55,17 @@ export default async function handler(req, res) {
     // Save back to Redis
     await redis.set(`itinerary:${itineraryId}`, JSON.stringify(unlockedItinerary), { ex: 60 * 60 * 24 * 30 });
 
+    // Increment plan generations counter (for admin dashboard)
+    try {
+      const currentCount = await redis.get('stats:plan_generations');
+      const newCount = (parseInt(currentCount) || 0) + 1;
+      await redis.set('stats:plan_generations', newCount.toString());
+      console.log(`📊 Plan generations counter: ${newCount}`);
+    } catch (counterError) {
+      console.warn('⚠️ Failed to increment plan generations counter:', counterError.message);
+      // Don't fail the unlock if counter fails
+    }
+
     console.log(`✅ Itinerary ${itineraryId} unlocked (previewOnly set to false)`);
     console.log(`📊 Unlocked itinerary has ${unlockedItinerary.activities?.length || 0} activities, ${unlockedItinerary.daily_plan?.[0]?.blocks?.length || 0} blocks`);
 

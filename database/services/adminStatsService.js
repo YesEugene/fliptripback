@@ -4,6 +4,19 @@
  */
 
 import { supabase } from '../db.js';
+import { Redis } from '@upstash/redis';
+
+// Get Redis client for stats
+function getRedis() {
+  const url = process.env.FTSTORAGE_KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const token = process.env.FTSTORAGE_KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+  
+  if (!url || !token) {
+    return null; // Redis not available, but don't fail
+  }
+  
+  return new Redis({ url, token });
+}
 
 /**
  * Get dashboard statistics
@@ -26,6 +39,19 @@ export async function getDashboardStats() {
       supabase.from('itineraries').select('id', { count: 'exact', head: true }),
       supabase.from('payments').select('id', { count: 'exact', head: true })
     ]);
+
+    // Get plan generations count from Redis
+    let planGenerations = 0;
+    try {
+      const redis = getRedis();
+      if (redis) {
+        const count = await redis.get('stats:plan_generations');
+        planGenerations = parseInt(count) || 0;
+      }
+    } catch (redisError) {
+      console.warn('⚠️ Failed to get plan generations from Redis:', redisError.message);
+      // Continue without Redis count
+    }
 
     // Get revenue stats
     const { data: revenueData, error: revenueError } = await supabase
@@ -84,7 +110,8 @@ export async function getDashboardStats() {
           tours: toursCount.count || 0,
           locations: locationsCount.count || 0,
           itineraries: itinerariesCount.count || 0,
-          payments: paymentsCount.count || 0
+          payments: paymentsCount.count || 0,
+          planGenerations: planGenerations
         },
         revenue: {
           total: totalRevenue,
