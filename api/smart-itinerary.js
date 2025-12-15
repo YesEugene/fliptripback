@@ -616,8 +616,11 @@ export default async function handler(req, res) {
       };
     }));
 
-    // NOTE: We always generate the full plan. Preview mode only affects display on frontend.
-    // No need to slice activities here - frontend will show only first 2 blocks in preview mode.
+    // For preview mode, only generate 2 locations to save costs and speed up generation
+    if (previewOnly) {
+      console.log('📋 Preview mode: Limiting to 2 locations');
+      activities = activities.slice(0, 2);
+    }
 
     // МОДУЛЬ КОНТРОЛЯ БЮДЖЕТА: корректируем цены под бюджет ±30%
     const targetBudget = parseInt(budget);
