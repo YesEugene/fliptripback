@@ -121,32 +121,40 @@ export default async function handler(req, res) {
       };
     }));
 
-    // Get existing activities from preview
+    // Get existing activities and daily_plan from preview
     const existingActivities = preview.activities || [];
+    const existingDailyPlan = preview.daily_plan || [];
     
-    // Combine existing (first 2) with new activities
-    const allActivities = [...existingActivities, ...remainingActivities];
-
-    // Convert to daily_plan format
+    // Convert remaining activities to daily_plan blocks format
+    const newBlocks = remainingActivities.map((activity) => ({
+      time: activity.time,
+      title: activity.title || activity.name,
+      items: [{
+        title: activity.name,
+        description: activity.description,
+        recommendations: activity.recommendations,
+        category: activity.category,
+        duration: activity.duration,
+        approx_cost: activity.price,
+        location: activity.location,
+        photos: activity.photos,
+        rating: activity.rating
+      }]
+    }));
+    
+    // Combine existing blocks with new blocks
+    const existingBlocks = existingDailyPlan[0]?.blocks || [];
+    const allBlocks = [...existingBlocks, ...newBlocks];
+    
+    // Update daily_plan with all blocks
     const daily_plan = [{
-      day: 1,
-      date: date || preview.date,
-      blocks: allActivities.map((activity, index) => ({
-        time: activity.time,
-        title: activity.title || activity.name,
-        items: [{
-          title: activity.name,
-          description: activity.description,
-          recommendations: activity.recommendations,
-          category: activity.category,
-          duration: activity.duration,
-          approx_cost: activity.price,
-          location: activity.location,
-          photos: activity.photos,
-          rating: activity.rating
-        }]
-      }))
+      day: existingDailyPlan[0]?.day || 1,
+      date: date || existingDailyPlan[0]?.date || preview.date,
+      blocks: allBlocks
     }];
+    
+    // Combine existing (first 2) with new activities for activities array
+    const allActivities = [...existingActivities, ...remainingActivities];
 
     // Update itinerary with full plan
     const fullItinerary = {
