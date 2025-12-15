@@ -1,6 +1,6 @@
 /**
- * Tours Database Module - Update Tour Endpoint
- * Serverless function to update an existing tour
+ * Tours Database Module - Update and Delete Tour Endpoint
+ * Serverless function to update or delete an existing tour
  */
 
 import { Redis } from '@upstash/redis';
@@ -111,7 +111,7 @@ function validateTourStructure(tour) {
 export default async function handler(req, res) {
   // CORS headers - ВСЕГДА устанавливаем первыми
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'PUT, POST, OPTIONS, GET');
+  res.setHeader('Access-Control-Allow-Methods', 'PUT, POST, DELETE, OPTIONS, GET');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
   res.setHeader('Access-Control-Max-Age', '86400');
 
@@ -119,6 +119,81 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     res.status(200);
     res.end();
+    return;
+  }
+
+  // Handle DELETE request
+  if (req.method === 'DELETE') {
+    try {
+      const redis = getRedis();
+      const { id } = req.query;
+
+      if (!id) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Tour ID is required' 
+        });
+      }
+
+      // Проверка авторизации
+      const userId = getUserId(req);
+      if (!userId) {
+        return res.status(401).json({ 
+          success: false, 
+          message: 'Unauthorized' 
+        });
+      }
+
+      // Получение существующего тура
+      const tourKey = `tour:${id}`;
+      const existingTourData = await redis.get(tourKey);
+
+      if (!existingTourData) {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Tour not found' 
+        });
+      }
+
+      const existingTour = typeof existingTourData === 'string' 
+        ? JSON.parse(existingTourData) 
+        : existingTourData;
+
+      // Проверка прав доступа (только создатель тура может его удалить)
+      if (existingTour.guideId !== userId) {
+        return res.status(403).json({ 
+          success: false, 
+          message: 'You can only delete your own tours' 
+        });
+      }
+
+      // Удаление тура из Redis
+      await redis.del(tourKey);
+
+      // Удаление из индекса города
+      if (existingTour.city) {
+        const cityToursKey = `tours:city:${existingTour.city}`;
+        await redis.srem(cityToursKey, id);
+      }
+
+      // Удаление из индекса гида
+      if (existingTour.guideId) {
+        const guideToursKey = `guide:${existingTour.guideId}:tours`;
+        await redis.srem(guideToursKey, id);
+      }
+
+      res.status(200).json({
+        success: true,
+        message: 'Tour deleted successfully'
+      });
+    } catch (error) {
+      console.error('Delete tour error:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Error deleting tour',
+        error: error.message 
+      });
+    }
     return;
   }
 
