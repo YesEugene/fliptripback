@@ -1,23 +1,11 @@
 /**
  * Auth Module - Register Endpoint
- * Serverless function for user registration
+ * Serverless function for user registration (using PostgreSQL/Supabase)
  */
 
-import { Redis } from '@upstash/redis';
+import { supabase } from '../database/db.js';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
-
-// Lazy initialization of Redis client
-function getRedis() {
-  const url = process.env.FTSTORAGE_KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const token = process.env.FTSTORAGE_KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-  
-  if (!url || !token) {
-    throw new Error('Redis environment variables not set');
-  }
-  
-  return new Redis({ url, token });
-}
 
 // Simple JWT-like token generation (for demo, replace with real JWT later)
 function generateToken(userId) {
@@ -74,10 +62,13 @@ export default async function handler(req, res) {
       });
     }
 
-    const redis = getRedis();
+    // Проверка существования пользователя в БД
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .single();
 
-    // Проверка существования пользователя
-    const existingUser = await redis.get(`user:email:${email}`);
     if (existingUser) {
       return res.status(400).json({ 
         success: false, 
@@ -88,38 +79,62 @@ export default async function handler(req, res) {
     // Хеширование пароля
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Создание пользователя
-    const userId = `user-${uuidv4()}`;
     // Не разрешаем создание админа через публичную регистрацию
     const userRole = role === 'guide' ? 'guide' : 'user';
-    const user = {
-      id: userId,
-      name,
-      email,
-      password: hashedPassword,
-      role: userRole,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
 
-    // Сохранение в Redis
-    await redis.set(`user:${userId}`, JSON.stringify(user));
-    await redis.set(`user:email:${email}`, userId);
+    // Создание пользователя в БД
+    const userId = uuidv4();
+    const { data: newUser, error: insertError } = await supabase
+      .from('users')
+      .insert({
+        id: userId,
+        name,
+        email,
+        password_hash: hashedPassword,
+        role: userRole
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      throw insertError;
+    }
+
+    // Если guide, создаем профиль гида
+    if (userRole === 'guide') {
+      await supabase
+        .from('guides')
+        .insert({
+          id: userId,
+          name: name
+        });
+    }
 
     // Генерация токена
     const token = generateToken(userId);
 
-    // Сохранение токена
-    await redis.set(`token:${token}`, userId, { ex: 86400 * 7 }); // 7 дней
+    // Сохранение токена в Redis (для совместимости)
+    try {
+      const { Redis } = await import('@upstash/redis');
+      const redisUrl = process.env.FTSTORAGE_KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+      const redisToken = process.env.FTSTORAGE_KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+      
+      if (redisUrl && redisToken) {
+        const redis = new Redis({ url: redisUrl, token: redisToken });
+        await redis.set(`token:${token}`, userId, { ex: 86400 * 7 }); // 7 дней
+      }
+    } catch (redisError) {
+      console.warn('Redis token storage failed (non-critical):', redisError);
+    }
 
     return res.status(200).json({
       success: true,
       token,
       user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role
+        id: newUser.id,
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role
       }
     });
   } catch (error) {

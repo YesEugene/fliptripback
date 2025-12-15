@@ -1,32 +1,25 @@
 /**
  * Auth Module - Get Current User Endpoint
- * Serverless function to get current authenticated user
+ * Serverless function to get current authenticated user (using PostgreSQL/Supabase)
  */
 
-import { Redis } from '@upstash/redis';
+import { supabase } from '../database/db.js';
 
-// Lazy initialization of Redis client
-function getRedis() {
-  const url = process.env.FTSTORAGE_KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const token = process.env.FTSTORAGE_KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-  
-  if (!url || !token) {
-    throw new Error('Redis environment variables not set');
-  }
-  
-  return new Redis({ url, token });
-}
-
-// Verify token and get user ID
-async function verifyToken(token, redis) {
+// Extract user ID from token
+function getUserIdFromToken(token) {
   if (!token) return null;
   
-  // Remove 'Bearer ' prefix if present
-  const cleanToken = token.startsWith('Bearer ') ? token.slice(7) : token;
-  
-  // Get user ID from token
-  const userId = await redis.get(`token:${cleanToken}`);
-  return userId;
+  try {
+    // Remove 'Bearer ' prefix if present
+    const cleanToken = token.startsWith('Bearer ') ? token.slice(7) : token;
+    
+    // Decode token (simple base64 for now)
+    const payload = JSON.parse(Buffer.from(cleanToken, 'base64').toString());
+    return payload.userId || payload.id || null;
+  } catch (error) {
+    console.error('Token decode error:', error);
+    return null;
+  }
 }
 
 export default async function handler(req, res) {
@@ -36,7 +29,7 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
   res.setHeader('Access-Control-Max-Age', '86400');
 
-  // Обработка preflight запроса - возвращаем сразу, БЕЗ вызова getRedis()
+  // Обработка preflight запроса - возвращаем сразу
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
@@ -51,31 +44,33 @@ export default async function handler(req, res) {
     if (!authHeader) {
       return res.status(401).json({ 
         success: false, 
-        message: 'Токен не предоставлен' 
+        message: 'Token not provided' 
       });
     }
 
-    const redis = getRedis();
-
-    // Verify token
-    const userId = await verifyToken(authHeader, redis);
+    // Extract user ID from token
+    const userId = getUserIdFromToken(authHeader);
     if (!userId) {
       return res.status(401).json({ 
         success: false, 
-        message: 'Неверный или истекший токен' 
+        message: 'Invalid or expired token' 
       });
     }
 
-    // Get user data
-    const userData = await redis.get(`user:${userId}`);
-    if (!userData) {
+    // Get user data from database
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('id, name, email, role, created_at, is_active')
+      .eq('id', userId)
+      .eq('is_active', true)
+      .single();
+
+    if (userError || !user) {
       return res.status(404).json({ 
         success: false, 
-        message: 'Пользователь не найден' 
+        message: 'User not found' 
       });
     }
-
-    const user = typeof userData === 'string' ? JSON.parse(userData) : userData;
 
     // Return user data (without password)
     res.status(200).json({
@@ -85,16 +80,16 @@ export default async function handler(req, res) {
         name: user.name,
         email: user.email,
         role: user.role,
-        createdAt: user.createdAt
+        createdAt: user.created_at
       }
     });
   } catch (error) {
     console.error('Get current user error:', error);
+    res.setHeader('Access-Control-Allow-Origin', '*');
     res.status(500).json({ 
       success: false, 
-      message: 'Ошибка получения данных пользователя',
+      message: 'Error getting user data',
       error: error.message 
     });
   }
 }
-

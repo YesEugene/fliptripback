@@ -1,22 +1,10 @@
 /**
  * Auth Module - Login Endpoint
- * Serverless function for user login
+ * Serverless function for user login (using PostgreSQL/Supabase)
  */
 
-import { Redis } from '@upstash/redis';
+import { supabase } from '../database/db.js';
 import bcrypt from 'bcryptjs';
-
-// Lazy initialization of Redis client
-function getRedis() {
-  const url = process.env.FTSTORAGE_KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const token = process.env.FTSTORAGE_KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-  
-  if (!url || !token) {
-    throw new Error('Redis environment variables not set');
-  }
-  
-  return new Redis({ url, token });
-}
 
 // Simple JWT-like token generation (for demo, replace with real JWT later)
 function generateToken(userId) {
@@ -34,10 +22,9 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
   res.setHeader('Access-Control-Max-Age', '86400');
 
-  // OPTIONS запрос - обрабатываем СРАЗУ, без каких-либо других операций
+  // OPTIONS запрос - обрабатываем СРАЗУ
   if (req.method === 'OPTIONS') {
-    res.status(200);
-    res.end();
+    res.status(200).end();
     return;
   }
 
@@ -56,30 +43,23 @@ export default async function handler(req, res) {
       });
     }
 
-    const redis = getRedis();
+    // Поиск пользователя в БД
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .eq('is_active', true)
+      .single();
 
-    // Поиск пользователя по email
-    const userId = await redis.get(`user:email:${email}`);
-    if (!userId) {
+    if (userError || !user) {
       return res.status(401).json({ 
         success: false, 
         message: 'Неверный email или пароль' 
       });
     }
-
-    // Получение данных пользователя
-    const userData = await redis.get(`user:${userId}`);
-    if (!userData) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Неверный email или пароль' 
-      });
-    }
-
-    const user = typeof userData === 'string' ? JSON.parse(userData) : userData;
 
     // Проверка пароля
-    const passwordMatch = await bcrypt.compare(password, user.password);
+    const passwordMatch = await bcrypt.compare(password, user.password_hash);
     if (!passwordMatch) {
       return res.status(401).json({ 
         success: false, 
@@ -87,11 +67,28 @@ export default async function handler(req, res) {
       });
     }
 
-    // Генерация токена
-    const token = generateToken(userId);
+    // Обновление last_login
+    await supabase
+      .from('users')
+      .update({ last_login: new Date().toISOString() })
+      .eq('id', user.id);
 
-    // Сохранение токена
-    await redis.set(`token:${token}`, userId, { ex: 86400 * 7 }); // 7 дней
+    // Генерация токена
+    const token = generateToken(user.id);
+
+    // Сохранение токена в Redis (для совместимости, можно убрать позже)
+    try {
+      const { Redis } = await import('@upstash/redis');
+      const redisUrl = process.env.FTSTORAGE_KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+      const redisToken = process.env.FTSTORAGE_KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+      
+      if (redisUrl && redisToken) {
+        const redis = new Redis({ url: redisUrl, token: redisToken });
+        await redis.set(`token:${token}`, user.id, { ex: 86400 * 7 }); // 7 дней
+      }
+    } catch (redisError) {
+      console.warn('Redis token storage failed (non-critical):', redisError);
+    }
 
     res.status(200).json({
       success: true,
@@ -116,4 +113,3 @@ export default async function handler(req, res) {
     });
   }
 }
-
