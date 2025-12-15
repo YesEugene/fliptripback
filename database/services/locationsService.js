@@ -88,16 +88,20 @@ export async function createLocation(locationData, userId = null) {
     if (error) throw error;
 
     // Add interests if provided (new system)
-    if (interest_ids && interest_ids.length > 0) {
-      const interestRelations = interest_ids.map(interestId => ({
-        location_id: data.id,
-        interest_id: interestId,
-        relevance_score: 5 // Default relevance
-      }));
-      const { error: interestsError } = await supabase.from('location_interests').insert(interestRelations);
-      if (interestsError) {
-        console.error('Error inserting interests:', interestsError);
-        // Don't fail the whole operation, just log the error
+    if (interest_ids && Array.isArray(interest_ids) && interest_ids.length > 0) {
+      // Filter out any invalid/null interest IDs
+      const validInterestIds = interest_ids.filter(id => id && typeof id === 'string');
+      if (validInterestIds.length > 0) {
+        const interestRelations = validInterestIds.map(interestId => ({
+          location_id: data.id,
+          interest_id: interestId,
+          relevance_score: 5 // Default relevance
+        }));
+        const { error: interestsError } = await supabase.from('location_interests').insert(interestRelations);
+        if (interestsError) {
+          console.error('Error inserting interests:', interestsError);
+          // Don't fail the whole operation, just log the error
+        }
       }
     }
     
@@ -151,16 +155,20 @@ export async function updateLocation(locationId, locationData, userId = null) {
       if (deleteError) {
         console.error('Error deleting interests:', deleteError);
       }
-      // Insert new interests
-      if (interest_ids.length > 0) {
-        const interestRelations = interest_ids.map(interestId => ({
-          location_id: locationId,
-          interest_id: interestId,
-          relevance_score: 5 // Default relevance
-        }));
-        const { error: insertError } = await supabase.from('location_interests').insert(interestRelations);
-        if (insertError) {
-          console.error('Error inserting interests:', insertError);
+      // Insert new interests if provided
+      if (Array.isArray(interest_ids) && interest_ids.length > 0) {
+        // Filter out any invalid/null interest IDs
+        const validInterestIds = interest_ids.filter(id => id && typeof id === 'string');
+        if (validInterestIds.length > 0) {
+          const interestRelations = validInterestIds.map(interestId => ({
+            location_id: locationId,
+            interest_id: interestId,
+            relevance_score: 5 // Default relevance
+          }));
+          const { error: insertError } = await supabase.from('location_interests').insert(interestRelations);
+          if (insertError) {
+            console.error('Error inserting interests:', insertError);
+          }
         }
       }
     }
