@@ -151,17 +151,21 @@ export default async function handler(req, res) {
     const existingDailyPlan = preview.daily_plan || [];
     
     // Convert remaining activities to daily_plan blocks format
+    // Match the structure expected by frontend (why for description, tips for recommendations)
     const newBlocks = remainingActivities.map((activity) => ({
       time: activity.time,
       title: activity.title || activity.name,
       items: [{
         title: activity.name,
-        description: activity.description,
-        recommendations: activity.recommendations,
+        why: activity.description, // Frontend expects 'why' for description
+        description: activity.description, // Also keep description for compatibility
+        tips: activity.recommendations, // Frontend expects 'tips' for recommendations
+        recommendations: activity.recommendations, // Also keep recommendations for compatibility
         category: activity.category,
         duration: activity.duration,
         approx_cost: activity.price,
         location: activity.location,
+        address: activity.location, // Frontend also uses 'address'
         photos: activity.photos,
         rating: activity.rating
       }]
