@@ -29,9 +29,10 @@ export default async function handler(req, res) {
 
     // Build success URL with itineraryId if present
     const interestsStr = Array.isArray(interests) ? interests.join(',') : interests;
-    let successUrl = `https://fliptripfront.vercel.app/success?itineraryId=${encodeURIComponent(itineraryId || '')}&email=${encodeURIComponent(email)}&city=${encodeURIComponent(city)}&audience=${encodeURIComponent(audience)}&interests=${encodeURIComponent(interestsStr)}&date=${encodeURIComponent(date)}&budget=${encodeURIComponent(budget)}&session_id={CHECKOUT_SESSION_ID}`;
+    const frontendDomain = 'https://flip-trip.com';
+    let successUrl = `${frontendDomain}/success?itineraryId=${encodeURIComponent(itineraryId || '')}&email=${encodeURIComponent(email)}&city=${encodeURIComponent(city)}&audience=${encodeURIComponent(audience)}&interests=${encodeURIComponent(interestsStr)}&date=${encodeURIComponent(date)}&budget=${encodeURIComponent(budget)}&session_id={CHECKOUT_SESSION_ID}`;
     
-    const cancelUrl = `https://fliptripfront.vercel.app/itinerary?city=${encodeURIComponent(city)}&audience=${encodeURIComponent(audience)}&interests=${encodeURIComponent(interestsStr)}&date=${encodeURIComponent(date)}&budget=${encodeURIComponent(budget)}&previewOnly=true${itineraryId ? `&itineraryId=${encodeURIComponent(itineraryId)}` : ''}`;
+    const cancelUrl = `${frontendDomain}/itinerary?city=${encodeURIComponent(city)}&audience=${encodeURIComponent(audience)}&interests=${encodeURIComponent(interestsStr)}&date=${encodeURIComponent(date)}&budget=${encodeURIComponent(budget)}&previewOnly=true${itineraryId ? `&itineraryId=${encodeURIComponent(itineraryId)}` : ''}`;
 
     // Создаем Stripe checkout session
     const session = await stripe.checkout.sessions.create({
