@@ -81,16 +81,16 @@ CREATE INDEX IF NOT EXISTS idx_city_interests_city ON city_interests(city_id);
 -- ============================================
 
 -- Insert top-level categories
-INSERT INTO interest_categories (name, icon, display_order) VALUES
-  ('active', '🏃', 1),
-  ('culture', '🏛️', 2),
-  ('food', '🍽️', 3),
-  ('nature', '🌳', 4),
-  ('nightlife', '🍸', 5),
-  ('family', '👨‍👩‍👧', 6),
-  ('romantic', '💑', 7),
-  ('health', '🧘', 8),
-  ('unique', '🎪', 9)
+INSERT INTO interest_categories (name, icon, display_order, description) VALUES
+  ('active', '🏃', 1, NULL),
+  ('culture', '🏛️', 2, NULL),
+  ('food', '🍽️', 3, NULL),
+  ('nature', '🌳', 4, NULL),
+  ('nightlife', '🍸', 5, NULL),
+  ('family', '👨‍👩‍👧', 6, NULL),
+  ('romantic', '💑', 7, NULL),
+  ('health', '🧘', 8, 'Отдых, направленный на релаксацию, спа-процедуры, медитацию, йогу, термальные источники.'),
+  ('unique', '🎪', 9, 'Интересы, которые не входят в число других категорий: фестивали, мероприятия, посещение тематических парков, волонтёрство, хобби.')
 ON CONFLICT (name) DO NOTHING;
 
 -- Insert subcategories and interests
