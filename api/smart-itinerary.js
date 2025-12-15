@@ -584,7 +584,9 @@ export default async function handler(req, res) {
       let description = place.description;
       let recommendations = place.recommendations;
       
-      if (!description || !recommendations) {
+      // Always generate descriptions for preview (DB might not have them yet)
+      if (!description || !recommendations || previewOnly) {
+        console.log(`📝 Generating description for ${place.name} (previewOnly: ${previewOnly}, hasDBDescription: ${!!description})`);
         const [generatedDescription, generatedRecommendations] = await Promise.all([
           description ? Promise.resolve(description) : generateLocationDescription(place.name, place.address, slot.category, interests, audience, dayConcept.concept),
           recommendations ? Promise.resolve(recommendations) : generateLocationRecommendations(place.name, slot.category, interests, audience, dayConcept.concept)
@@ -592,6 +594,7 @@ export default async function handler(req, res) {
         
         description = generatedDescription;
         recommendations = generatedRecommendations;
+        console.log(`✅ Generated description for ${place.name} (length: ${description?.length || 0})`);
       }
 
       // Рассчитываем реальную цену на основе Google Places price_level
