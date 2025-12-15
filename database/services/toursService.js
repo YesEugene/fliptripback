@@ -75,7 +75,10 @@ export async function getTourById(tourId) {
           *,
           items:tour_items(
             *,
-            location:locations(*)
+            location:locations(
+              *,
+              tags:location_tags(tag:tags(*))
+            )
           )
         )
       `)
@@ -249,18 +252,80 @@ export async function createTour(tourData, guideId) {
 
             // Create items
             if (blockData.items && blockData.items.length > 0) {
-              const items = blockData.items.map((itemData, itemIndex) => ({
-                tour_block_id: block.id,
-                location_id: itemData.location_id || null,
-                custom_title: itemData.title || itemData.custom_title,
-                custom_description: itemData.description || itemData.custom_description,
-                custom_recommendations: itemData.recommendations || itemData.custom_recommendations,
-                order_index: itemIndex,
-                duration_minutes: itemData.duration || itemData.duration_minutes,
-                approx_cost: itemData.approx_cost
-              }));
+              const itemsToInsert = [];
+              
+              for (let itemIndex = 0; itemIndex < blockData.items.length; itemIndex++) {
+                const itemData = blockData.items[itemIndex];
+                let locationId = itemData.location_id || null;
+                
+                // If no location_id but we have location data, create or find location
+                if (!locationId && itemData.title && tourData.city_id) {
+                  // Try to find existing location by name and city
+                  const { data: existingLocation } = await supabase
+                    .from('locations')
+                    .select('id')
+                    .eq('city_id', tourData.city_id)
+                    .ilike('name', itemData.title)
+                    .limit(1)
+                    .single();
+                  
+                  if (existingLocation) {
+                    locationId = existingLocation.id;
+                  } else {
+                    // Create new location
+                    const { data: newLocation, error: locError } = await supabase
+                      .from('locations')
+                      .insert({
+                        city_id: tourData.city_id,
+                        name: itemData.title,
+                        address: itemData.address || null,
+                        category: itemData.category || null,
+                        description: itemData.description || null,
+                        recommendations: itemData.recommendations || null,
+                        verified: false,
+                        source: 'guide'
+                      })
+                      .select()
+                      .single();
+                    
+                    if (!locError && newLocation) {
+                      locationId = newLocation.id;
+                      
+                      // Add tags to location if provided
+                      if (itemData.tag_ids && itemData.tag_ids.length > 0) {
+                        const locationTagRelations = itemData.tag_ids.map(tagId => ({
+                          location_id: locationId,
+                          tag_id: tagId
+                        }));
+                        await supabase.from('location_tags').insert(locationTagRelations);
+                      }
+                    }
+                  }
+                } else if (locationId && itemData.tag_ids && itemData.tag_ids.length > 0) {
+                  // Update existing location with tags
+                  // First remove existing tags for this location
+                  await supabase.from('location_tags').delete().eq('location_id', locationId);
+                  // Then add new tags
+                  const locationTagRelations = itemData.tag_ids.map(tagId => ({
+                    location_id: locationId,
+                    tag_id: tagId
+                  }));
+                  await supabase.from('location_tags').insert(locationTagRelations);
+                }
+                
+                itemsToInsert.push({
+                  tour_block_id: block.id,
+                  location_id: locationId,
+                  custom_title: itemData.title || itemData.custom_title,
+                  custom_description: itemData.description || itemData.custom_description,
+                  custom_recommendations: itemData.recommendations || itemData.custom_recommendations,
+                  order_index: itemIndex,
+                  duration_minutes: itemData.duration || itemData.duration_minutes,
+                  approx_cost: itemData.approx_cost
+                });
+              }
 
-              await supabase.from('tour_items').insert(items);
+              await supabase.from('tour_items').insert(itemsToInsert);
             }
           }
         }
