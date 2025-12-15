@@ -56,6 +56,24 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, message: 'Invalid preview structure' });
     }
 
+    // Normalize interests - ensure it's an array
+    let normalizedInterests = [];
+    if (interests) {
+      normalizedInterests = Array.isArray(interests) ? interests : (typeof interests === 'string' ? interests.split(',') : [interests]);
+    } else if (preview.meta?.interests) {
+      normalizedInterests = Array.isArray(preview.meta.interests) ? preview.meta.interests : [preview.meta.interests];
+    }
+
+    // Normalize audience
+    const normalizedAudience = audience || preview.meta?.audience || 'him';
+    
+    console.log('🔍 Complete itinerary params:', {
+      city: city || preview.city,
+      audience: normalizedAudience,
+      interests: normalizedInterests,
+      concept: preview.conceptual_plan?.concept
+    });
+
     // Get remaining time slots (skip first 2 that were already generated)
     const remainingTimeSlots = preview.conceptual_plan.timeSlots.slice(2);
 
@@ -80,25 +98,32 @@ export default async function handler(req, res) {
       
       // Always generate descriptions for new locations (they don't exist in DB yet)
       console.log(`📝 Generating description for ${place.name} (new location after payment)`);
+      console.log(`📝 Using params: interests=${JSON.stringify(normalizedInterests)}, audience=${normalizedAudience}, concept=${preview.conceptual_plan?.concept || 'none'}`);
+      
       const [description, recommendations] = await Promise.all([
         generateLocationDescription(
           place.name, 
           place.address, 
           slot.category, 
-          interests || preview.meta?.interests || [], 
-          audience || preview.meta?.audience || 'him', 
+          normalizedInterests, 
+          normalizedAudience, 
           preview.conceptual_plan?.concept || ''
         ),
         generateLocationRecommendations(
           place.name, 
           slot.category, 
-          interests || preview.meta?.interests || [], 
-          audience || preview.meta?.audience || 'him', 
+          normalizedInterests, 
+          normalizedAudience, 
           preview.conceptual_plan?.concept || ''
         )
       ]);
       
-      console.log(`✅ Generated description for ${place.name} (length: ${description?.length || 0})`);
+      console.log(`✅ Generated description for ${place.name} (length: ${description?.length || 0}, recommendations length: ${recommendations?.length || 0})`);
+      
+      // Validate that description was generated
+      if (!description || description.length < 50) {
+        console.warn(`⚠️ Description for ${place.name} seems too short: ${description?.substring(0, 100)}...`);
+      }
 
       const realPrice = calculateRealPrice(slot.category, place.priceLevel, city || preview.city);
       const priceRange = formatPriceRange(slot.category, place.priceLevel, city || preview.city);
