@@ -70,8 +70,11 @@ export async function getLocationById(locationId) {
  */
 export async function createLocation(locationData, userId = null) {
   try {
+    // Remove interest_ids and tag_ids from location data (handled separately)
+    const { interest_ids, tag_ids, ...locationFields } = locationData;
+    
     const location = {
-      ...locationData,
+      ...locationFields,
       created_by: userId,
       updated_by: userId
     };
@@ -85,22 +88,30 @@ export async function createLocation(locationData, userId = null) {
     if (error) throw error;
 
     // Add interests if provided (new system)
-    if (locationData.interest_ids && locationData.interest_ids.length > 0) {
-      const interestRelations = locationData.interest_ids.map(interestId => ({
+    if (interest_ids && interest_ids.length > 0) {
+      const interestRelations = interest_ids.map(interestId => ({
         location_id: data.id,
         interest_id: interestId,
         relevance_score: 5 // Default relevance
       }));
-      await supabase.from('location_interests').insert(interestRelations);
+      const { error: interestsError } = await supabase.from('location_interests').insert(interestRelations);
+      if (interestsError) {
+        console.error('Error inserting interests:', interestsError);
+        // Don't fail the whole operation, just log the error
+      }
     }
     
     // Legacy: Add tags if provided (for backward compatibility)
-    if (locationData.tag_ids && locationData.tag_ids.length > 0) {
-      const tagRelations = locationData.tag_ids.map(tagId => ({
+    if (tag_ids && tag_ids.length > 0) {
+      const tagRelations = tag_ids.map(tagId => ({
         location_id: data.id,
         tag_id: tagId
       }));
-      await supabase.from('location_tags').insert(tagRelations);
+      const { error: tagsError } = await supabase.from('location_tags').insert(tagRelations);
+      if (tagsError) {
+        console.error('Error inserting tags:', tagsError);
+        // Don't fail the whole operation, just log the error
+      }
     }
 
     return { success: true, location: data };
@@ -115,18 +126,18 @@ export async function createLocation(locationData, userId = null) {
  */
 export async function updateLocation(locationId, locationData, userId = null) {
   try {
+    // Remove interest_ids and tag_ids from update data (handled separately)
+    const { interest_ids, tag_ids, ...updateFields } = locationData;
+    
     const updateData = {
-      ...locationData,
+      ...updateFields,
       updated_by: userId,
       updated_at: new Date().toISOString()
     };
 
-    // Remove tag_ids from update data (handled separately)
-    const { tag_ids, ...updateFields } = updateData;
-
     const { data, error } = await supabase
       .from('locations')
-      .update(updateFields)
+      .update(updateData)
       .eq('id', locationId)
       .select()
       .single();
@@ -134,32 +145,43 @@ export async function updateLocation(locationId, locationData, userId = null) {
     if (error) throw error;
 
     // Update interests if provided (new system)
-    if (locationData.interest_ids !== undefined) {
+    if (interest_ids !== undefined) {
       // Delete existing interests
-      await supabase.from('location_interests').delete().eq('location_id', locationId);
+      const { error: deleteError } = await supabase.from('location_interests').delete().eq('location_id', locationId);
+      if (deleteError) {
+        console.error('Error deleting interests:', deleteError);
+      }
       // Insert new interests
-      if (locationData.interest_ids.length > 0) {
-        const interestRelations = locationData.interest_ids.map(interestId => ({
+      if (interest_ids.length > 0) {
+        const interestRelations = interest_ids.map(interestId => ({
           location_id: locationId,
           interest_id: interestId,
           relevance_score: 5 // Default relevance
         }));
-        await supabase.from('location_interests').insert(interestRelations);
+        const { error: insertError } = await supabase.from('location_interests').insert(interestRelations);
+        if (insertError) {
+          console.error('Error inserting interests:', insertError);
+        }
       }
     }
     
     // Legacy: Update tags if provided (for backward compatibility)
-    const { tag_ids, interest_ids, ...updateFields } = updateData;
     if (tag_ids !== undefined) {
       // Delete existing tags
-      await supabase.from('location_tags').delete().eq('location_id', locationId);
+      const { error: deleteError } = await supabase.from('location_tags').delete().eq('location_id', locationId);
+      if (deleteError) {
+        console.error('Error deleting tags:', deleteError);
+      }
       // Insert new tags
       if (tag_ids.length > 0) {
         const tagRelations = tag_ids.map(tagId => ({
           location_id: locationId,
           tag_id: tagId
         }));
-        await supabase.from('location_tags').insert(tagRelations);
+        const { error: insertError } = await supabase.from('location_tags').insert(tagRelations);
+        if (insertError) {
+          console.error('Error inserting tags:', insertError);
+        }
       }
     }
 
