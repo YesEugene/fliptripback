@@ -136,12 +136,11 @@ BEGIN
     (active_id, 'water sports', 2),
     (active_id, 'land sports', 3),
     (active_id, 'adventure', 4)
-  ON CONFLICT (category_id, name) DO NOTHING
-  RETURNING id INTO winter_sports_id;
+  ON CONFLICT (category_id, name) DO NOTHING;
   
-  SELECT id INTO winter_sports_id FROM interest_subcategories WHERE category_id = active_id AND name = 'winter sports';
-  SELECT id INTO water_sports_id FROM interest_subcategories WHERE category_id = active_id AND name = 'water sports';
-  SELECT id INTO land_sports_id FROM interest_subcategories WHERE category_id = active_id AND name = 'land sports';
+  SELECT id INTO winter_sports_id FROM interest_subcategories WHERE category_id = active_id AND name = 'winter sports' LIMIT 1;
+  SELECT id INTO water_sports_id FROM interest_subcategories WHERE category_id = active_id AND name = 'water sports' LIMIT 1;
+  SELECT id INTO land_sports_id FROM interest_subcategories WHERE category_id = active_id AND name = 'land sports' LIMIT 1;
 
   INSERT INTO interests (category_id, subcategory_id, name, display_order) VALUES
     -- Active → Winter Sports
@@ -171,9 +170,9 @@ BEGIN
     (culture_id, 'history', 4)
   ON CONFLICT (category_id, name) DO NOTHING;
   
-  SELECT id INTO museums_id FROM interest_subcategories WHERE category_id = culture_id AND name = 'museums';
-  SELECT id INTO art_id FROM interest_subcategories WHERE category_id = culture_id AND name = 'art';
-  SELECT id INTO entertainment_id FROM interest_subcategories WHERE category_id = culture_id AND name = 'entertainment';
+  SELECT id INTO museums_id FROM interest_subcategories WHERE category_id = culture_id AND name = 'museums' LIMIT 1;
+  SELECT id INTO art_id FROM interest_subcategories WHERE category_id = culture_id AND name = 'art' LIMIT 1;
+  SELECT id INTO entertainment_id FROM interest_subcategories WHERE category_id = culture_id AND name = 'entertainment' LIMIT 1;
 
   INSERT INTO interests (category_id, subcategory_id, name, display_order) VALUES
     -- Culture → Museums
@@ -204,9 +203,9 @@ BEGIN
     (food_id, 'experiences', 3)
   ON CONFLICT (category_id, name) DO NOTHING;
   
-  SELECT id INTO restaurants_id FROM interest_subcategories WHERE category_id = food_id AND name = 'restaurants';
-  SELECT id INTO cafes_id FROM interest_subcategories WHERE category_id = food_id AND name = 'cafes';
-  SELECT id INTO experiences_id FROM interest_subcategories WHERE category_id = food_id AND name = 'experiences';
+  SELECT id INTO restaurants_id FROM interest_subcategories WHERE category_id = food_id AND name = 'restaurants' LIMIT 1;
+  SELECT id INTO cafes_id FROM interest_subcategories WHERE category_id = food_id AND name = 'cafes' LIMIT 1;
+  SELECT id INTO experiences_id FROM interest_subcategories WHERE category_id = food_id AND name = 'experiences' LIMIT 1;
 
   INSERT INTO interests (category_id, subcategory_id, name, display_order) VALUES
     -- Food → Restaurants
@@ -232,9 +231,9 @@ BEGIN
     (nature_id, 'mountains', 3)
   ON CONFLICT (category_id, name) DO NOTHING;
   
-  SELECT id INTO parks_id FROM interest_subcategories WHERE category_id = nature_id AND name = 'parks';
-  SELECT id INTO beaches_id FROM interest_subcategories WHERE category_id = nature_id AND name = 'beaches';
-  SELECT id INTO mountains_id FROM interest_subcategories WHERE category_id = nature_id AND name = 'mountains';
+  SELECT id INTO parks_id FROM interest_subcategories WHERE category_id = nature_id AND name = 'parks' LIMIT 1;
+  SELECT id INTO beaches_id FROM interest_subcategories WHERE category_id = nature_id AND name = 'beaches' LIMIT 1;
+  SELECT id INTO mountains_id FROM interest_subcategories WHERE category_id = nature_id AND name = 'mountains' LIMIT 1;
 
   INSERT INTO interests (category_id, subcategory_id, name, display_order) VALUES
     -- Nature → Parks
@@ -259,8 +258,8 @@ BEGIN
     (nightlife_id, 'clubs', 2)
   ON CONFLICT (category_id, name) DO NOTHING;
   
-  SELECT id INTO bars_id FROM interest_subcategories WHERE category_id = nightlife_id AND name = 'bars';
-  SELECT id INTO clubs_id FROM interest_subcategories WHERE category_id = nightlife_id AND name = 'clubs';
+  SELECT id INTO bars_id FROM interest_subcategories WHERE category_id = nightlife_id AND name = 'bars' LIMIT 1;
+  SELECT id INTO clubs_id FROM interest_subcategories WHERE category_id = nightlife_id AND name = 'clubs' LIMIT 1;
 
   INSERT INTO interests (category_id, subcategory_id, name, display_order) VALUES
     -- Nightlife → Bars
@@ -283,8 +282,8 @@ BEGIN
     (family_id, 'attractions', 2)
   ON CONFLICT (category_id, name) DO NOTHING;
   
-  SELECT id INTO activities_id FROM interest_subcategories WHERE category_id = family_id AND name = 'activities';
-  SELECT id INTO attractions_id FROM interest_subcategories WHERE category_id = family_id AND name = 'attractions';
+  SELECT id INTO activities_id FROM interest_subcategories WHERE category_id = family_id AND name = 'activities' LIMIT 1;
+  SELECT id INTO attractions_id FROM interest_subcategories WHERE category_id = family_id AND name = 'attractions' LIMIT 1;
 
   INSERT INTO interests (category_id, subcategory_id, name, display_order) VALUES
     -- Family → Activities
@@ -305,7 +304,7 @@ BEGIN
     (romantic_id, 'experiences', 1)
   ON CONFLICT (category_id, name) DO NOTHING;
   
-  SELECT id INTO experiences_romantic_id FROM interest_subcategories WHERE category_id = romantic_id AND name = 'experiences';
+  SELECT id INTO experiences_romantic_id FROM interest_subcategories WHERE category_id = romantic_id AND name = 'experiences' LIMIT 1;
 
   INSERT INTO interests (category_id, subcategory_id, name, display_order) VALUES
     -- Romantic → Experiences
