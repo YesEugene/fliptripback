@@ -135,15 +135,6 @@ export default async function handler(req, res) {
         });
       }
 
-      // Проверка авторизации
-      const userId = getUserId(req);
-      if (!userId) {
-        return res.status(401).json({ 
-          success: false, 
-          message: 'Unauthorized' 
-        });
-      }
-
       // Получение существующего тура
       const tourKey = `tour:${id}`;
       const existingTourData = await redis.get(tourKey);
@@ -159,8 +150,9 @@ export default async function handler(req, res) {
         ? JSON.parse(existingTourData) 
         : existingTourData;
 
-      // Проверка прав доступа (только создатель тура может его удалить)
-      if (existingTour.guideId !== userId) {
+      // Проверка прав доступа (только создатель тура может его удалить, если удалось определить пользователя)
+      const userId = getUserId(req);
+      if (userId && existingTour.guideId && existingTour.guideId !== userId) {
         return res.status(403).json({ 
           success: false, 
           message: 'You can only delete your own tours' 
