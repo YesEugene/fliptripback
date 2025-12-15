@@ -1,14 +1,28 @@
-import { getRedis } from './save-itinerary.js';
+import { Redis } from '@upstash/redis';
+
+// Lazy initialization of Redis client
+function getRedis() {
+  const url = process.env.FTSTORAGE_KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const token = process.env.FTSTORAGE_KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+  
+  if (!url || !token) {
+    throw new Error('Redis environment variables not set. Please check FTSTORAGE_KV_REST_API_URL and FTSTORAGE_KV_REST_API_TOKEN.');
+  }
+  
+  return new Redis({ url, token });
+}
 
 export default async function handler(req, res) {
-  // CORS headers
+  // CORS headers - ВСЕГДА устанавливаем первыми
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
   res.setHeader('Access-Control-Max-Age', '86400');
 
+  // OPTIONS запрос - обрабатываем СРАЗУ
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    res.status(200).end();
+    return;
   }
 
   if (req.method !== 'POST') {
