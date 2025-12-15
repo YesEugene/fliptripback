@@ -90,8 +90,8 @@ export default async function handler(req, res) {
 
     // Создание пользователя
     const userId = `user-${uuidv4()}`;
-    // Разрешаем создание админа через регистрацию (для первого админа)
-    const userRole = role === 'admin' ? 'admin' : (role === 'guide' ? 'guide' : 'user');
+    // Не разрешаем создание админа через публичную регистрацию
+    const userRole = role === 'guide' ? 'guide' : 'user';
     const user = {
       id: userId,
       name,

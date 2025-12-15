@@ -105,6 +105,10 @@ export default async function handler(req, res) {
     });
   } catch (error) {
     console.error('Login error:', error);
+    // Убеждаемся, что CORS headers установлены даже в случае ошибки
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS, GET');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
     res.status(500).json({ 
       success: false, 
       message: 'Ошибка входа',
