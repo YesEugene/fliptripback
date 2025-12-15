@@ -88,7 +88,9 @@ INSERT INTO interest_categories (name, icon, display_order) VALUES
   ('nature', '🌳', 4),
   ('nightlife', '🍸', 5),
   ('family', '👨‍👩‍👧', 6),
-  ('romantic', '💑', 7)
+  ('romantic', '💑', 7),
+  ('health', '🧘', 8),
+  ('unique', '🎪', 9)
 ON CONFLICT (name) DO NOTHING;
 
 -- Insert subcategories and interests
@@ -102,6 +104,8 @@ DECLARE
   nightlife_id UUID;
   family_id UUID;
   romantic_id UUID;
+  health_id UUID;
+  unique_id UUID;
   
   winter_sports_id UUID;
   water_sports_id UUID;
@@ -120,6 +124,8 @@ DECLARE
   activities_id UUID;
   attractions_id UUID;
   experiences_romantic_id UUID;
+  relaxation_id UUID;
+  events_id UUID;
 BEGIN
   -- Get category IDs
   SELECT id INTO active_id FROM interest_categories WHERE name = 'active';
@@ -129,6 +135,8 @@ BEGIN
   SELECT id INTO nightlife_id FROM interest_categories WHERE name = 'nightlife';
   SELECT id INTO family_id FROM interest_categories WHERE name = 'family';
   SELECT id INTO romantic_id FROM interest_categories WHERE name = 'romantic';
+  SELECT id INTO health_id FROM interest_categories WHERE name = 'health';
+  SELECT id INTO unique_id FROM interest_categories WHERE name = 'unique';
 
   -- ACTIVE category
   INSERT INTO interest_subcategories (category_id, name, display_order) VALUES
@@ -315,6 +323,43 @@ BEGIN
     (romantic_id, NULL, 'romantic gardens', 4),
     (romantic_id, NULL, 'spas', 5),
     (romantic_id, NULL, 'couples activities', 6)
+  ON CONFLICT DO NOTHING;
+
+  -- HEALTH category
+  INSERT INTO interest_subcategories (category_id, name, display_order) VALUES
+    (health_id, 'relaxation', 1)
+  ON CONFLICT (category_id, name) DO NOTHING;
+  
+  SELECT id INTO relaxation_id FROM interest_subcategories WHERE category_id = health_id AND name = 'relaxation' LIMIT 1;
+
+  INSERT INTO interests (category_id, subcategory_id, name, display_order) VALUES
+    -- Health → Relaxation
+    (health_id, relaxation_id, 'spa salons', 1),
+    (health_id, relaxation_id, 'yoga', 2),
+    (health_id, relaxation_id, 'hot springs', 3),
+    -- Health (direct)
+    (health_id, NULL, 'meditation', 4),
+    (health_id, NULL, 'wellness centers', 5),
+    (health_id, NULL, 'thermal baths', 6)
+  ON CONFLICT DO NOTHING;
+
+  -- UNIQUE EXPERIENCES category
+  INSERT INTO interest_subcategories (category_id, name, display_order) VALUES
+    (unique_id, 'events', 1)
+  ON CONFLICT (category_id, name) DO NOTHING;
+  
+  SELECT id INTO events_id FROM interest_subcategories WHERE category_id = unique_id AND name = 'events' LIMIT 1;
+
+  INSERT INTO interests (category_id, subcategory_id, name, display_order) VALUES
+    -- Unique → Events
+    (unique_id, events_id, 'music festivals', 1),
+    (unique_id, events_id, 'local festivals', 2),
+    (unique_id, events_id, 'conferences', 3),
+    -- Unique (direct)
+    (unique_id, NULL, 'theme parks', 4),
+    (unique_id, NULL, 'volunteering', 5),
+    (unique_id, NULL, 'hobbies', 6),
+    (unique_id, NULL, 'special events', 7)
   ON CONFLICT DO NOTHING;
 
 END $$;
