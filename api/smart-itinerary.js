@@ -238,7 +238,9 @@ Now create a similarly rich, detailed description for ${locationName}:`;
     return description;
   } catch (error) {
     console.error(`❌ МОДУЛЬ 2: Ошибка описания для ${locationName}:`, error.message);
-    return `Experience the authentic charm of ${locationName}, a beloved ${category} that captures the essence of ${city}. This location offers a perfect blend of local culture and unique atmosphere that resonates with ${audience}'s passion for ${Array.isArray(interests) ? interests.join(' and ') : interests}. The vibrant energy and distinctive character make it an unforgettable stop on your journey through the city. Every moment here connects you to the authentic spirit of the destination, creating memories that will last long after your visit ends.`;
+    // Extract city from address if available
+    const cityFromAddress = address ? address.split(',')[address.split(',').length - 1]?.trim() : 'the city';
+    return `Experience the authentic charm of ${locationName}, a beloved ${category} that captures the essence of ${cityFromAddress}. This location offers a perfect blend of local culture and unique atmosphere that resonates with ${audience}'s passion for ${Array.isArray(interests) ? interests.join(' and ') : interests}. The vibrant energy and distinctive character make it an unforgettable stop on your journey through the city. Every moment here connects you to the authentic spirit of the destination, creating memories that will last long after your visit ends.`;
   }
 }
 
