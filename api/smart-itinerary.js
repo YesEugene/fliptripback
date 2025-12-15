@@ -101,8 +101,16 @@ export async function findRealLocations(timeSlots, city) {
           const categories = slot.category ? [slot.category] : [];
           const tags = slot.keywords || [];
           
-          console.log(`🔍 Searching DB for: cityId=${cityId}, categories=${categories.join(',')}, tags=${tags.join(',')}`);
-          const dbResult = await searchLocationsForItinerary(cityId, categories, tags, 10);
+          console.log(`🔍 Searching DB for: cityId=${cityId}, category=${slot.category}, categories=${categories.join(',')}, tags=${tags.join(',')}`);
+          
+          // First try with exact category match
+          let dbResult = await searchLocationsForItinerary(cityId, categories, tags, 10);
+          
+          // If no results with category filter, try without category (broader search)
+          if (!dbResult.success || !dbResult.locations || dbResult.locations.length === 0) {
+            console.log(`⚠️ No locations found with category filter, trying without category...`);
+            dbResult = await searchLocationsForItinerary(cityId, [], tags, 10);
+          }
           
           console.log(`📊 DB search result: ${dbResult.locations?.length || 0} locations found`);
           
@@ -121,9 +129,9 @@ export async function findRealLocations(timeSlots, city) {
               recommendations: dbLocation.recommendations,
               category: dbLocation.category
             };
-            console.log(`✅ Найдено в БД: ${dbLocation.name} (category: ${dbLocation.category}, verified: ${dbLocation.verified})`);
+            console.log(`✅ Найдено в БД: ${dbLocation.name} (category: ${dbLocation.category}, verified: ${dbLocation.verified}, source: ${dbLocation.source})`);
           } else {
-            console.log(`⚠️ No locations found in DB for category: ${categories.join(',')}`);
+            console.log(`⚠️ No locations found in DB for cityId: ${cityId}, category: ${categories.join(',')}`);
           }
         } catch (dbError) {
           console.error('Database search error:', dbError);
