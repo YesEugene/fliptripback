@@ -621,11 +621,10 @@ export default async function handler(req, res) {
       };
     }));
 
-    // For preview mode, only generate 2 locations to save costs and speed up generation
-    if (previewOnly) {
-      console.log('📋 Preview mode: Limiting to 2 locations');
-      activities = activities.slice(0, 2);
-    }
+    // NEW APPROACH: Always generate full plan
+    // Preview logic is handled on frontend (showing only 2 blocks when previewOnly=true)
+    // No need to slice activities here - full plan is needed for unlock after payment
+    console.log(`📋 Generated ${activities.length} activities (full plan, previewOnly=${previewOnly})`);
 
     // МОДУЛЬ КОНТРОЛЯ БЮДЖЕТА: корректируем цены под бюджет ±30%
     const targetBudget = parseInt(budget);
