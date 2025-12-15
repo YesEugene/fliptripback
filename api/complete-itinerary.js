@@ -167,7 +167,14 @@ export default async function handler(req, res) {
     // Save full itinerary back to Redis
     await redis.set(`itinerary:${itineraryId}`, JSON.stringify(fullItinerary), { ex: 60 * 60 * 24 * 30 });
 
-    console.log(`✅ Full itinerary saved with ${allActivities.length} activities`);
+    // Verify it was saved correctly
+    const verifyData = await redis.get(`itinerary:${itineraryId}`);
+    const verifyItinerary = typeof verifyData === 'string' ? JSON.parse(verifyData) : verifyData;
+    const savedBlocksCount = verifyItinerary?.daily_plan?.[0]?.blocks?.length || 0;
+    const savedActivitiesCount = verifyItinerary?.activities?.length || 0;
+
+    console.log(`✅ Full itinerary saved with ${allActivities.length} activities, ${allBlocks.length} blocks`);
+    console.log(`🔍 Verification: Redis has ${savedActivitiesCount} activities, ${savedBlocksCount} blocks, previewOnly: ${verifyItinerary?.previewOnly}`);
 
     res.status(200).json({
       success: true,
