@@ -220,21 +220,23 @@ export async function deleteLocation(locationId) {
 
 /**
  * Search locations by city and category (for itinerary generation)
+ * Supports both interest_ids (new system) and tags (legacy)
  */
-export async function searchLocationsForItinerary(cityId, categories = [], tags = [], limit = 10) {
+export async function searchLocationsForItinerary(cityId, categories = [], tags = [], interestIds = [], limit = 10) {
   try {
     let query = supabase
       .from('locations')
       .select(`
         *,
         city:cities(*),
+        interests:location_interests(interest:interests(*, category:interest_categories(*), subcategory:interest_subcategories(*))),
         tags:location_tags(tag:tags(*)),
         photos:location_photos(*)
       `)
       .eq('city_id', cityId)
       // Search verified locations OR admin-created locations (both should be included)
       .or('verified.eq.true,source.eq.admin')
-      .limit(limit);
+      .limit(limit * 2); // Get more to filter by interests
 
     if (categories.length > 0) {
       query = query.in('category', categories);
@@ -242,13 +244,23 @@ export async function searchLocationsForItinerary(cityId, categories = [], tags 
 
     const { data, error } = await query;
     
-    console.log(`🔍 DB Query: cityId=${cityId}, categories=${categories.join(',')}, found ${data?.length || 0} locations`);
+    console.log(`🔍 DB Query: cityId=${cityId}, categories=${categories.join(',')}, interestIds=${interestIds.length}, found ${data?.length || 0} locations`);
 
     if (error) throw error;
 
-    // Filter by interests if provided (new system)
     let filtered = data || [];
-    if (tags.length > 0) {
+
+    // Filter by interest_ids if provided (new system - preferred)
+    if (interestIds.length > 0) {
+      filtered = filtered.filter(location => {
+        const locationInterestIds = location.interests?.map(li => li.interest?.id || li.interest_id).filter(Boolean) || [];
+        // Location matches if it has at least one of the requested interests
+        return interestIds.some(interestId => locationInterestIds.includes(interestId));
+      });
+      console.log(`✅ Filtered by interest_ids: ${filtered.length} locations match`);
+    }
+    // Legacy: Filter by tags if provided (fallback)
+    else if (tags.length > 0) {
       filtered = filtered.filter(location => {
         // Check interests first (new system)
         const locationInterests = location.interests?.map(li => li.interest?.name) || [];
@@ -258,6 +270,9 @@ export async function searchLocationsForItinerary(cityId, categories = [], tags 
         return tags.some(tag => allLocationTags.includes(tag));
       });
     }
+
+    // Limit results
+    filtered = filtered.slice(0, limit);
 
     return { success: true, locations: filtered };
   } catch (error) {

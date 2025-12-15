@@ -77,7 +77,7 @@ Make it creative, locally relevant, and perfectly suited for ${audience} interes
 // МОДУЛЬ 1: ПОИСК РЕАЛЬНЫХ МЕСТ
 // =============================================================================
 
-export async function findRealLocations(timeSlots, city) {
+export async function findRealLocations(timeSlots, city, interestIds = []) {
   console.log('📍 МОДУЛЬ 1: Поиск реальных мест...');
   
   // Get city_id from city name
@@ -101,15 +101,21 @@ export async function findRealLocations(timeSlots, city) {
           const categories = slot.category ? [slot.category] : [];
           const tags = slot.keywords || [];
           
-          console.log(`🔍 Searching DB for: cityId=${cityId}, category=${slot.category}, categories=${categories.join(',')}, tags=${tags.join(',')}`);
+          console.log(`🔍 Searching DB for: cityId=${cityId}, category=${slot.category}, categories=${categories.join(',')}, tags=${tags.join(',')}, interestIds=${interestIds.length}`);
           
-          // First try with exact category match
-          let dbResult = await searchLocationsForItinerary(cityId, categories, tags, 10);
+          // First try with exact category match and interest filter
+          let dbResult = await searchLocationsForItinerary(cityId, categories, tags, interestIds, 10);
           
           // If no results with category filter, try without category (broader search)
           if (!dbResult.success || !dbResult.locations || dbResult.locations.length === 0) {
             console.log(`⚠️ No locations found with category filter, trying without category...`);
-            dbResult = await searchLocationsForItinerary(cityId, [], tags, 10);
+            dbResult = await searchLocationsForItinerary(cityId, [], tags, interestIds, 10);
+          }
+          
+          // If still no results and we have interestIds, try without interest filter (fallback)
+          if ((!dbResult.success || !dbResult.locations || dbResult.locations.length === 0) && interestIds.length > 0) {
+            console.log(`⚠️ No locations found with interest filter, trying without interest filter...`);
+            dbResult = await searchLocationsForItinerary(cityId, categories, tags, [], 10);
           }
           
           console.log(`📊 DB search result: ${dbResult.locations?.length || 0} locations found`);
@@ -516,7 +522,11 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { action, text, city, audience, interests, date, budget, previewOnly } = req.body;
+    const { action, text, city, audience, interests, interest_ids, date, budget, previewOnly } = req.body;
+    
+    // Support both interests (legacy) and interest_ids (new system)
+    const interestIds = interest_ids && Array.isArray(interest_ids) ? interest_ids : [];
+    const interestsList = interests || [];
     
     // Handle tag generation request
     if (action === 'generateTags') {
@@ -592,7 +602,7 @@ export default async function handler(req, res) {
     const locations = await findRealLocations(dayConcept.timeSlots, city);
     
     // МОДУЛЬ 4: Генерируем мета-информацию
-    const metaInfo = await generateMetaInfo(city, audience, interests, date, dayConcept.concept);
+    const metaInfo = await generateMetaInfo(city, audience, interestsList, date, dayConcept.concept);
 
     // МОДУЛИ 2-3: Генерируем описания и рекомендации для каждого места
     let activities = await Promise.all(locations.map(async (slot) => {
@@ -606,8 +616,8 @@ export default async function handler(req, res) {
       if (!description || !recommendations || previewOnly) {
         console.log(`📝 Generating description for ${place.name} (previewOnly: ${previewOnly}, hasDBDescription: ${!!description})`);
         const [generatedDescription, generatedRecommendations] = await Promise.all([
-          description ? Promise.resolve(description) : generateLocationDescription(place.name, place.address, slot.category, interests, audience, dayConcept.concept),
-          recommendations ? Promise.resolve(recommendations) : generateLocationRecommendations(place.name, slot.category, interests, audience, dayConcept.concept)
+          description ? Promise.resolve(description) : generateLocationDescription(place.name, place.address, slot.category, interestsList, audience, dayConcept.concept),
+          recommendations ? Promise.resolve(recommendations) : generateLocationRecommendations(place.name, slot.category, interestsList, audience, dayConcept.concept)
         ]);
         
         description = generatedDescription;
