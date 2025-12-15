@@ -54,6 +54,10 @@ export default async function handler(req, res) {
       altUrl: process.env.UPSTASH_REDIS_REST_URL ? 'set' : 'not set',
       altToken: process.env.UPSTASH_REDIS_REST_TOKEN ? 'set' : 'not set',
     });
+    // Убеждаемся, что CORS headers установлены даже в случае ошибки
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
     return res.status(500).json({ 
       success: false, 
       error: 'Failed to save itinerary', 

@@ -15,7 +15,9 @@
     "stripe": "^14.21.0",
     "pg": "^8.11.3",
     "@supabase/supabase-js": "^2.39.0",
-    "bcryptjs": "^2.4.3"
+    "bcryptjs": "^2.4.3",
+    "@upstash/redis": "^1.29.0",
+    "uuid": "^9.0.1"
   },
   "engines": {
     "node": ">=18.0.0"
