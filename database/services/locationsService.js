@@ -171,10 +171,11 @@ export async function searchLocationsForItinerary(cityId, categories = [], tags 
       .select(`
         *,
         city:cities(*),
-        tags:location_tags(tag:tags(*))
+        tags:location_tags(tag:tags(*)),
+        photos:location_photos(*)
       `)
       .eq('city_id', cityId)
-      // Search verified locations first, but also include admin-created locations
+      // Search verified locations OR admin-created locations (both should be included)
       .or('verified.eq.true,source.eq.admin')
       .limit(limit);
 
@@ -183,6 +184,8 @@ export async function searchLocationsForItinerary(cityId, categories = [], tags 
     }
 
     const { data, error } = await query;
+    
+    console.log(`🔍 DB Query: cityId=${cityId}, categories=${categories.join(',')}, found ${data?.length || 0} locations`);
 
     if (error) throw error;
 
