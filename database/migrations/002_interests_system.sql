@@ -31,8 +31,14 @@ CREATE TABLE IF NOT EXISTS interests (
   subcategory_id UUID REFERENCES interest_subcategories(id) ON DELETE SET NULL, -- Can be null for direct category interests
   name VARCHAR(100) NOT NULL, -- 'skiing', 'cycling', 'museums', 'art galleries'
   display_order INTEGER DEFAULT 0,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(category_id, COALESCE(subcategory_id, '00000000-0000-0000-0000-000000000000'::uuid), name)
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create unique index for interests (handles NULL subcategory_id)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_interests_unique ON interests(
+  category_id, 
+  COALESCE(subcategory_id, '00000000-0000-0000-0000-000000000000'::uuid), 
+  name
 );
 
 -- City-Interests mapping (for future use - which interests are available in which cities)
