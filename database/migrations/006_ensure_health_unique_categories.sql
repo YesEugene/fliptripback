@@ -1,16 +1,7 @@
 -- Migration: Ensure Health and Unique categories exist with all interests
 -- This script ensures categories are created even if they don't exist
 
--- Insert categories if they don't exist
-INSERT INTO interest_categories (name, icon, display_order, description) VALUES
-  ('health', '🧘', 8, 'Отдых, направленный на релаксацию, спа-процедуры, медитацию, йогу, термальные источники.'),
-  ('unique', '🎪', 9, 'Интересы, которые не входят в число других категорий: фестивали, мероприятия, посещение тематических парков, волонтёрство, хобби.')
-ON CONFLICT (name) DO UPDATE 
-SET description = EXCLUDED.description,
-    icon = EXCLUDED.icon,
-    display_order = EXCLUDED.display_order;
-
--- Add description column if it doesn't exist
+-- STEP 1: Add description column FIRST if it doesn't exist
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -18,16 +9,20 @@ BEGIN
     WHERE table_name = 'interest_categories' AND column_name = 'description'
   ) THEN
     ALTER TABLE interest_categories ADD COLUMN description TEXT;
-    -- Update existing categories with descriptions
-    UPDATE interest_categories 
-    SET description = 'Отдых, направленный на релаксацию, спа-процедуры, медитацию, йогу, термальные источники.'
-    WHERE name = 'health';
-    
-    UPDATE interest_categories 
-    SET description = 'Интересы, которые не входят в число других категорий: фестивали, мероприятия, посещение тематических парков, волонтёрство, хобби.'
-    WHERE name = 'unique';
+    RAISE NOTICE 'Added description column to interest_categories';
+  ELSE
+    RAISE NOTICE 'Description column already exists';
   END IF;
 END $$;
+
+-- STEP 2: Insert or update categories (now description column exists)
+INSERT INTO interest_categories (name, icon, display_order, description) VALUES
+  ('health', '🧘', 8, 'Отдых, направленный на релаксацию, спа-процедуры, медитацию, йогу, термальные источники.'),
+  ('unique', '🎪', 9, 'Интересы, которые не входят в число других категорий: фестивали, мероприятия, посещение тематических парков, волонтёрство, хобби.')
+ON CONFLICT (name) DO UPDATE 
+SET description = COALESCE(EXCLUDED.description, interest_categories.description),
+    icon = COALESCE(EXCLUDED.icon, interest_categories.icon),
+    display_order = EXCLUDED.display_order;
 
 -- Ensure Health → Relaxation subcategory and interests
 DO $$
@@ -96,4 +91,3 @@ BEGIN
   
   RAISE NOTICE 'Unique category ensured: %', unique_id;
 END $$;
-
