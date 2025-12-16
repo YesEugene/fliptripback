@@ -22,48 +22,33 @@ const googleMapsClient = new Client({});
 async function generateDayConcept(city, audience, interests, date, budget) {
   console.log('🎨 МОДУЛЬ 0: Создание концепции дня...');
   
-  const prompt = `You are a creative travel planner. Based on the input data (city, date, interests, audience, budget), create a full-day itinerary that runs from 9:00 AM to around 9:30 PM.
+  const prompt = `Create a full-day itinerary (9 AM - 9:30 PM) for ${city} on ${date}.
 
-CONTEXT:
-- City: ${city}
-- Audience: ${audience}
-- Interests: ${Array.isArray(interests) ? interests.join(', ') : interests}
-- Budget: ${budget}€
-- Date: ${date}
+Context: ${audience}, interests: ${Array.isArray(interests) ? interests.join(', ') : interests}, budget: ${budget}€
 
-Step 1. Build a Creative Concept of the Day
-• Take into account the city and what it has to offer.
-• Consider the audience (for him, for her, for a couple, for a child) and adapt the tone of the day accordingly.
-• Use the chosen interests to design a unique and memorable plan, with a balance between activities and meals across time slots (breakfast, lunch, dinner, snacks, activities, nightlife).
-• Respect the budget: the total cost of all locations must fit within the user's budget, with a maximum deviation of ±30%. If the budget is small, include free or affordable activities; if large, suggest exclusive experiences.
-• Enrich the interests with associative ideas (e.g. "sports" → running, cycling, gyms, outdoor activities, sports cafés).
-
-Step 2. Formulate a Task for Google Places
-Once the creative concept of the day is ready, translate each time slot into a structured request for Google Places API.
-
-RESPONSE FORMAT (JSON only, no markdown):
+Return JSON only:
 {
-  "concept": "Brief description of the day's creative theme/concept",
+  "concept": "Brief theme",
   "timeSlots": [
     {
       "time": "09:00",
-      "activity": "Morning coffee at scenic viewpoint",
+      "activity": "Morning coffee",
       "category": "cafe",
-      "description": "Start with energizing coffee overlooking the city",
-      "keywords": ["coffee", "viewpoint", "morning", "scenic", "local"],
+      "description": "Short description",
+      "keywords": ["coffee", "morning"],
       "budgetTier": "budget"
     }
   ]
 }
 
-Make it creative, locally relevant, and perfectly suited for ${audience} interested in ${Array.isArray(interests) ? interests.join(', ') : interests}.`;
+Balance activities/meals. Budget ±30%.`;
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4",
+      model: "gpt-3.5-turbo",
       messages: [{ role: "user", content: prompt }],
-      max_tokens: 1500,
-      temperature: 0.8
+      max_tokens: 800,
+      temperature: 0.7
     });
 
     const result = JSON.parse(response.choices[0].message.content.trim());
@@ -220,39 +205,14 @@ async function findRealLocations(timeSlots, city, interestIds = []) {
 async function generateLocationDescription(locationName, address, category, interests, audience, concept) {
   console.log(`✍️ МОДУЛЬ 2: Генерация описания для ${locationName}...`);
   
-  const prompt = `You are a masterful travel writer creating an immersive, vivid description of ${locationName} in ${address}.
-
-TASK: Write a rich, detailed description in EXACTLY 3-5 complete sentences (aim for 4-5 sentences for depth).
-
-REQUIREMENTS:
-- Capture the essence, atmosphere, history, and unique character of this ${category}
-- Describe what makes this location special and memorable
-- Include sensory details: what visitors will see, hear, smell, taste, and feel
-- Mention the emotional impact and cultural significance
-- Connect to the user's interests: ${Array.isArray(interests) ? interests.join(', ') : interests}
-- Reflect the creative concept: ${concept}
-- Make it vivid and engaging - the reader should feel they are already there
-- Use descriptive, evocative language
-- Each sentence should add new information and depth
-
-Location: ${locationName}
-Address: ${address}
-Category: ${category}
-User interests: ${Array.isArray(interests) ? interests.join(', ') : interests}
-Audience: ${audience}
-Creative concept: ${concept}
-
-Example of rich description:
-Your afternoon unfolds at Marché des Enfants Rouges, Paris's oldest covered market, where centuries of culinary tradition come alive in a symphony of colors, aromas, and flavors. The moment you step inside, the bustling energy envelops you — vendors calling out their daily specials, the sizzle of fresh ingredients hitting hot pans, and the cheerful chatter of locals sharing their favorite discoveries. Here, food transcends mere sustenance to become a celebration of cultures from around the world, each stall telling its own story through authentic recipes passed down through generations. The market's historic iron and glass architecture creates a cathedral-like space where natural light filters through, illuminating displays of vibrant produce, artisanal cheeses, and exotic spices that awaken all your senses. This is where locals and travelers alike gather to experience the true heartbeat of Parisian culinary culture, making it an essential stop for anyone seeking authentic flavors and genuine connections.
-
-Now create a similarly rich, detailed description for ${locationName}:`;
+  const prompt = `Write 3-4 sentences about ${locationName} (${category}) in ${address}. Include atmosphere, what makes it special, sensory details. Connect to interests: ${Array.isArray(interests) ? interests.join(', ') : interests}. Make it vivid and engaging.`;
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4",
+      model: "gpt-3.5-turbo",
       messages: [{ role: "user", content: prompt }],
-      max_tokens: 500,
-      temperature: 0.9
+      max_tokens: 200,
+      temperature: 0.7
     });
 
     const description = response.choices[0].message.content.trim();
@@ -260,7 +220,7 @@ Now create a similarly rich, detailed description for ${locationName}:`;
     return description;
   } catch (error) {
     console.error(`❌ МОДУЛЬ 2: Ошибка описания для ${locationName}:`, error.message);
-    return `Experience the authentic charm of ${locationName}, a beloved ${category} that captures the essence of ${city}. This location offers a perfect blend of local culture and unique atmosphere that resonates with ${audience}'s passion for ${Array.isArray(interests) ? interests.join(' and ') : interests}. The vibrant energy and distinctive character make it an unforgettable stop on your journey through the city. Every moment here connects you to the authentic spirit of the destination, creating memories that will last long after your visit ends.`;
+    return `${locationName} is a ${category} that captures the essence of the city. This location offers a perfect blend of local culture and unique atmosphere. The vibrant energy makes it an unforgettable stop on your journey.`;
   }
 }
 
@@ -271,29 +231,14 @@ Now create a similarly rich, detailed description for ${locationName}:`;
 async function generateLocationRecommendations(locationName, category, interests, audience, concept) {
   console.log(`💡 МОДУЛЬ 3: Генерация рекомендаций для ${locationName}...`);
   
-  const prompt = `IMPORTANT: Write EXACTLY 1 complete sentence in English with practical tips for visiting this location.
-Include specific advice about timing, what to order/see/do, or insider secrets that enhance the experience.
-Make the tip personal, caring, and inspiring — like advice from a knowledgeable local friend.
-Include practical details that connect to the user's interests and the creative concept of the day.
-REQUIREMENT: Your response must be exactly 1 complete sentence with a period.
-
-Location: ${locationName}
-Category: ${category}
-Interests: ${Array.isArray(interests) ? interests.join(', ') : interests}
-Audience: ${audience}
-Creative concept: ${concept}
-
-Example Output:
-Start your day of adventure at this location by getting there early to savor their famed specialties, as the morning atmosphere provides the perfect energy and authentic local experience that perfectly matches your interests.
-
-Create the tips:`;
+  const prompt = `Write 1 practical tip sentence for visiting ${locationName} (${category}). Include timing/ordering/insider advice. Connect to interests: ${Array.isArray(interests) ? interests.join(', ') : interests}.`;
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4",
+      model: "gpt-3.5-turbo",
       messages: [{ role: "user", content: prompt }],
-      max_tokens: 100,
-      temperature: 0.8
+      max_tokens: 60,
+      temperature: 0.7
     });
 
     const tips = response.choices[0].message.content.trim();
@@ -301,7 +246,7 @@ Create the tips:`;
     return tips;
   } catch (error) {
     console.error(`❌ МОДУЛЬ 3: Ошибка рекомендаций для ${locationName}:`, error.message);
-    return `Plan to spend quality time at ${locationName} to fully appreciate its unique character and authentic atmosphere. Ask locals for their personal recommendations and insider tips - they're usually delighted to share their favorite aspects of this special place. Consider visiting during different times to experience various moods and energy levels that this location offers throughout the day.`;
+    return `Visit ${locationName} to fully appreciate its unique character and authentic atmosphere.`;
   }
 }
 
@@ -362,102 +307,52 @@ function formatPriceRange(category, priceLevel, city) {
 async function generateMetaInfo(city, audience, interests, date, concept) {
   console.log('🏷️ МОДУЛЬ 4: Генерация заголовков и погоды...');
   
-  const titlePrompt = `Write a short, inspiring, and memorable title in English for the day's itinerary.
+  // Объединяем все в один запрос для экономии
+  const combinedPrompt = `Generate itinerary metadata for ${city} on ${date}.
 
-REQUIREMENTS:
-* Be creative, unique, and evocative
-* Include or reflect the city name: ${city}
-* Reflect the chosen interests: ${Array.isArray(interests) ? interests.join(', ') : interests}
-* Consider the audience: ${audience}
-* Connect to the creative concept: ${concept}
-* Make it exciting and memorable
-* Length: 3–7 words maximum
-* Use dynamic, engaging language
+1. Title (3-7 words): Creative title reflecting interests: ${Array.isArray(interests) ? interests.join(', ') : interests}
+2. Subtitle (3-4 sentences): Describe day flow, mention date, city, interests, audience: ${audience}
+3. Weather JSON: {"temperature": number, "description": "weather", "clothing": "advice"}
 
-City: ${city}
-Interests: ${Array.isArray(interests) ? interests.join(', ') : interests}
-Audience: ${audience}
-Creative concept: ${concept}
-
-Examples:
-- "Paris Romance" (for romantic interests)
-- "Barcelona Culinary Journey" (for food interests)
-- "Rome Cultural Heritage" (for culture/history interests)
-- "Barcelona Adventure Discovery" (for adventure interests)
-
-Create a personalized, dynamic title for this itinerary:`;
-
-  const subtitlePrompt = `Write a long, inspiring, and detailed subtitle in English for the day's itinerary.
-
-REQUIREMENTS:
-* Mention the date: ${date}
-* Reflect the city: ${city}
-* Include the chosen interests: ${Array.isArray(interests) ? interests.join(', ') : interests}
-* Consider the audience: ${audience}
-* Describe the rhythm and flow of the day from morning to night
-* Connect to the creative concept: ${concept}
-* Use evocative, engaging language that makes the reader want to experience this day immediately
-* Create anticipation and excitement
-* Length: 4–5 sentences for depth and richness
-
-City: ${city}
-Date: ${date}
-Interests: ${Array.isArray(interests) ? interests.join(', ') : interests}
-Audience: ${audience}
-Creative concept: ${concept}
-
-Example Output:
-On September 10th, Paris is yours to discover — from sunrise runs along the Seine to local markets alive with flavor, from bold art and rooftop skies to the pulse of its legendary nightlife. Every step is planned, every hour alive with energy, and the city carries you through a day made to be unforgettable. Experience authentic moments, create lasting memories, and let the city's unique charm captivate your heart. An extraordinary adventure awaits your arrival.
-
-Create a similarly rich, detailed subtitle for this itinerary:`;
-
-  const weatherPrompt = `You are providing weather information for travel planning.
-
-TASK: Look up realistic current weather for ${city} on ${date} (September 2025).
-
-Use your knowledge of ${city}'s climate and typical weather patterns for this time of year.
-Consider the city's geographic location, season, and typical temperature ranges.
-
-Provide this information in JSON format:
+Return JSON:
 {
-  "temperature": [realistic temperature number for ${city} in September],
-  "description": "[weather description without temperature]",
-  "clothing": "[brief clothing advice for this specific weather]"
-}
-
-Examples:
-- Dubai (hot desert): {"temperature": 37, "description": "Clear sunny skies with high humidity", "clothing": "Light breathable fabrics and sun protection"}
-- Moscow (continental): {"temperature": 8, "description": "Cool autumn air with possible rain", "clothing": "Warm jacket and layers recommended"}
-- Barcelona (Mediterranean): {"temperature": 18, "description": "Pleasant mild weather with sea breeze", "clothing": "Light layers and comfortable shoes"}
-
-IMPORTANT: 
-- Use realistic temperature for ${city} specifically
-- Consider the actual climate of ${city}
-- September 2025 weather patterns
-
-Provide realistic weather for ${city}:`;
+  "title": "Title here",
+  "subtitle": "Subtitle here",
+  "weather": {"temperature": 20, "description": "...", "clothing": "..."}
+}`;
 
   try {
-    const [titleResponse, subtitleResponse, weatherResponse] = await Promise.all([
+    const [combinedResponse] = await Promise.all([
       openai.chat.completions.create({
-        model: "gpt-4",
-        messages: [{ role: "user", content: titlePrompt }],
-        max_tokens: 50,
-        temperature: 0.8
-      }),
-      openai.chat.completions.create({
-        model: "gpt-4",
-        messages: [{ role: "user", content: subtitlePrompt }],
-        max_tokens: 150,
-        temperature: 0.8
-      }),
-      openai.chat.completions.create({
-        model: "gpt-4",
-        messages: [{ role: "user", content: weatherPrompt }],
-        max_tokens: 150,
+        model: "gpt-3.5-turbo",
+        messages: [{ role: "user", content: combinedPrompt }],
+        max_tokens: 250,
         temperature: 0.7
       })
     ]);
+    
+    // Парсим объединенный ответ
+    let metaData;
+    try {
+      const content = combinedResponse.choices[0].message.content.trim();
+      metaData = JSON.parse(content);
+    } catch (parseError) {
+      // Если не JSON, пытаемся извлечь данные
+      const content = combinedResponse.choices[0].message.content.trim();
+      const titleMatch = content.match(/title["\s:]+"([^"]+)"/i) || content.match(/1\.\s*Title[:\s]+(.+)/i);
+      const subtitleMatch = content.match(/subtitle["\s:]+"([^"]+)"/i) || content.match(/2\.\s*Subtitle[:\s]+(.+)/i);
+      const weatherMatch = content.match(/weather["\s:]+({[^}]+})/i);
+      
+      metaData = {
+        title: titleMatch ? titleMatch[1].trim() : `${city} Discovery`,
+        subtitle: subtitleMatch ? subtitleMatch[1].trim() : `${date} - discover ${city}. Experience authentic moments and create lasting memories.`,
+        weather: weatherMatch ? JSON.parse(weatherMatch[1]) : { temperature: 20, description: "Pleasant weather", clothing: "Comfortable clothing" }
+      };
+    }
+    
+    const titleResponse = { choices: [{ message: { content: metaData.title } }] };
+    const subtitleResponse = { choices: [{ message: { content: metaData.subtitle } }] };
+    const weatherResponse = { choices: [{ message: { content: JSON.stringify(metaData.weather) } }] };
 
     // Парсим погодный ответ от OpenAI
     let weatherData;
