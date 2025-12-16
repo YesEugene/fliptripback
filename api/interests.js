@@ -32,10 +32,11 @@ export default async function handler(req, res) {
 
     if (fullStructure) {
       // Return full nested structure: categories -> subcategories -> interests
+      // Note: Using interest_categories and interest_subcategories (not categories/subcategories)
       console.log('📋 Fetching full structure from Supabase...');
       
       const { data: categories, error: categoriesError } = await supabase
-        .from('categories')
+        .from('interest_categories')
         .select('*')
         .order('name');
 
@@ -47,7 +48,7 @@ export default async function handler(req, res) {
       console.log(`✅ Fetched ${categories?.length || 0} categories`);
 
       const { data: subcategories, error: subcategoriesError } = await supabase
-        .from('subcategories')
+        .from('interest_subcategories')
         .select('*')
         .order('name');
 
