@@ -123,15 +123,16 @@ export default async function handler(req, res) {
       }
 
       // Format profile data
+      // Note: schema uses instagram, facebook, twitter, linkedin (not _url suffix)
       const profile = {
         avatar: guideProfile.avatar_url || '',
         bio: guideProfile.bio || '',
         socialLinks: {
-          instagram: guideProfile.instagram_url || '',
-          facebook: guideProfile.facebook_url || '',
-          twitter: guideProfile.twitter_url || '',
-          linkedin: guideProfile.linkedin_url || '',
-          website: guideProfile.website_url || ''
+          instagram: guideProfile.instagram || '',
+          facebook: guideProfile.facebook || '',
+          twitter: guideProfile.twitter || '',
+          linkedin: guideProfile.linkedin || '',
+          website: guideProfile.website || ''
         }
       };
       
@@ -146,16 +147,17 @@ export default async function handler(req, res) {
       const profileData = req.body;
 
       // Prepare guide data for insert/update
+      // Note: schema uses instagram, facebook, twitter, linkedin (not _url suffix)
       const guideData = {
         user_id: userId,
         name: profileData.name || user.email?.split('@')[0] || 'Guide',
         bio: profileData.bio || null,
         avatar_url: profileData.avatar || null,
-        instagram_url: profileData.socialLinks?.instagram || null,
-        facebook_url: profileData.socialLinks?.facebook || null,
-        twitter_url: profileData.socialLinks?.twitter || null,
-        linkedin_url: profileData.socialLinks?.linkedin || null,
-        website_url: profileData.socialLinks?.website || null,
+        instagram: profileData.socialLinks?.instagram || null,
+        facebook: profileData.socialLinks?.facebook || null,
+        twitter: profileData.socialLinks?.twitter || null,
+        linkedin: profileData.socialLinks?.linkedin || null,
+        website: profileData.socialLinks?.website || null,
         updated_at: new Date().toISOString()
       };
 
@@ -208,15 +210,16 @@ export default async function handler(req, res) {
       }
 
       // Format response
+      // Note: schema uses instagram, facebook, twitter, linkedin (not _url suffix)
       const profile = {
         avatar: result.avatar_url || '',
         bio: result.bio || '',
         socialLinks: {
-          instagram: result.instagram_url || '',
-          facebook: result.facebook_url || '',
-          twitter: result.twitter_url || '',
-          linkedin: result.linkedin_url || '',
-          website: result.website_url || ''
+          instagram: result.instagram || '',
+          facebook: result.facebook || '',
+          twitter: result.twitter || '',
+          linkedin: result.linkedin || '',
+          website: result.website || ''
         }
       };
 
