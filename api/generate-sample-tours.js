@@ -416,19 +416,22 @@ async function getOrCreateCity(cityName, countryName) {
     
     if (findError && findError.code !== 'PGRST116') {
       console.error('Error finding city:', findError);
+      // If error is not "not found", try to continue
+      if (findError.code === 'PGRST116') {
+        // Not found, continue to create
+      } else {
+        // Other error, return null
+        return null;
+      }
     }
     
-    if (existing) {
+    if (existing && existing.id) {
       console.log(`✅ Found existing city: ${cityName} (ID: ${existing.id})`);
       return existing.id;
     }
     
-    // Create new city
-    const cityData = { name: cityName };
-    // Only add country if column exists (it might not be in schema)
-    if (countryName) {
-      cityData.country = countryName;
-    }
+    // Create new city - try without country first
+    let cityData = { name: cityName };
     const { data: newCity, error: createError } = await supabase
       .from('cities')
       .insert(cityData)
@@ -437,11 +440,28 @@ async function getOrCreateCity(cityName, countryName) {
     
     if (createError) {
       console.error(`❌ Error creating city ${cityName}:`, createError);
+      // Try to find again in case it was created by another request
+      const { data: retryExisting } = await supabase
+        .from('cities')
+        .select('id')
+        .ilike('name', cityName)
+        .limit(1)
+        .maybeSingle();
+      
+      if (retryExisting && retryExisting.id) {
+        console.log(`✅ Found city on retry: ${cityName} (ID: ${retryExisting.id})`);
+        return retryExisting.id;
+      }
+      
       return null;
     }
     
-    console.log(`✅ Created new city: ${cityName} (ID: ${newCity.id})`);
-    return newCity.id;
+    if (newCity && newCity.id) {
+      console.log(`✅ Created new city: ${cityName} (ID: ${newCity.id})`);
+      return newCity.id;
+    }
+    
+    return null;
   } catch (err) {
     console.error(`❌ Error in getOrCreateCity for ${cityName}:`, err);
     return null;
