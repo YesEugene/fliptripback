@@ -331,61 +331,67 @@ export default async function handler(req, res) {
     
     console.log('💾 Inserting tour with data:', {
       [userColumnName]: userId,
-      country,
+      country: country || 'NOT SET',
       city_id: cityId,
       title,
       duration_type: durationType,
-      duration_value: durationValue
+      duration_value: durationValue,
+      hasCountryInData: !!baseTourData.country
     });
 
     let tour = null; // Declare tour variable
-    const { data: tourData, error: tourError } = await supabase
+    
+    // Try insert without country first if country column might not exist
+    let tourData, tourError;
+    
+    // First attempt: with all data
+    const insertResult = await supabase
       .from('tours')
       .insert(baseTourData)
       .select()
       .single();
+    
+    tourData = insertResult.data;
+    tourError = insertResult.error;
+    
+    // If error is about country column, retry without it
+    if (tourError && tourError.message && tourError.message.includes("'country' column")) {
+      console.log('⚠️ Country column error, retrying without country...');
+      const baseTourDataWithoutCountry = { ...baseTourData };
+      delete baseTourDataWithoutCountry.country;
+      
+      const retryResult = await supabase
+        .from('tours')
+        .insert(baseTourDataWithoutCountry)
+        .select()
+        .single();
+      
+      tourData = retryResult.data;
+      tourError = retryResult.error;
+    }
 
     if (tourError) {
       console.error('❌ Error creating tour:', tourError);
-      console.error('❌ Tour data:', baseTourData);
+      console.error('❌ Tour data keys:', Object.keys(baseTourData));
+      console.error('❌ Error code:', tourError.code);
+      console.error('❌ Error message:', tourError.message);
       
-      // If error is about missing country column, try without it
-      if (tourError.message && tourError.message.includes("'country' column")) {
-        console.log('⚠️ Country column missing, retrying without country...');
-        const baseTourDataWithoutCountry = { ...baseTourData };
-        delete baseTourDataWithoutCountry.country;
-        
-        const { data: tourRetry, error: tourErrorRetry } = await supabase
-          .from('tours')
-          .insert(baseTourDataWithoutCountry)
-          .select()
-          .single();
-        
-        if (tourErrorRetry) {
-          return res.status(500).json({
-            success: false,
-            error: 'Failed to create tour',
-            message: tourErrorRetry.message,
-            details: tourErrorRetry,
-            hint: 'Please run add-country-column.sql migration to add country column'
-          });
-        }
-        
-        // Success on retry
-        tour = tourRetry;
-        console.log(`✅ Tour created (without country): ${tour.id}`);
-      } else {
-        return res.status(500).json({
-          success: false,
-          error: 'Failed to create tour',
-          message: tourError.message,
-          details: tourError
-        });
-      }
-    } else {
-      tour = tourData;
-      console.log(`✅ Tour created: ${tour.id}`);
+      // Ensure CORS headers before returning error
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to create tour',
+        message: tourError.message,
+        details: tourError.code,
+        hint: tourError.message.includes("'country' column") 
+          ? 'Please run add-country-column.sql migration' 
+          : 'Check database schema and tour data'
+      });
     }
+    
+    tour = tourData;
+    console.log(`✅ Tour created: ${tour.id}`);
 
     // Ensure tour variable exists
     if (!tour) {
