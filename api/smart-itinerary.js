@@ -547,7 +547,8 @@ export default async function handler(req, res) {
     }
     const interestsList = interests || [];
     
-    console.log('📥 Received interest_ids:', interestIds, 'type:', typeof interestIds[0]);
+    console.log('📥 Received interest_ids:', interestIds, 'count:', interestIds.length, 'type:', typeof interestIds[0]);
+    console.log('📥 Full request body:', JSON.stringify(req.body, null, 2));
     
     // Handle tag generation request
     if (action === 'generateTags') {
