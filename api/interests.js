@@ -19,23 +19,32 @@ export default async function handler(req, res) {
   try {
     const fullStructure = req.query.full_structure === 'true';
 
+    console.log('📋 Interests API called:', { fullStructure, hasSupabase: !!supabase });
+    
     if (!supabase) {
+      console.error('❌ Supabase not configured. Check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY env vars.');
       return res.status(500).json({
         success: false,
-        error: 'Database not configured'
+        error: 'Database not configured',
+        message: 'Supabase credentials missing. Please check environment variables.'
       });
     }
 
     if (fullStructure) {
       // Return full nested structure: categories -> subcategories -> interests
+      console.log('📋 Fetching full structure from Supabase...');
+      
       const { data: categories, error: categoriesError } = await supabase
         .from('categories')
         .select('*')
         .order('name');
 
       if (categoriesError) {
+        console.error('❌ Error fetching categories:', categoriesError);
         throw categoriesError;
       }
+      
+      console.log(`✅ Fetched ${categories?.length || 0} categories`);
 
       const { data: subcategories, error: subcategoriesError } = await supabase
         .from('subcategories')
@@ -43,8 +52,11 @@ export default async function handler(req, res) {
         .order('name');
 
       if (subcategoriesError) {
+        console.error('❌ Error fetching subcategories:', subcategoriesError);
         throw subcategoriesError;
       }
+      
+      console.log(`✅ Fetched ${subcategories?.length || 0} subcategories`);
 
       const { data: interests, error: interestsError } = await supabase
         .from('interests')
@@ -52,8 +64,11 @@ export default async function handler(req, res) {
         .order('name');
 
       if (interestsError) {
+        console.error('❌ Error fetching interests:', interestsError);
         throw interestsError;
       }
+      
+      console.log(`✅ Fetched ${interests?.length || 0} interests`);
 
       // Build nested structure
       const structure = categories.map(category => {
@@ -94,10 +109,18 @@ export default async function handler(req, res) {
     }
   } catch (error) {
     console.error('❌ Error fetching interests:', error);
+    console.error('❌ Error details:', {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint
+    });
     return res.status(500).json({
       success: false,
       error: 'Failed to fetch interests',
-      message: error.message
+      message: error.message || 'Unknown error',
+      details: error.details || null,
+      hint: error.hint || null
     });
   }
 }
