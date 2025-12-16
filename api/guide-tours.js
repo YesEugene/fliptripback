@@ -41,31 +41,46 @@ export default async function handler(req, res) {
       });
     }
 
-    // Get user from token
+    // Get user from token (same approach as auth-me.js)
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!authHeader) {
       return res.status(401).json({
         success: false,
         error: 'Unauthorized'
       });
     }
 
-    const token = authHeader.replace('Bearer ', '');
-    
-    // Verify token and get user
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !user) {
+    // Extract user ID from token (same logic as auth-me.js)
+    let userId = null;
+    try {
+      const cleanToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
+      // Try to decode as base64 (our custom token format)
+      try {
+        const payload = JSON.parse(Buffer.from(cleanToken, 'base64').toString());
+        userId = payload.userId || payload.id || null;
+      } catch (e) {
+        // If not base64, try as Supabase JWT
+        const { data: { user }, error: authError } = await supabase.auth.getUser(cleanToken);
+        if (!authError && user) {
+          userId = user.id;
+        }
+      }
+    } catch (error) {
+      console.error('Token decode error:', error);
+    }
+
+    if (!userId) {
       return res.status(401).json({
         success: false,
         error: 'Invalid token'
       });
     }
 
-    // Get user role
+    // Get user data from database
     const { data: userData, error: userError } = await supabase
       .from('users')
       .select('id, role')
-      .eq('id', user.id)
+      .eq('id', userId)
       .single();
 
     if (userError || !userData) {
@@ -82,7 +97,7 @@ export default async function handler(req, res) {
         *,
         city:cities(name, country)
       `)
-      .eq('creator_id', user.id)
+      .eq('creator_id', userId)
       .order('created_at', { ascending: false });
 
     if (toursError) {
@@ -135,7 +150,7 @@ export default async function handler(req, res) {
       };
     });
 
-    console.log(`✅ Found ${formattedTours.length} tours for creator ${user.id}`);
+    console.log(`✅ Found ${formattedTours.length} tours for creator ${userId}`);
 
     return res.status(200).json({
       success: true,
