@@ -91,56 +91,49 @@ export default async function handler(req, res) {
     }
 
     // Get tours created by this user
-    // Try to query with different column names until one works
-    let tours = null;
-    let toursError = null;
-    let creatorColumn = null;
-    
-    // Try creator_id first
-    let result = await supabase
+    // First, get ALL tours to see the structure and filter in memory
+    const allToursResult = await supabase
       .from('tours')
       .select(`
         *,
         city:cities(name)
       `)
-      .eq('creator_id', userId)
       .order('created_at', { ascending: false });
     
-    if (result.error) {
-      // If creator_id doesn't exist, try user_id
-      if (result.error.code === '42703' && result.error.message?.includes('creator_id')) {
-        result = await supabase
-          .from('tours')
-          .select(`
-            *,
-            city:cities(name)
-          `)
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false });
-        creatorColumn = 'user_id';
-      }
-      
-      // If user_id also doesn't exist, try created_by
-      if (result.error && result.error.code === '42703') {
-        result = await supabase
-          .from('tours')
-          .select(`
-            *,
-            city:cities(name)
-          `)
-          .eq('created_by', userId)
-          .order('created_at', { ascending: false });
-        creatorColumn = 'created_by';
-      }
-    } else {
-      creatorColumn = 'creator_id';
+    if (allToursResult.error) {
+      console.error('Error fetching all tours:', allToursResult.error);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch tours',
+        message: allToursResult.error.message
+      });
     }
     
-    tours = result.data;
-    toursError = result.error;
+    // Filter tours by user ID - check all possible column names
+    const allTours = allToursResult.data || [];
+    let tours = [];
     
-    // Log which column was used
-    console.log(`🔍 Using column '${creatorColumn || 'creator_id'}' for filtering tours by user ${userId}`);
+    // Try to find which column contains user ID
+    if (allTours.length > 0) {
+      const sampleTour = allTours[0];
+      console.log('📋 Sample tour structure:', Object.keys(sampleTour));
+      
+      // Check which column has user ID
+      for (const tour of allTours) {
+        if (tour.creator_id === userId || 
+            tour.user_id === userId || 
+            tour.created_by === userId ||
+            tour.creator === userId ||
+            String(tour.creator_id) === String(userId) ||
+            String(tour.user_id) === String(userId) ||
+            String(tour.created_by) === String(userId) ||
+            String(tour.creator) === String(userId)) {
+          tours.push(tour);
+        }
+      }
+    }
+    
+    const toursError = null;
 
     if (toursError) {
       console.error('Error fetching guide tours:', toursError);
