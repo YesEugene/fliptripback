@@ -103,7 +103,7 @@ export async function findRealLocations(timeSlots, city, interestIds = []) {
           const categories = slot.category ? [slot.category] : [];
           const tags = slot.keywords || [];
           
-          console.log(`🔍 Searching DB for: cityId=${cityId}, category=${slot.category}, categories=${categories.join(',')}, tags=${tags.join(',')}, interestIds=${interestIds.length}`);
+          console.log(`🔍 Searching DB for: cityId=${cityId}, category=${slot.category}, categories=[${categories.join(',')}], tags=[${tags.join(',')}], interestIds=[${interestIds.join(',')}] (${interestIds.length} total)`);
           
           // First try with exact category match and interest filter
           let dbResult = await searchLocationsForItinerary(cityId, categories, tags, interestIds, 10);
@@ -612,14 +612,36 @@ export default async function handler(req, res) {
       throw new Error('API keys required');
     }
 
-    // МОДУЛЬ 0: Создаем концепцию дня
-    const dayConcept = await generateDayConcept(city, audience, interests, itineraryDate, budget);
+    // Get interest names by IDs if interestIds provided
+    let interestsForConcept = interestsList;
+    if (interestIds.length > 0 && interestsList.length === 0) {
+      try {
+        const { data: interestsData, error: interestsError } = await supabase
+          .from('interests')
+          .select('id, name')
+          .in('id', interestIds.map(id => String(id)));
+        
+        if (!interestsError && interestsData && interestsData.length > 0) {
+          interestsForConcept = interestsData.map(i => i.name);
+          console.log('📋 Получены названия интересов по ID:', interestsForConcept);
+        } else {
+          console.error('❌ Ошибка получения интересов:', interestsError);
+          console.log('⚠️ Используем пустой список интересов для концепции');
+        }
+      } catch (err) {
+        console.error('❌ Ошибка при получении интересов из БД:', err);
+      }
+    }
+
+    // МОДУЛЬ 0: Создаем концепцию дня (use interest names, not IDs)
+    const dayConcept = await generateDayConcept(city, audience, interestsForConcept, itineraryDate, budget);
     
     // МОДУЛЬ 1: Находим реальные места (pass interestIds for DB filtering)
+    console.log(`🔍 Поиск локаций с interestIds: [${interestIds.join(', ')}]`);
     const locations = await findRealLocations(dayConcept.timeSlots, city, interestIds);
     
-    // МОДУЛЬ 4: Генерируем мета-информацию
-    const metaInfo = await generateMetaInfo(city, audience, interestsList, itineraryDate, dayConcept.concept);
+    // МОДУЛЬ 4: Генерируем мета-информацию (use interest names)
+    const metaInfo = await generateMetaInfo(city, audience, interestsForConcept, itineraryDate, dayConcept.concept);
 
     // МОДУЛИ 2-3: Генерируем описания и рекомендации для каждого места
     let activities = await Promise.all(locations.map(async (slot) => {
@@ -633,8 +655,8 @@ export default async function handler(req, res) {
       if (!description || !recommendations || previewOnly) {
         console.log(`📝 Generating description for ${place.name} (previewOnly: ${previewOnly}, hasDBDescription: ${!!description})`);
         const [generatedDescription, generatedRecommendations] = await Promise.all([
-          description ? Promise.resolve(description) : generateLocationDescription(place.name, place.address, slot.category, interestsList, audience, dayConcept.concept),
-          recommendations ? Promise.resolve(recommendations) : generateLocationRecommendations(place.name, slot.category, interestsList, audience, dayConcept.concept)
+          description ? Promise.resolve(description) : generateLocationDescription(place.name, place.address, slot.category, interestsForConcept, audience, dayConcept.concept),
+          recommendations ? Promise.resolve(recommendations) : generateLocationRecommendations(place.name, slot.category, interestsForConcept, audience, dayConcept.concept)
         ]);
         
         description = generatedDescription;
