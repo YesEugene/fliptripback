@@ -91,49 +91,69 @@ export default async function handler(req, res) {
     }
 
     // Get tours created by this user
-    // First, get ALL tours to see the structure and filter in memory
-    const allToursResult = await supabase
-      .from('tours')
-      .select(`
-        *,
-        city:cities(name)
-      `)
-      .order('created_at', { ascending: false });
+    // First, try to detect which column name is used for user/creator
+    const testColumns = ['creator_id', 'user_id', 'created_by', 'owner_id', 'guide_id'];
+    let userColumnName = null;
     
-    if (allToursResult.error) {
-      console.error('Error fetching all tours:', allToursResult.error);
-      return res.status(500).json({
-        success: false,
-        error: 'Failed to fetch tours',
-        message: allToursResult.error.message
-      });
-    }
-    
-    // Filter tours by user ID - check all possible column names
-    const allTours = allToursResult.data || [];
-    let tours = [];
-    
-    // Try to find which column contains user ID
-    if (allTours.length > 0) {
-      const sampleTour = allTours[0];
-      console.log('📋 Sample tour structure:', Object.keys(sampleTour));
+    // Try each column to see which one exists
+    for (const colName of testColumns) {
+      const testResult = await supabase
+        .from('tours')
+        .select('id')
+        .eq(colName, userId)
+        .limit(1);
       
-      // Check which column has user ID
-      for (const tour of allTours) {
-        if (tour.creator_id === userId || 
-            tour.user_id === userId || 
-            tour.created_by === userId ||
-            tour.creator === userId ||
-            String(tour.creator_id) === String(userId) ||
-            String(tour.user_id) === String(userId) ||
-            String(tour.created_by) === String(userId) ||
-            String(tour.creator) === String(userId)) {
-          tours.push(tour);
-        }
+      // If query succeeds (even with 0 results), column exists
+      if (!testResult.error || (testResult.error && testResult.error.code !== '42703')) {
+        userColumnName = colName;
+        console.log(`✅ Using column '${colName}' for filtering tours`);
+        break;
       }
     }
     
-    const toursError = null;
+    let tours = [];
+    let toursError = null;
+    
+    if (userColumnName) {
+      // Query with the correct column name
+      const result = await supabase
+        .from('tours')
+        .select(`
+          *,
+          city:cities(name)
+        `)
+        .eq(userColumnName, userId)
+        .order('created_at', { ascending: false });
+      
+      tours = result.data || [];
+      toursError = result.error;
+    } else {
+      // If no user column found, get all tours and filter in memory
+      console.warn('⚠️ No user column found, fetching all tours and filtering in memory');
+      const allToursResult = await supabase
+        .from('tours')
+        .select(`
+          *,
+          city:cities(name)
+        `)
+        .order('created_at', { ascending: false });
+      
+      if (allToursResult.error) {
+        toursError = allToursResult.error;
+      } else {
+        // Filter by checking all possible column names
+        const allTours = allToursResult.data || [];
+        for (const tour of allTours) {
+          if (String(tour.creator_id) === String(userId) || 
+              String(tour.user_id) === String(userId) || 
+              String(tour.created_by) === String(userId) ||
+              String(tour.owner_id) === String(userId) ||
+              String(tour.guide_id) === String(userId)) {
+            tours.push(tour);
+          }
+        }
+      }
+    }
 
     if (toursError) {
       console.error('Error fetching guide tours:', toursError);

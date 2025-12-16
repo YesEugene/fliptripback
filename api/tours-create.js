@@ -1,10 +1,24 @@
 /**
- * Tours Create API - Create new tour and save locations to database
- * Serverless function to create tours and extract/save locations
+ * Tours Create API - Create new tour and save to Redis + locations to database
+ * Serverless function to create tours (save to Redis) and extract/save locations (to DB)
  */
 
+import { Redis } from '@upstash/redis';
 import { supabase } from '../database/db.js';
 import { getOrCreateCity } from '../database/services/citiesService.js';
+import { v4 as uuidv4 } from 'uuid';
+
+// Lazy initialization of Redis client
+function getRedis() {
+  const url = process.env.FTSTORAGE_KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const token = process.env.FTSTORAGE_KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+  
+  if (!url || !token) {
+    throw new Error('Redis environment variables not set');
+  }
+  
+  return new Redis({ url, token });
+}
 
 export default async function handler(req, res) {
   // CORS headers
@@ -186,11 +200,40 @@ export default async function handler(req, res) {
     }
 
     // Save tour to database
-    // First, check what columns exist by getting one tour
-    const sampleResult = await supabase
-      .from('tours')
-      .select('*')
-      .limit(1);
+    // Check table structure by querying information_schema
+    const { data: columnsData, error: columnsError } = await supabase.rpc('exec_sql', {
+      query: `
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'tours' 
+        AND column_name IN ('creator_id', 'user_id', 'created_by', 'owner_id', 'guide_id')
+        LIMIT 1
+      `
+    }).catch(() => ({ data: null, error: null }));
+    
+    // If RPC doesn't work, try to get structure from a sample query
+    let userColumnName = null;
+    if (!columnsData || columnsError) {
+      // Try to insert with different column names and see which works
+      const testColumns = ['creator_id', 'user_id', 'created_by', 'owner_id', 'guide_id'];
+      
+      for (const colName of testColumns) {
+        const testResult = await supabase
+          .from('tours')
+          .select('id')
+          .eq(colName, userId)
+          .limit(1);
+        
+        // If query succeeds (even with 0 results), column exists
+        if (!testResult.error || testResult.error.code !== '42703') {
+          userColumnName = colName;
+          console.log(`✅ Found user column: ${colName}`);
+          break;
+        }
+      }
+    } else if (columnsData && columnsData.length > 0) {
+      userColumnName = columnsData[0].column_name;
+    }
     
     const baseTourData = {
       country: country || null,
@@ -204,74 +247,26 @@ export default async function handler(req, res) {
       created_at: new Date().toISOString()
     };
     
-    // Determine which column to use based on sample or try all
-    let tour = null;
-    let tourError = null;
-    
-    // If we have a sample, check what columns exist
-    if (sampleResult.data && sampleResult.data.length > 0) {
-      const sample = sampleResult.data[0];
-      const columns = Object.keys(sample);
-      console.log('📋 Available columns in tours table:', columns);
-      
-      // Try the column that exists
-      if (columns.includes('creator_id')) {
-        const result = await supabase
-          .from('tours')
-          .insert({ ...baseTourData, creator_id: userId })
-          .select()
-          .single();
-        tour = result.data;
-        tourError = result.error;
-      } else if (columns.includes('user_id')) {
-        const result = await supabase
-          .from('tours')
-          .insert({ ...baseTourData, user_id: userId })
-          .select()
-          .single();
-        tour = result.data;
-        tourError = result.error;
-      } else if (columns.includes('created_by')) {
-        const result = await supabase
-          .from('tours')
-          .insert({ ...baseTourData, created_by: userId })
-          .select()
-          .single();
-        tour = result.data;
-        tourError = result.error;
-      } else {
-        // No user column found - insert without it
-        const result = await supabase
-          .from('tours')
-          .insert(baseTourData)
-          .select()
-          .single();
-        tour = result.data;
-        tourError = result.error;
-        console.warn('⚠️ No user/creator column found in tours table');
-      }
-    } else {
-      // No tours exist - try creator_id as default
-      const result = await supabase
+    // Insert tour with the correct user column (or without if none exists)
+    let result;
+    if (userColumnName) {
+      result = await supabase
         .from('tours')
-        .insert({ ...baseTourData, creator_id: userId })
+        .insert({ ...baseTourData, [userColumnName]: userId })
         .select()
         .single();
-      tour = result.data;
-      tourError = result.error;
-      
-      // If that fails, try without user column
-      if (tourError && tourError.code === '42703') {
-        const result2 = await supabase
-          .from('tours')
-          .insert(baseTourData)
-          .select()
-          .single();
-        tour = result2.data;
-        tourError = result2.error;
-        console.warn('⚠️ creator_id column does not exist, saved tour without user reference');
-      }
+    } else {
+      // Try without user column - maybe it's added later or not required
+      result = await supabase
+        .from('tours')
+        .insert(baseTourData)
+        .select()
+        .single();
+      console.warn('⚠️ No user column found, saving tour without user reference');
     }
+    
+    const tour = result.data;
+    const tourError = result.error;
 
     if (tourError) {
       console.error('Error creating tour:', tourError);
