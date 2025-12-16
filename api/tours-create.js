@@ -323,25 +323,10 @@ export default async function handler(req, res) {
       verified: false
     };
 
-    // Add country only if column exists (to avoid errors if migration not applied)
-    // Try to add country, but don't fail if column doesn't exist
+    // Add country if provided (column should exist according to schema)
+    // If column doesn't exist, Supabase will return error, but we'll handle it gracefully
     if (country) {
-      // Check if country column exists by trying a test query
-      try {
-        const testQuery = await supabase
-          .from('tours')
-          .select('country')
-          .limit(0);
-        
-        // If no error, column exists - add it to insert
-        if (!testQuery.error || testQuery.error.code !== '42703') {
-          baseTourData.country = country;
-        } else {
-          console.warn('⚠️ Country column does not exist, skipping. Please run add-country-column.sql migration.');
-        }
-      } catch (e) {
-        console.warn('⚠️ Could not check country column, skipping:', e.message);
-      }
+      baseTourData.country = country;
     }
     
     console.log('💾 Inserting tour with data:', {
