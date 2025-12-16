@@ -621,8 +621,8 @@ export default async function handler(req, res) {
         foundTour.tour_days.forEach(day => {
           if (day.tour_blocks && Array.isArray(day.tour_blocks)) {
             day.tour_blocks.forEach(block => {
-              if (day.tour_items && Array.isArray(day.tour_items)) {
-                day.tour_items.forEach(item => {
+              if (block.tour_items && Array.isArray(block.tour_items)) {
+                block.tour_items.forEach(item => {
                   const location = item.location;
                   if (location) {
                     activities.push({

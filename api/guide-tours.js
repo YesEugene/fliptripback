@@ -115,12 +115,46 @@ export default async function handler(req, res) {
     let toursError = null;
     
     if (userColumnName) {
-      // Query with the correct column name
+      // Query with the correct column name, including normalized structure
       const result = await supabase
         .from('tours')
         .select(`
           *,
-          city:cities(name)
+          city:cities(name),
+          tour_days(
+            id,
+            day_number,
+            title,
+            date_hint,
+            tour_blocks(
+              id,
+              start_time,
+              end_time,
+              title,
+              tour_items(
+                id,
+                location_id,
+                custom_title,
+                custom_description,
+                custom_recommendations,
+                order_index,
+                duration_minutes,
+                approx_cost,
+                location:locations(
+                  id,
+                  name,
+                  address,
+                  category,
+                  description,
+                  recommendations,
+                  photos:location_photos(url)
+                )
+              )
+            )
+          ),
+          tour_tags(
+            tag:tags(id, name)
+          )
         `)
         .eq(userColumnName, userId)
         .order('created_at', { ascending: false });
@@ -166,13 +200,54 @@ export default async function handler(req, res) {
 
     // Format tours for response
     const formattedTours = (tours || []).map(tour => {
-      // Calculate duration from daily_plan
-      const dailyPlan = tour.daily_plan || [];
-      const totalDays = dailyPlan.length;
-      let totalHours = 0;
+      // Convert normalized structure to daily_plan format for backward compatibility
+      let dailyPlan = [];
       
-      // Estimate hours from daily_plan blocks
-      if (dailyPlan.length > 0) {
+      if (tour.tour_days && Array.isArray(tour.tour_days)) {
+        dailyPlan = tour.tour_days.map(day => {
+          const blocks = (day.tour_blocks || []).map(block => {
+            const items = (block.tour_items || []).map(item => {
+              const location = item.location;
+              return {
+                title: item.custom_title || location?.name || '',
+                address: location?.address || '',
+                category: location?.category || '',
+                why: item.custom_description || location?.description || '',
+                tips: item.custom_recommendations || location?.recommendations || '',
+                photos: location?.photos?.map(p => p.url) || [],
+                cost: item.approx_cost || 0,
+                duration: item.duration_minutes || null
+              };
+            });
+            
+            return {
+              time: block.start_time && block.end_time 
+                ? `${block.start_time} - ${block.end_time}`
+                : block.start_time || 'TBD',
+              title: block.title || null,
+              items: items
+            };
+          });
+          
+          return {
+            day: day.day_number,
+            date: day.date_hint || null,
+            title: day.title || null,
+            blocks: blocks
+          };
+        });
+      }
+      
+      // Fallback to legacy daily_plan if exists
+      if (dailyPlan.length === 0 && tour.daily_plan) {
+        dailyPlan = tour.daily_plan;
+      }
+      
+      // Calculate duration from normalized structure or daily_plan
+      const totalDays = tour.duration_type === 'days' ? tour.duration_value : (dailyPlan.length || 0);
+      let totalHours = tour.duration_type === 'hours' ? tour.duration_value : 0;
+      
+      if (totalHours === 0 && dailyPlan.length > 0) {
         dailyPlan.forEach(day => {
           if (day.blocks && Array.isArray(day.blocks)) {
             totalHours += day.blocks.length * 3; // Estimate 3 hours per block
@@ -187,17 +262,20 @@ export default async function handler(req, res) {
       } else if (totalHours > 0) {
         duration = { type: 'hours', value: Math.max(3, Math.min(totalHours, 12)) };
       }
+      
+      // Extract tags from tour_tags
+      const tags = (tour.tour_tags || []).map(tt => tt.tag?.name).filter(Boolean);
 
       return {
         id: tour.id,
         title: tour.title,
         description: tour.description,
-        country: tour.country || null, // country is stored in tours table, not cities
+        country: tour.country || null,
         city: tour.city?.name || null,
         city_id: tour.city_id,
-        daily_plan: dailyPlan,
-        tags: tour.tags || [],
-        meta: tour.meta || {},
+        daily_plan: dailyPlan, // Converted from normalized structure
+        tags: tags, // From tour_tags
+        meta: {}, // Can be extended later
         duration: duration,
         verified: tour.verified || false,
         createdAt: tour.created_at,
