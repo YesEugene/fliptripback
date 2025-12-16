@@ -134,30 +134,37 @@ async function findRealLocations(timeSlots, city, interestIds = []) {
       
       // STEP 2: If not found in DB, use Google Places as fallback
       if (!foundLocation) {
-        const searchQuery = `${slot.keywords.join(' ')} ${slot.category} in ${city}`;
-        console.log(`🔍 Searching Google Places: ${searchQuery}`);
-        
-        const response = await googleMapsClient.textSearch({
-          params: {
-            query: searchQuery,
-            key: process.env.GOOGLE_MAPS_KEY,
-            language: 'en'
-          }
-        });
+        try {
+          const searchQuery = `${slot.keywords.join(' ')} ${slot.category} in ${city}`;
+          console.log(`🔍 Searching Google Places: ${searchQuery}`);
+          
+          const response = await googleMapsClient.textSearch({
+            params: {
+              query: searchQuery,
+              key: process.env.GOOGLE_MAPS_KEY,
+              language: 'en'
+            }
+          });
 
-        if (response.data.results.length > 0) {
-          const place = response.data.results[0];
-          foundLocation = {
-            name: place.name,
-            address: place.formatted_address,
-            rating: place.rating || 4.0,
-            priceLevel: place.price_level || 2,
-            photos: place.photos ? place.photos.slice(0, 3).map(photo => 
-              `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photo.photo_reference}&key=${process.env.GOOGLE_MAPS_KEY}`
-            ) : [],
-            fromDatabase: false
-          };
-          console.log(`✅ Found in Google Places: ${place.name}`);
+          if (response.data.results.length > 0) {
+            const place = response.data.results[0];
+            foundLocation = {
+              name: place.name,
+              address: place.formatted_address,
+              rating: place.rating || 4.0,
+              priceLevel: place.price_level || 2,
+              photos: place.photos ? place.photos.slice(0, 3).map(photo => 
+                `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photo.photo_reference}&key=${process.env.GOOGLE_MAPS_KEY}`
+              ) : [],
+              fromDatabase: false
+            };
+            console.log(`✅ Found in Google Places: ${place.name}`);
+          }
+        } catch (googleError) {
+          // Google Places API error (e.g., 403 - not paid, quota exceeded, etc.)
+          // Log but don't fail - use fallback location instead
+          console.warn(`⚠️ Google Places search error for "${slot.activity}": ${googleError.message || googleError}`);
+          // Continue with fallback location
         }
       }
       
