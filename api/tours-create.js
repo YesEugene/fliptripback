@@ -141,7 +141,16 @@ export default async function handler(req, res) {
 
                     const { data: newLocation, error: locationError } = await supabase
                       .from('locations')
-                      .insert(locationData)
+                      .insert({
+                        ...locationData,
+                        source: 'guide', // Локации из туров создаются гидом
+                        updated_by: userId,
+                        google_place_id: item.google_place_id || null,
+                        website: item.website || null,
+                        phone: item.phone || null,
+                        booking_url: item.booking_url || null,
+                        price_level: item.price_level !== undefined ? parseInt(item.price_level) : 2
+                      })
                       .select()
                       .single();
 
