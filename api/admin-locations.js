@@ -2,11 +2,24 @@
 import { supabase } from '../database/db.js';
 
 export default async function handler(req, res) {
-  // CORS headers
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+  // CORS headers - allow all origins for now
+  const origin = req.headers.origin;
+  const allowedOrigins = [
+    'https://www.flip-trip.com',
+    'https://fliptripfrontend.vercel.app',
+    'http://localhost:5173',
+    'http://localhost:3000'
+  ];
+  
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+  
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -66,6 +79,78 @@ export default async function handler(req, res) {
       return res.status(500).json({
         success: false,
         error: 'Failed to fetch locations',
+        message: error.message
+      });
+    }
+  }
+
+  // Handle POST - create new location
+  if (req.method === 'POST') {
+    try {
+      if (!supabase) {
+        return res.status(500).json({
+          success: false,
+          error: 'Database not configured'
+        });
+      }
+
+      const { name, city_id, category, address, description, recommendations, tags, interests, photos } = req.body;
+
+      if (!name || !city_id) {
+        return res.status(400).json({
+          success: false,
+          error: 'Name and city_id are required'
+        });
+      }
+
+      // Insert location
+      const { data: location, error: locationError } = await supabase
+        .from('locations')
+        .insert({
+          name,
+          city_id,
+          category: category || null,
+          address: address || null,
+          description: description || null,
+          recommendations: recommendations || null,
+          tags: tags || [],
+          verified: true
+        })
+        .select()
+        .single();
+
+      if (locationError) {
+        throw locationError;
+      }
+
+      // Insert photos if provided
+      if (photos && photos.length > 0 && location) {
+        const photoInserts = photos.map(photo => ({
+          location_id: location.id,
+          url: photo.url || photo,
+          source: photo.source || 'user'
+        }));
+        await supabase.from('location_photos').insert(photoInserts);
+      }
+
+      // Insert interests if provided
+      if (interests && interests.length > 0 && location) {
+        const interestInserts = interests.map(interestId => ({
+          location_id: location.id,
+          interest_id: interestId
+        }));
+        await supabase.from('location_interests').insert(interestInserts);
+      }
+
+      return res.status(201).json({
+        success: true,
+        location
+      });
+    } catch (error) {
+      console.error('❌ Error creating location:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to create location',
         message: error.message
       });
     }
