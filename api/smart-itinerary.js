@@ -349,32 +349,14 @@ Return JSON:
         weather: weatherMatch ? JSON.parse(weatherMatch[1]) : { temperature: 20, description: "Pleasant weather", clothing: "Comfortable clothing" }
       };
     }
-    
-    const titleResponse = { choices: [{ message: { content: metaData.title } }] };
-    const subtitleResponse = { choices: [{ message: { content: metaData.subtitle } }] };
-    const weatherResponse = { choices: [{ message: { content: JSON.stringify(metaData.weather) } }] };
-
-    // Парсим погодный ответ от OpenAI
-    let weatherData;
-    try {
-      const weatherContent = weatherResponse.choices[0].message.content.trim();
-      weatherData = JSON.parse(weatherContent);
-    } catch (parseError) {
-      console.log('Weather response not in JSON format, using fallback');
-      weatherData = {
-        temperature: "22",
-        description: "pleasant weather",
-        clothing: "Comfortable clothing recommended"
-      };
-    }
 
     const result = {
-      title: titleResponse.choices[0].message.content.trim().replace(/^["']|["']$/g, ''),
-      subtitle: subtitleResponse.choices[0].message.content.trim().replace(/^["']|["']$/g, ''),
+      title: (metaData.title || `${city} Discovery`).replace(/^["']|["']$/g, ''),
+      subtitle: metaData.subtitle || `${date} - discover ${city}. Experience authentic moments and create lasting memories.`,
       weather: {
-        temperature: weatherData.temperature, // Число для отображения вверху
-        forecast: weatherData.description,    // Описание без температуры
-        clothing: weatherData.clothing,       // Советы по одежде
+        temperature: metaData.weather?.temperature || 20,
+        forecast: metaData.weather?.description || "Pleasant weather",
+        clothing: metaData.weather?.clothing || "Comfortable clothing",
         tips: 'Perfect weather for exploring!'
       }
     };
