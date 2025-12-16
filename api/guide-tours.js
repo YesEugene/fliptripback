@@ -96,32 +96,41 @@ export default async function handler(req, res) {
     let toursError = null;
     
     // First try creator_id
-    let query = supabase
+    let result = await supabase
       .from('tours')
       .select(`
         *,
         city:cities(name)
       `)
+      .eq('creator_id', userId)
       .order('created_at', { ascending: false });
     
-    // Try to filter by creator_id, if column doesn't exist, try user_id or created_by
-    try {
-      const result = await query.eq('creator_id', userId);
-      tours = result.data;
-      toursError = result.error;
-    } catch (e) {
-      // If creator_id doesn't exist, try user_id
-      try {
-        const result = await query.eq('user_id', userId);
-        tours = result.data;
-        toursError = result.error;
-      } catch (e2) {
-        // If user_id doesn't exist, try created_by
-        const result = await query.eq('created_by', userId);
-        tours = result.data;
-        toursError = result.error;
-      }
+    // If creator_id column doesn't exist, try user_id
+    if (result.error && result.error.code === '42703' && result.error.message?.includes('creator_id')) {
+      result = await supabase
+        .from('tours')
+        .select(`
+          *,
+          city:cities(name)
+        `)
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
     }
+    
+    // If user_id also doesn't exist, try created_by
+    if (result.error && result.error.code === '42703' && (result.error.message?.includes('user_id') || result.error.message?.includes('creator_id'))) {
+      result = await supabase
+        .from('tours')
+        .select(`
+          *,
+          city:cities(name)
+        `)
+        .eq('created_by', userId)
+        .order('created_at', { ascending: false });
+    }
+    
+    tours = result.data;
+    toursError = result.error;
 
     if (toursError) {
       console.error('Error fetching guide tours:', toursError);

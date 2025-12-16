@@ -190,7 +190,7 @@ export default async function handler(req, res) {
     let tour = null;
     let tourError = null;
     
-    const tourData = {
+    const baseTourData = {
       country: country || null,
       city_id: cityId,
       title,
@@ -202,34 +202,33 @@ export default async function handler(req, res) {
       created_at: new Date().toISOString()
     };
     
-    // Try creator_id first, then user_id, then created_by
-    try {
-      const result = await supabase
+    // First try creator_id
+    let result = await supabase
+      .from('tours')
+      .insert({ ...baseTourData, creator_id: userId })
+      .select()
+      .single();
+    
+    // If creator_id column doesn't exist, try user_id
+    if (result.error && result.error.code === '42703' && result.error.message?.includes('creator_id')) {
+      result = await supabase
         .from('tours')
-        .insert({ ...tourData, creator_id: userId })
+        .insert({ ...baseTourData, user_id: userId })
         .select()
         .single();
-      tour = result.data;
-      tourError = result.error;
-    } catch (e) {
-      try {
-        const result = await supabase
-          .from('tours')
-          .insert({ ...tourData, user_id: userId })
-          .select()
-          .single();
-        tour = result.data;
-        tourError = result.error;
-      } catch (e2) {
-        const result = await supabase
-          .from('tours')
-          .insert({ ...tourData, created_by: userId })
-          .select()
-          .single();
-        tour = result.data;
-        tourError = result.error;
-      }
     }
+    
+    // If user_id also doesn't exist, try created_by
+    if (result.error && result.error.code === '42703' && (result.error.message?.includes('user_id') || result.error.message?.includes('creator_id'))) {
+      result = await supabase
+        .from('tours')
+        .insert({ ...baseTourData, created_by: userId })
+        .select()
+        .single();
+    }
+    
+    tour = result.data;
+    tourError = result.error;
 
     if (tourError) {
       console.error('Error creating tour:', tourError);
