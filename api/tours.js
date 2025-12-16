@@ -80,6 +80,8 @@ export default async function handler(req, res) {
       // Convert normalized structure to legacy format for backward compatibility
       const formattedTour = {
         ...tour,
+        // Extract city name from city object if it exists
+        city: tour.city?.name || tour.city || null,
         daily_plan: convertTourToDailyPlan(tour)
       };
 
