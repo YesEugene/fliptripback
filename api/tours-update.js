@@ -34,6 +34,71 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
+  // Handle DELETE method for tour deletion
+  if (req.method === 'DELETE') {
+    const { id } = req.query;
+    
+    if (!id) {
+      return res.status(400).json({ success: false, message: 'Tour ID is required' });
+    }
+
+    try {
+      // Get user from token
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ success: false, error: 'Unauthorized' });
+      }
+
+      const token = authHeader.replace('Bearer ', '');
+      let userId = null;
+      
+      try {
+        const payload = JSON.parse(Buffer.from(token.split('.')[1] || '', 'base64').toString());
+        userId = payload.userId || payload.id || payload.sub;
+      } catch (e) {
+        console.error('Token decode error:', e);
+        return res.status(401).json({ success: false, error: 'Invalid token' });
+      }
+
+      if (!userId) {
+        return res.status(401).json({ success: false, error: 'User ID not found in token' });
+      }
+
+      // Check if tour exists and belongs to user
+      const { data: tour, error: tourError } = await supabase
+        .from('tours')
+        .select('id, guide_id, creator_id, user_id, created_by')
+        .eq('id', id)
+        .single();
+
+      if (tourError || !tour) {
+        return res.status(404).json({ success: false, message: 'Tour not found' });
+      }
+
+      // Check ownership (try different column names)
+      const ownerId = tour.guide_id || tour.creator_id || tour.user_id || tour.created_by;
+      if (ownerId !== userId) {
+        return res.status(403).json({ success: false, message: 'You can only delete your own tours' });
+      }
+
+      // Delete tour (cascade will handle related records)
+      const { error: deleteError } = await supabase
+        .from('tours')
+        .delete()
+        .eq('id', id);
+
+      if (deleteError) {
+        console.error('Delete tour error:', deleteError);
+        return res.status(500).json({ success: false, message: deleteError.message });
+      }
+
+      return res.status(200).json({ success: true, message: 'Tour deleted successfully' });
+    } catch (error) {
+      console.error('Delete tour error:', error);
+      return res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
   if (req.method !== 'PUT' && req.method !== 'PATCH') {
     return res.status(405).json({ success: false, message: 'Method not allowed' });
   }
