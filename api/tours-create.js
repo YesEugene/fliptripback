@@ -89,10 +89,24 @@ export default async function handler(req, res) {
       .eq('id', userId)
       .single();
 
-    if (userError || !userData || userData.role !== 'creator') {
+    console.log('👤 User data from DB:', { userId, userData, userError });
+
+    if (userError || !userData) {
+      console.error('❌ User not found or error:', userError);
       return res.status(403).json({
         success: false,
-        error: 'Only creators can create tours'
+        error: 'User not found or invalid token',
+        details: userError?.message
+      });
+    }
+
+    // Allow both 'creator' and 'guide' roles (they are the same)
+    if (userData.role !== 'creator' && userData.role !== 'guide') {
+      console.error('❌ Invalid role:', userData.role);
+      return res.status(403).json({
+        success: false,
+        error: 'Only creators/guides can create tours',
+        userRole: userData.role
       });
     }
 
