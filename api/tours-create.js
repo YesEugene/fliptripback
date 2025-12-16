@@ -564,6 +564,11 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('❌ Error creating tour:', error);
+    // Ensure CORS headers are set even on error
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    
     return res.status(500).json({
       success: false,
       error: 'Failed to create tour',
