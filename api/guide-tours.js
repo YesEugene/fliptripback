@@ -91,46 +91,43 @@ export default async function handler(req, res) {
     }
 
     // Get tours created by this user
-    // Try different possible column names for creator/user
-    let tours = null;
-    let toursError = null;
+    // First, get one tour to see what columns exist
+    const sampleResult = await supabase
+      .from('tours')
+      .select('*')
+      .limit(1);
     
-    // First try creator_id
-    let result = await supabase
+    // Determine which column to use for filtering
+    let creatorColumn = null;
+    if (sampleResult.data && sampleResult.data.length > 0) {
+      const sampleTour = sampleResult.data[0];
+      // Check which column exists
+      if (sampleTour.creator_id !== undefined) {
+        creatorColumn = 'creator_id';
+      } else if (sampleTour.user_id !== undefined) {
+        creatorColumn = 'user_id';
+      } else if (sampleTour.created_by !== undefined) {
+        creatorColumn = 'created_by';
+      }
+    }
+    
+    // If no sample tour, try creator_id as default
+    if (!creatorColumn) {
+      creatorColumn = 'creator_id';
+    }
+    
+    // Get tours created by this user using the correct column
+    const result = await supabase
       .from('tours')
       .select(`
         *,
         city:cities(name)
       `)
-      .eq('creator_id', userId)
+      .eq(creatorColumn, userId)
       .order('created_at', { ascending: false });
     
-    // If creator_id column doesn't exist, try user_id
-    if (result.error && result.error.code === '42703' && result.error.message?.includes('creator_id')) {
-      result = await supabase
-        .from('tours')
-        .select(`
-          *,
-          city:cities(name)
-        `)
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
-    }
-    
-    // If user_id also doesn't exist, try created_by
-    if (result.error && result.error.code === '42703' && (result.error.message?.includes('user_id') || result.error.message?.includes('creator_id'))) {
-      result = await supabase
-        .from('tours')
-        .select(`
-          *,
-          city:cities(name)
-        `)
-        .eq('created_by', userId)
-        .order('created_at', { ascending: false });
-    }
-    
-    tours = result.data;
-    toursError = result.error;
+    const tours = result.data;
+    const toursError = result.error;
 
     if (toursError) {
       console.error('Error fetching guide tours:', toursError);

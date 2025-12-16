@@ -186,9 +186,30 @@ export default async function handler(req, res) {
     }
 
     // Save tour to database
-    // Try different possible column names for creator/user
-    let tour = null;
-    let tourError = null;
+    // First, get one existing tour to see what columns exist
+    const sampleResult = await supabase
+      .from('tours')
+      .select('*')
+      .limit(1);
+    
+    // Determine which column to use for creator
+    let creatorColumn = null;
+    if (sampleResult.data && sampleResult.data.length > 0) {
+      const sampleTour = sampleResult.data[0];
+      // Check which column exists
+      if (sampleTour.creator_id !== undefined) {
+        creatorColumn = 'creator_id';
+      } else if (sampleTour.user_id !== undefined) {
+        creatorColumn = 'user_id';
+      } else if (sampleTour.created_by !== undefined) {
+        creatorColumn = 'created_by';
+      }
+    }
+    
+    // If no sample tour, try creator_id as default
+    if (!creatorColumn) {
+      creatorColumn = 'creator_id';
+    }
     
     const baseTourData = {
       country: country || null,
@@ -202,33 +223,15 @@ export default async function handler(req, res) {
       created_at: new Date().toISOString()
     };
     
-    // First try creator_id
-    let result = await supabase
+    // Insert tour with the correct creator column
+    const result = await supabase
       .from('tours')
-      .insert({ ...baseTourData, creator_id: userId })
+      .insert({ ...baseTourData, [creatorColumn]: userId })
       .select()
       .single();
     
-    // If creator_id column doesn't exist, try user_id
-    if (result.error && result.error.code === '42703' && result.error.message?.includes('creator_id')) {
-      result = await supabase
-        .from('tours')
-        .insert({ ...baseTourData, user_id: userId })
-        .select()
-        .single();
-    }
-    
-    // If user_id also doesn't exist, try created_by
-    if (result.error && result.error.code === '42703' && (result.error.message?.includes('user_id') || result.error.message?.includes('creator_id'))) {
-      result = await supabase
-        .from('tours')
-        .insert({ ...baseTourData, created_by: userId })
-        .select()
-        .single();
-    }
-    
-    tour = result.data;
-    tourError = result.error;
+    const tour = result.data;
+    const tourError = result.error;
 
     if (tourError) {
       console.error('Error creating tour:', tourError);
