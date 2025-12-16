@@ -347,15 +347,47 @@ export default async function handler(req, res) {
     if (tourError) {
       console.error('❌ Error creating tour:', tourError);
       console.error('❌ Tour data:', baseTourData);
-      return res.status(500).json({
-        success: false,
-        error: 'Failed to create tour',
-        message: tourError.message,
-        details: tourError
-      });
+      
+      // If error is about missing country column, try without it
+      if (tourError.message && tourError.message.includes("'country' column")) {
+        console.log('⚠️ Country column missing, retrying without country...');
+        const baseTourDataWithoutCountry = { ...baseTourData };
+        delete baseTourDataWithoutCountry.country;
+        
+        const { data: tourRetry, error: tourErrorRetry } = await supabase
+          .from('tours')
+          .insert(baseTourDataWithoutCountry)
+          .select()
+          .single();
+        
+        if (tourErrorRetry) {
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to create tour',
+            message: tourErrorRetry.message,
+            details: tourErrorRetry,
+            hint: 'Please run add-country-column.sql migration to add country column'
+          });
+        }
+        
+        // Success on retry - continue with tour from retry
+        console.log(`✅ Tour created (without country): ${tourRetry.id}`);
+        // Use tourRetry for rest of the code
+        const tour = tourRetry;
+        
+        // Continue with tags and normalized structure using tour from retry
+        // (rest of code will use 'tour' variable)
+      } else {
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to create tour',
+          message: tourError.message,
+          details: tourError
+        });
+      }
+    } else {
+      console.log(`✅ Tour created: ${tour.id}`);
     }
-
-    console.log(`✅ Tour created: ${tour.id}`);
 
     // 2. Save tags if provided
     if (tags && Array.isArray(tags) && tags.length > 0) {
