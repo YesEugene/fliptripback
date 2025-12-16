@@ -340,12 +340,20 @@ export default async function handler(req, res) {
       updateData.country = country;
     }
 
+    console.log(`💾 Updating tour ${id} with data:`, Object.keys(updateData));
     const { data: tour, error: tourError } = await supabase
       .from('tours')
       .update(updateData)
       .eq('id', id)
       .select()
       .single();
+    
+    console.log(`📊 Update result:`, { 
+      hasData: !!tour, 
+      hasError: !!tourError,
+      errorMessage: tourError?.message,
+      errorCode: tourError?.code
+    });
 
     if (tourError) {
       // If country column error, retry without it
