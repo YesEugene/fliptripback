@@ -165,19 +165,37 @@ export default async function handler(req, res) {
         const authHeader = req.headers.authorization;
         if (authHeader && authHeader.startsWith('Bearer ')) {
           const token = authHeader.substring(7);
-          // Decode base64 token (simple implementation)
+          // Decode base64 token (same as auth-me.js)
           try {
-            const payload = JSON.parse(Buffer.from(token.split('.')[0], 'base64').toString());
+            // Token format: base64 encoded JSON with userId
+            const decoded = Buffer.from(token, 'base64').toString('utf-8');
+            const payload = JSON.parse(decoded);
             userId = payload.userId || payload.id;
+            
+            // Validate UUID format
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+            if (userId && !uuidRegex.test(userId)) {
+              console.warn('⚠️ Invalid UUID format from token:', userId);
+              userId = null;
+            }
           } catch (e) {
-            // Token format might be different, try to get from Supabase auth
-            const { data: { user } } = await supabase.auth.getUser(token);
-            userId = user?.id;
+            console.log('Could not decode token, trying Supabase auth:', e.message);
+            // Try Supabase auth as fallback
+            try {
+              const { data: { user }, error } = await supabase.auth.getUser(token);
+              if (!error && user) {
+                userId = user.id;
+              }
+            } catch (supabaseError) {
+              console.log('Supabase auth also failed:', supabaseError.message);
+            }
           }
         }
       } catch (e) {
         console.log('Could not extract user ID from token:', e.message);
       }
+      
+      console.log('👤 Extracted userId:', userId);
 
       // Insert location (without tags - they go to separate table)
       const { data: location, error: locationError } = await supabase
@@ -196,8 +214,7 @@ export default async function handler(req, res) {
           source: source || 'admin',
           google_place_id: google_place_id || null,
           verified: true,
-          created_by: userId,
-          updated_by: userId
+          ...(userId ? { created_by: userId, updated_by: userId } : {})
         })
         .select()
         .single();
@@ -302,17 +319,37 @@ export default async function handler(req, res) {
         const authHeader = req.headers.authorization;
         if (authHeader && authHeader.startsWith('Bearer ')) {
           const token = authHeader.substring(7);
+          // Decode base64 token (same as auth-me.js)
           try {
-            const payload = JSON.parse(Buffer.from(token.split('.')[0], 'base64').toString());
+            // Token format: base64 encoded JSON with userId
+            const decoded = Buffer.from(token, 'base64').toString('utf-8');
+            const payload = JSON.parse(decoded);
             userId = payload.userId || payload.id;
+            
+            // Validate UUID format
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+            if (userId && !uuidRegex.test(userId)) {
+              console.warn('⚠️ Invalid UUID format from token:', userId);
+              userId = null;
+            }
           } catch (e) {
-            const { data: { user } } = await supabase.auth.getUser(token);
-            userId = user?.id;
+            console.log('Could not decode token, trying Supabase auth:', e.message);
+            // Try Supabase auth as fallback
+            try {
+              const { data: { user }, error } = await supabase.auth.getUser(token);
+              if (!error && user) {
+                userId = user.id;
+              }
+            } catch (supabaseError) {
+              console.log('Supabase auth also failed:', supabaseError.message);
+            }
           }
         }
       } catch (e) {
         console.log('Could not extract user ID from token:', e.message);
       }
+      
+      console.log('👤 Extracted userId for update:', userId);
 
       // Build update object (only include provided fields)
       const updateData = {};
@@ -329,7 +366,15 @@ export default async function handler(req, res) {
       if (source !== undefined) updateData.source = source;
       if (google_place_id !== undefined) updateData.google_place_id = google_place_id;
       if (verified !== undefined) updateData.verified = verified;
-      if (userId) updateData.updated_by = userId;
+      // Only set updated_by if userId is a valid UUID
+      if (userId) {
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (uuidRegex.test(userId)) {
+          updateData.updated_by = userId;
+        } else {
+          console.warn('⚠️ Skipping updated_by - invalid UUID:', userId);
+        }
+      }
 
       console.log('📝 Update data:', JSON.stringify(updateData, null, 2));
 
