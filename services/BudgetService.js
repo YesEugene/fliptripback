@@ -16,13 +16,13 @@ export class BudgetService {
       return activities.map(activity => ({
         ...activity,
         price: Math.round(activity.price * adjustmentFactor),
-        priceRange: this.formatPriceRange(activity.category, activity.priceLevel || 2)
+        priceRange: this.formatPriceRange(activity.category, activity.priceLevel || 2, activity.city || '')
       }));
     }
 
     return activities.map(activity => ({
       ...activity,
-      priceRange: this.formatPriceRange(activity.category, activity.priceLevel || 2)
+      priceRange: this.formatPriceRange(activity.category, activity.priceLevel || 2, activity.city || '')
     }));
   }
 
@@ -41,11 +41,17 @@ export class BudgetService {
   }
 
   /**
-   * Format price range
+   * Format price range based on category and price level
    */
-  formatPriceRange(category, priceLevel) {
-    // Implementation from existing code
-    return `€${priceLevel * 5}-${priceLevel * 10}`;
+  formatPriceRange(category, priceLevel, city = '') {
+    const price = priceLevel * 5;
+    
+    // Simple range formatting
+    if (price <= 10) return `${price}€`;
+    
+    const rangeMin = Math.max(0, price - 5);
+    const rangeMax = price + 5;
+    return `${rangeMin}-${rangeMax}€`;
   }
 }
 

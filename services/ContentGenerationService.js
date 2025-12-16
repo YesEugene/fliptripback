@@ -112,6 +112,7 @@ Create a full-day plan with 8-10 time slots.`;
         category: slot.category,
         duration: 90,
         price: place.priceLevel * 5, // Will be adjusted by BudgetService
+        priceLevel: place.priceLevel || 2,
         location: place.address,
         photos: place.photos || [],
         recommendations: recommendations,

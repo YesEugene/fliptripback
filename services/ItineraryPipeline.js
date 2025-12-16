@@ -38,15 +38,17 @@ export class ItineraryPipeline {
 
     try {
       // STEP 1: Generate day concept (time slots)
+      // Use interest names (interests) not IDs for concept generation
       const dayConcept = await this.contentService.generateDayConcept({
         city,
         audience,
-        interests,
+        interests: interests || [],
         date: date_from || date,
         budget
       });
 
       // STEP 2: Find locations (DB first, then Google Places)
+      // Use interest IDs for location filtering
       const locations = await this.locationService.findLocations({
         timeSlots: dayConcept.timeSlots,
         city,
@@ -54,10 +56,11 @@ export class ItineraryPipeline {
       });
 
       // STEP 3: Generate descriptions and recommendations
+      // Use interest names for content generation
       const activities = await this.contentService.generateActivitiesContent({
         locations,
         dayConcept,
-        interests,
+        interests: interests || [], // Use interest names for content generation
         audience
       });
 
@@ -65,10 +68,11 @@ export class ItineraryPipeline {
       const adjustedActivities = this.budgetService.adjustToBudget(activities, budget);
 
       // STEP 5: Generate meta info (title, subtitle, weather)
+      // Use interest names for meta info generation
       const metaInfo = await this.contentService.generateMetaInfo({
         city,
         audience,
-        interests,
+        interests: interests || [],
         date: date_from || date,
         concept: dayConcept.concept
       });
@@ -94,8 +98,15 @@ export class ItineraryPipeline {
 
       // STEP 7: Save to storage if needed
       if (previewOnly) {
-        const saved = await this.storageService.savePreview(itinerary);
-        itinerary.itineraryId = saved.itineraryId;
+        try {
+          const saved = await this.storageService.savePreview(itinerary);
+          if (saved && saved.success && saved.itineraryId) {
+            itinerary.itineraryId = saved.itineraryId;
+          }
+        } catch (saveError) {
+          console.error('❌ Error saving preview:', saveError);
+          // Continue without saving - itinerary will still be returned
+        }
       }
 
       console.log('✅ ItineraryPipeline: Generation complete');

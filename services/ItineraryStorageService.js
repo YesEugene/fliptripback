@@ -1,20 +1,26 @@
 // ItineraryStorageService - Handles saving/loading itineraries
 // Isolated service for storage operations (Redis, DB, etc.)
 
-import { createClient } from '@vercel/kv';
+import { Redis } from '@upstash/redis';
+import { v4 as uuidv4 } from 'uuid';
 
 export class ItineraryStorageService {
   constructor() {
-    // Initialize Redis client if KV_URL is available
-    if (process.env.KV_URL && process.env.KV_REST_API_TOKEN) {
-      this.kv = createClient({
-        url: process.env.KV_URL,
-        token: process.env.KV_REST_API_TOKEN
-      });
-    } else {
-      console.warn('⚠️ KV credentials not found, storage will use in-memory fallback');
+    // Initialize Redis client using same logic as save-itinerary.js
+    this.redis = this.getRedis();
+  }
+
+  getRedis() {
+    const url = process.env.FTSTORAGE_KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+    const token = process.env.FTSTORAGE_KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+    
+    if (!url || !token) {
+      console.warn('⚠️ Redis credentials not found, using in-memory fallback');
       this.memoryStore = new Map();
+      return null;
     }
+    
+    return new Redis({ url, token });
   }
 
   /**
@@ -23,7 +29,7 @@ export class ItineraryStorageService {
   async savePreview(itinerary) {
     console.log('💾 ItineraryStorageService: Saving preview...');
     
-    const itineraryId = `itinerary:${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const itineraryId = uuidv4();
     const dataToSave = {
       ...itinerary,
       previewOnly: true,
@@ -31,10 +37,12 @@ export class ItineraryStorageService {
     };
 
     try {
-      if (this.kv) {
-        await this.kv.set(itineraryId, JSON.stringify(dataToSave), { ex: 86400 }); // 24 hours TTL
-      } else {
+      if (this.redis) {
+        await this.redis.set(`itinerary:${itineraryId}`, JSON.stringify(dataToSave), { ex: 60 * 60 * 24 * 30 }); // 30 days TTL
+      } else if (this.memoryStore) {
         this.memoryStore.set(itineraryId, dataToSave);
+      } else {
+        throw new Error('No storage available');
       }
       
       console.log('✅ Preview saved with ID:', itineraryId);
@@ -51,7 +59,7 @@ export class ItineraryStorageService {
   async saveFull(itinerary, existingId) {
     console.log('💾 ItineraryStorageService: Saving full itinerary...', existingId);
     
-    const itineraryId = existingId || `itinerary:${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const itineraryId = existingId || uuidv4();
     const dataToSave = {
       ...itinerary,
       previewOnly: false,
@@ -59,10 +67,12 @@ export class ItineraryStorageService {
     };
 
     try {
-      if (this.kv) {
-        await this.kv.set(itineraryId, JSON.stringify(dataToSave), { ex: 86400 * 7 }); // 7 days TTL
-      } else {
+      if (this.redis) {
+        await this.redis.set(`itinerary:${itineraryId}`, JSON.stringify(dataToSave), { ex: 60 * 60 * 24 * 30 }); // 30 days TTL
+      } else if (this.memoryStore) {
         this.memoryStore.set(itineraryId, dataToSave);
+      } else {
+        throw new Error('No storage available');
       }
       
       console.log('✅ Full itinerary saved with ID:', itineraryId);
@@ -82,11 +92,13 @@ export class ItineraryStorageService {
     try {
       let data;
       
-      if (this.kv) {
-        const raw = await this.kv.get(itineraryId);
+      if (this.redis) {
+        const raw = await this.redis.get(`itinerary:${itineraryId}`);
         data = typeof raw === 'string' ? JSON.parse(raw) : raw;
-      } else {
+      } else if (this.memoryStore) {
         data = this.memoryStore.get(itineraryId);
+      } else {
+        return { success: false, error: 'No storage available' };
       }
 
       if (!data) {
@@ -114,11 +126,13 @@ export class ItineraryStorageService {
     try {
       let data;
       
-      if (this.kv) {
-        const raw = await this.kv.get(itineraryId);
+      if (this.redis) {
+        const raw = await this.redis.get(`itinerary:${itineraryId}`);
         data = typeof raw === 'string' ? JSON.parse(raw) : raw;
-      } else {
+      } else if (this.memoryStore) {
         data = this.memoryStore.get(itineraryId);
+      } else {
+        return { success: false, error: 'No storage available' };
       }
 
       if (!data) {
@@ -130,9 +144,9 @@ export class ItineraryStorageService {
       data.unlockedAt = new Date().toISOString();
 
       // Save updated data
-      if (this.kv) {
-        await this.kv.set(itineraryId, JSON.stringify(data), { ex: 86400 * 7 });
-      } else {
+      if (this.redis) {
+        await this.redis.set(`itinerary:${itineraryId}`, JSON.stringify(data), { ex: 60 * 60 * 24 * 30 });
+      } else if (this.memoryStore) {
         this.memoryStore.set(itineraryId, data);
       }
 

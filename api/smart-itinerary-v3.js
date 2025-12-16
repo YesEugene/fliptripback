@@ -80,8 +80,8 @@ export default async function handler(req, res) {
     const itinerary = await pipeline.generateItinerary({
       city,
       audience,
-      interests: interestsForConcept,
-      interest_ids: interestIds,
+      interests: interestsForConcept, // Use names for concept generation
+      interest_ids: interestIds, // Use IDs for location filtering
       date: itineraryDate,
       date_from,
       date_to,
