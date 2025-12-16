@@ -306,7 +306,10 @@ export async function searchLocationsForItinerary(cityId, categories = [], tags 
       console.log(`✅ Filtered by interest_ids: ${filtered.length} locations match out of ${data.length} total`);
       
       if (filtered.length === 0 && data.length > 0) {
-        console.log(`⚠️⚠️⚠️ WARNING: No locations match the interest filter! This might indicate:`);
+        console.log(`⚠️⚠️⚠️ WARNING: No locations match the interest filter!`);
+        console.log(`   - Requested interestIds: [${normalizedInterestIds.join(', ')}]`);
+        console.log(`   - Total locations in DB for this city: ${data.length}`);
+        console.log(`   - This might indicate:`);
         console.log(`   1. Locations in DB don't have the selected interests assigned`);
         console.log(`   2. Interest IDs don't match (check if IDs are correct)`);
         console.log(`   3. Location-interests relationships are missing in location_interests table`);
