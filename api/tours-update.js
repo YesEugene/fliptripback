@@ -89,15 +89,18 @@ export default async function handler(req, res) {
         return res.status(401).json({ success: false, error: 'Unauthorized' });
       }
 
-      const token = authHeader.replace('Bearer ', '');
+      // Use same token decoding as auth-me.js
+      const cleanToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
       let userId = null;
       
       try {
-        const payload = JSON.parse(Buffer.from(token.split('.')[1] || '', 'base64').toString());
+        // Decode token (simple base64, same as auth-me.js)
+        const payload = JSON.parse(Buffer.from(cleanToken, 'base64').toString());
         userId = payload.userId || payload.id || payload.sub;
       } catch (e) {
         console.error('Token decode error:', e);
-        return res.status(401).json({ success: false, error: 'Invalid token' });
+        console.error('Token (first 20 chars):', cleanToken.substring(0, 20));
+        return res.status(401).json({ success: false, error: 'Invalid token', details: e.message });
       }
 
       if (!userId) {
@@ -178,14 +181,17 @@ export default async function handler(req, res) {
       });
     }
 
-    // Extract user ID from token
+    // Extract user ID from token (same as auth-me.js)
     let userId = null;
     try {
       const cleanToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
       try {
+        // Decode token (simple base64, same as auth-me.js)
         const payload = JSON.parse(Buffer.from(cleanToken, 'base64').toString());
-        userId = payload.userId || payload.id || null;
+        userId = payload.userId || payload.id || payload.sub;
+        console.log(`✅ Extracted userId from token: ${userId}`);
       } catch (e) {
+        console.error('Token decode error (base64), trying Supabase auth:', e.message);
         const { data: { user }, error: authError } = await supabase.auth.getUser(cleanToken);
         if (!authError && user) {
           userId = user.id;
