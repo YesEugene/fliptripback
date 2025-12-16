@@ -136,7 +136,7 @@ export default async function handler(req, res) {
                     .single();
 
                   if (!existingLocation) {
-                    // Create new location
+                    // Create new location (without tags - they go to separate table)
                     const locationData = {
                       name: item.title,
                       city_id: cityId,
@@ -144,7 +144,6 @@ export default async function handler(req, res) {
                       category: item.category || null,
                       description: item.why || item.description || null,
                       recommendations: item.tips || item.recommendations || null,
-                      tags: tags || [],
                       verified: false, // Created by creator, needs admin verification
                       created_by: userId
                     };
@@ -157,6 +156,23 @@ export default async function handler(req, res) {
 
                     if (!locationError && newLocation) {
                       locationsToSave.push(newLocation.id);
+
+                      // Save tags if provided (into location_tags table)
+                      if (tags && Array.isArray(tags) && tags.length > 0) {
+                        // Get tag IDs by names
+                        const { data: tagsData } = await supabase
+                          .from('tags')
+                          .select('id, name')
+                          .in('name', tags);
+                        
+                        if (tagsData && tagsData.length > 0) {
+                          const tagInserts = tagsData.map(tag => ({
+                            location_id: newLocation.id,
+                            tag_id: tag.id
+                          }));
+                          await supabase.from('location_tags').insert(tagInserts);
+                        }
+                      }
 
                       // Save photos if provided
                       if (item.photos && Array.isArray(item.photos) && item.photos.length > 0) {

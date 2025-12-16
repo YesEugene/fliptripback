@@ -103,7 +103,7 @@ export default async function handler(req, res) {
         });
       }
 
-      // Insert location
+      // Insert location (without tags - they go to separate table)
       const { data: location, error: locationError } = await supabase
         .from('locations')
         .insert({
@@ -113,7 +113,6 @@ export default async function handler(req, res) {
           address: address || null,
           description: description || null,
           recommendations: recommendations || null,
-          tags: tags || [],
           verified: true
         })
         .select()
@@ -121,6 +120,23 @@ export default async function handler(req, res) {
 
       if (locationError) {
         throw locationError;
+      }
+
+      // Insert tags if provided (into location_tags table)
+      if (tags && Array.isArray(tags) && tags.length > 0 && location) {
+        // Get tag IDs by names
+        const { data: tagsData } = await supabase
+          .from('tags')
+          .select('id, name')
+          .in('name', tags);
+        
+        if (tagsData && tagsData.length > 0) {
+          const tagInserts = tagsData.map(tag => ({
+            location_id: location.id,
+            tag_id: tag.id
+          }));
+          await supabase.from('location_tags').insert(tagInserts);
+        }
       }
 
       // Insert photos if provided
