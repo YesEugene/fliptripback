@@ -211,25 +211,50 @@ export default async function handler(req, res) {
     }
 
     // Verify user owns the tour
+    console.log(`🔍 Checking tour ownership for tour ID: ${id}, userId: ${userId}`);
     const { data: existingTour, error: tourCheckError } = await supabase
       .from('tours')
-      .select('guide_id, creator_id, user_id, created_by')
+      .select('id, guide_id, creator_id, user_id, created_by')
       .eq('id', id)
       .single();
 
-    if (tourCheckError || !existingTour) {
+    if (tourCheckError) {
+      console.error(`❌ Tour check error:`, tourCheckError);
       return res.status(404).json({
         success: false,
-        error: 'Tour not found'
+        error: 'Tour not found',
+        details: tourCheckError.message,
+        tourId: id
       });
     }
 
+    if (!existingTour) {
+      console.error(`❌ Tour not found: ${id}`);
+      return res.status(404).json({
+        success: false,
+        error: 'Tour not found',
+        tourId: id
+      });
+    }
+
+    console.log(`✅ Tour found:`, {
+      id: existingTour.id,
+      guide_id: existingTour.guide_id,
+      creator_id: existingTour.creator_id,
+      user_id: existingTour.user_id,
+      created_by: existingTour.created_by
+    });
+
     // Check ownership (try different column names)
     const ownerId = existingTour.guide_id || existingTour.creator_id || existingTour.user_id || existingTour.created_by;
+    console.log(`🔐 Ownership check: ownerId=${ownerId}, userId=${userId}, match=${ownerId === userId}`);
     if (ownerId !== userId) {
+      console.warn(`⚠️ Ownership mismatch: ownerId=${ownerId}, userId=${userId}`);
       return res.status(403).json({
         success: false,
-        error: 'You can only update your own tours'
+        error: 'You can only update your own tours',
+        ownerId,
+        userId
       });
     }
 
