@@ -424,9 +424,14 @@ async function getOrCreateCity(cityName, countryName) {
     }
     
     // Create new city
+    const cityData = { name: cityName };
+    // Only add country if column exists (it might not be in schema)
+    if (countryName) {
+      cityData.country = countryName;
+    }
     const { data: newCity, error: createError } = await supabase
       .from('cities')
-      .insert({ name: cityName, country: countryName || null })
+      .insert(cityData)
       .select('id')
       .single();
     
@@ -568,7 +573,7 @@ export default async function handler(req, res) {
           title: tourData.title,
           description: tourData.description,
           city_id: cityId,
-          country: tourData.country || null,
+          // country field removed - not in schema
           default_format: 'self_guided',
           duration_type: 'days',
           duration_value: 1,
