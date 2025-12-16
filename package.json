@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "node server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "generate-tours": "node scripts/generate-sample-tours.js"
   },
   "dependencies": {
     "openai": "^4.20.1",
