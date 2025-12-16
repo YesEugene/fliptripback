@@ -33,30 +33,72 @@ export default async function handler(req, res) {
   }
 
   try {
-    const redis = getRedis();
+    if (!supabase) {
+      return res.status(500).json({
+        success: false,
+        error: 'Database not configured'
+      });
+    }
+
     const { id } = req.query;
 
-    // If ID is provided, return single tour
+    // If ID is provided, return single tour from PostgreSQL
     if (id) {
-      const tourKey = `tour:${id}`;
-      const tourData = await redis.get(tourKey);
+      const { data: tour, error } = await supabase
+        .from('tours')
+        .select(`
+          *,
+          city:cities(name),
+          tour_days(
+            id,
+            day_number,
+            title,
+            date_hint,
+            tour_blocks(
+              id,
+              start_time,
+              end_time,
+              title,
+              tour_items(
+                id,
+                location_id,
+                custom_title,
+                custom_description,
+                custom_recommendations,
+                order_index,
+                duration_minutes,
+                approx_cost,
+                location:locations(*)
+              )
+            )
+          ),
+          tour_tags(
+            tag:tags(id, name)
+          )
+        `)
+        .eq('id', id)
+        .single();
 
-      if (!tourData) {
+      if (error || !tour) {
         return res.status(404).json({ 
           success: false, 
           message: 'Tour not found' 
         });
       }
 
-      const tour = typeof tourData === 'string' ? JSON.parse(tourData) : tourData;
+      // Convert normalized structure to legacy format for backward compatibility
+      const formattedTour = {
+        ...tour,
+        daily_plan: convertTourToDailyPlan(tour)
+      };
 
       return res.status(200).json({
         success: true,
-        tour
+        tour: formattedTour
       });
     }
 
-    // Otherwise, return list of tours with filters
+    // Otherwise, return list of tours with filters from PostgreSQL
     const { 
       city, 
       format, 
@@ -70,87 +112,76 @@ export default async function handler(req, res) {
       offset = 0
     } = req.query;
 
-    // Определение набора туров для поиска
-    let tourIds = [];
-    
+    let query = supabase
+      .from('tours')
+      .select(`
+        *,
+        city:cities(name),
+        tour_tags(
+          tag:tags(id, name)
+        )
+      `)
+      .eq('is_published', true)
+      .order('created_at', { ascending: false })
+      .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
+
+    // Apply filters
     if (city) {
-      // Фильтр по городу
-      const cityToursKey = `tours:city:${city}`;
-      tourIds = await redis.smembers(cityToursKey);
-    } else {
-      // Все туры
-      tourIds = await redis.smembers('tours:all');
+      // Join with cities table
+      query = query.eq('city:cities.name', city);
     }
-
-    // Получение туров
-    const tours = [];
-    for (const tourId of tourIds) {
-      const tourData = await redis.get(`tour:${tourId}`);
-      if (tourData) {
-        const tour = typeof tourData === 'string' ? JSON.parse(tourData) : tourData;
-        tours.push(tour);
-      }
-    }
-
-    // Применение фильтров
-    let filteredTours = tours;
 
     if (format) {
-      filteredTours = filteredTours.filter(t => t.format === format);
+      query = query.eq('default_format', format);
     }
+
+    if (minPrice !== undefined) {
+      query = query.gte('price_pdf', parseFloat(minPrice));
+    }
+
+    if (maxPrice !== undefined) {
+      query = query.lte('price_pdf', parseFloat(maxPrice));
+    }
+
+    const { data: tours, error } = await query;
+
+    if (error) {
+      throw error;
+    }
+
+    // Apply additional filters in memory (for complex filters)
+    let filteredTours = tours || [];
 
     if (interests) {
       const interestList = Array.isArray(interests) ? interests : interests.split(',');
-      filteredTours = filteredTours.filter(t => 
-        t.meta?.interests?.some(interest => interestList.includes(interest))
-      );
+      filteredTours = filteredTours.filter(t => {
+        const tourTagNames = (t.tour_tags || []).map(tt => tt.tag?.name).filter(Boolean);
+        return interestList.some(interest => tourTagNames.includes(interest));
+      });
     }
 
     if (audience) {
-      filteredTours = filteredTours.filter(t => t.meta?.audience === audience);
+      // This would need to be stored in tours table or meta field
+      // For now, skip this filter
     }
 
     if (duration) {
       filteredTours = filteredTours.filter(t => 
-        t.duration?.type === duration || 
-        (duration === 'hours' && t.duration?.value <= 12) ||
-        (duration === 'days' && t.duration?.type === 'days')
+        t.duration_type === duration || 
+        (duration === 'hours' && t.duration_value <= 12) ||
+        (duration === 'days' && t.duration_type === 'days')
       );
     }
 
-    if (languages) {
-      const langList = Array.isArray(languages) ? languages : languages.split(',');
-      filteredTours = filteredTours.filter(t => 
-        t.languages?.some(lang => langList.includes(lang))
-      );
-    }
-
-    if (minPrice !== undefined) {
-      filteredTours = filteredTours.filter(t => 
-        t.price?.amount >= parseFloat(minPrice)
-      );
-    }
-
-    if (maxPrice !== undefined) {
-      filteredTours = filteredTours.filter(t => 
-        t.price?.amount <= parseFloat(maxPrice)
-      );
-    }
-
-    // Сортировка по дате создания (новые первыми)
-    filteredTours.sort((a, b) => 
-      new Date(b.createdAt) - new Date(a.createdAt)
-    );
-
-    // Пагинация
-    const paginatedTours = filteredTours.slice(
-      parseInt(offset), 
-      parseInt(offset) + parseInt(limit)
-    );
+    // Convert to legacy format
+    const formattedTours = filteredTours.map(tour => ({
+      ...tour,
+      daily_plan: [] // Would need to load full structure for this
+    }));
 
     return res.status(200).json({
       success: true,
-      tours: paginatedTours,
+      tours: formattedTours,
       total: filteredTours.length,
       limit: parseInt(limit),
       offset: parseInt(offset)
@@ -163,5 +194,45 @@ export default async function handler(req, res) {
       error: error.message 
     });
   }
+}
+
+// Helper function to convert normalized tour structure to daily_plan format
+function convertTourToDailyPlan(tour) {
+  if (!tour.tour_days || !Array.isArray(tour.tour_days)) {
+    return [];
+  }
+
+  return tour.tour_days.map(day => {
+    const blocks = (day.tour_blocks || []).map(block => {
+      const items = (block.tour_items || []).map(item => {
+        const location = item.location;
+        return {
+          title: item.custom_title || location?.name || '',
+          address: location?.address || '',
+          category: location?.category || '',
+          why: item.custom_description || location?.description || '',
+          tips: item.custom_recommendations || location?.recommendations || '',
+          photos: location?.photos?.map(p => p.url) || [],
+          cost: item.approx_cost || 0,
+          duration: item.duration_minutes || null
+        };
+      });
+
+      return {
+        time: block.start_time && block.end_time 
+          ? `${block.start_time} - ${block.end_time}`
+          : block.start_time || 'TBD',
+        title: block.title || null,
+        items: items
+      };
+    });
+
+    return {
+      day: day.day_number,
+      date: day.date_hint || null,
+      title: day.title || null,
+      blocks: blocks
+    };
+  });
 }
 
