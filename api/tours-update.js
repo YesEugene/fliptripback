@@ -33,9 +33,23 @@ async function getOrCreateCityFallback(cityName, countryName) {
 }
 
 export default async function handler(req, res) {
+  // CRITICAL: This endpoint MUST be accessible at /api/tours-update
+  // If you see 404, check Vercel deployment logs
+  
   // Log request for debugging - CRITICAL for Vercel deployment
   console.log(`📡 tours-update endpoint called: ${req.method} ${req.url}`);
   console.log(`📡 Request headers:`, Object.keys(req.headers));
+  console.log(`📡 Query params:`, req.query);
+  
+  // Early return test - if this doesn't work, endpoint isn't being called
+  if (req.method === 'GET' && req.query.test === 'true') {
+    return res.status(200).json({ 
+      success: true, 
+      message: 'tours-update endpoint is working!',
+      method: req.method,
+      url: req.url
+    });
+  }
   
   // CORS headers - устанавливаем ПЕРВЫМИ (как в admin-locations.js)
   const origin = req.headers.origin;
