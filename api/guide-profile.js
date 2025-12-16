@@ -1,28 +1,26 @@
 /**
  * Guide Profile API Endpoint
  * Serverless function for managing guide profiles
+ * Uses PostgreSQL/Supabase (not Redis)
  */
 
-import { Redis } from '@upstash/redis';
+import { supabase } from '../database/db.js';
 
-// Lazy initialization of Redis client
-function getRedis() {
-  const url = process.env.FTSTORAGE_KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const token = process.env.FTSTORAGE_KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-  
-  if (!url || !token) {
-    throw new Error('Redis environment variables not set');
-  }
-  
-  return new Redis({ url, token });
-}
-
-// Verify token and get user ID
-async function verifyToken(token, redis) {
+// Extract user ID from token (same as auth-me.js)
+function getUserIdFromToken(token) {
   if (!token) return null;
-  const cleanToken = token.startsWith('Bearer ') ? token.slice(7) : token;
-  const userId = await redis.get(`token:${cleanToken}`);
-  return userId;
+  
+  try {
+    // Remove 'Bearer ' prefix if present
+    const cleanToken = token.startsWith('Bearer ') ? token.slice(7) : token;
+    
+    // Decode token (simple base64 for now)
+    const payload = JSON.parse(Buffer.from(cleanToken, 'base64').toString());
+    return payload.userId || payload.id || null;
+  } catch (error) {
+    console.error('Token decode error:', error);
+    return null;
+  }
 }
 
 export default async function handler(req, res) {
@@ -40,6 +38,13 @@ export default async function handler(req, res) {
   }
 
   try {
+    if (!supabase) {
+      return res.status(500).json({
+        success: false,
+        error: 'Database not configured'
+      });
+    }
+
     // Проверка авторизации
     const authHeader = req.headers.authorization;
     if (!authHeader) {
@@ -49,8 +54,8 @@ export default async function handler(req, res) {
       });
     }
 
-    const redis = getRedis();
-    const userId = await verifyToken(authHeader, redis);
+    // Extract user ID from token (same as auth-me.js)
+    const userId = getUserIdFromToken(authHeader);
     if (!userId) {
       return res.status(401).json({ 
         success: false, 
@@ -58,37 +63,77 @@ export default async function handler(req, res) {
       });
     }
 
-    // Проверка роли (только гиды могут управлять профилем)
-    const userData = await redis.get(`user:${userId}`);
-    if (!userData) {
+    // Проверка роли (только гиды/creators могут управлять профилем)
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('id, email, role')
+      .eq('id', userId)
+      .single();
+
+    if (userError || !user) {
+      console.error('User lookup error:', userError);
       return res.status(404).json({ 
         success: false, 
         message: 'User not found' 
       });
     }
 
-    const user = typeof userData === 'string' ? JSON.parse(userData) : userData;
-    if (user.role !== 'guide') {
+    // Allow both 'guide' and 'creator' roles (they are the same)
+    if (user.role !== 'guide' && user.role !== 'creator') {
       return res.status(403).json({ 
         success: false, 
-        message: 'Only guides can manage profiles' 
+        message: 'Only guides/creators can manage profiles' 
       });
     }
 
-    const profileKey = `guide:${userId}:profile`;
-
     // GET - получение профиля
     if (req.method === 'GET') {
-      const profileData = await redis.get(profileKey);
+      // Check if guide profile exists
+      const { data: guideProfile, error: profileError } = await supabase
+        .from('guides')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
       
-      if (!profileData) {
-        return res.status(404).json({ 
+      if (profileError && profileError.code !== 'PGRST116') { // PGRST116 = not found
+        console.error('Profile lookup error:', profileError);
+        return res.status(500).json({ 
           success: false, 
-          message: 'Profile not found' 
+          message: 'Error fetching profile',
+          error: profileError.message
         });
       }
 
-      const profile = typeof profileData === 'string' ? JSON.parse(profileData) : profileData;
+      // If profile doesn't exist, return empty profile
+      if (!guideProfile) {
+        return res.status(200).json({
+          success: true,
+          profile: {
+            avatar: '',
+            bio: '',
+            socialLinks: {
+              instagram: '',
+              facebook: '',
+              twitter: '',
+              linkedin: '',
+              website: ''
+            }
+          }
+        });
+      }
+
+      // Format profile data
+      const profile = {
+        avatar: guideProfile.avatar_url || '',
+        bio: guideProfile.bio || '',
+        socialLinks: {
+          instagram: guideProfile.instagram_url || '',
+          facebook: guideProfile.facebook_url || '',
+          twitter: guideProfile.twitter_url || '',
+          linkedin: guideProfile.linkedin_url || '',
+          website: guideProfile.website_url || ''
+        }
+      };
       
       return res.status(200).json({
         success: true,
@@ -100,28 +145,84 @@ export default async function handler(req, res) {
     if (req.method === 'PUT') {
       const profileData = req.body;
 
-      // Нормализация данных профиля
-      const normalizedProfile = {
-        guideId: userId,
-        avatar: profileData.avatar || '',
-        bio: profileData.bio || '',
-        socialLinks: {
-          instagram: profileData.socialLinks?.instagram || '',
-          facebook: profileData.socialLinks?.facebook || '',
-          twitter: profileData.socialLinks?.twitter || '',
-          linkedin: profileData.socialLinks?.linkedin || '',
-          website: profileData.socialLinks?.website || ''
-        },
-        updatedAt: new Date().toISOString(),
-        createdAt: profileData.createdAt || new Date().toISOString()
+      // Prepare guide data for insert/update
+      const guideData = {
+        user_id: userId,
+        name: profileData.name || user.email?.split('@')[0] || 'Guide',
+        bio: profileData.bio || null,
+        avatar_url: profileData.avatar || null,
+        instagram_url: profileData.socialLinks?.instagram || null,
+        facebook_url: profileData.socialLinks?.facebook || null,
+        twitter_url: profileData.socialLinks?.twitter || null,
+        linkedin_url: profileData.socialLinks?.linkedin || null,
+        website_url: profileData.socialLinks?.website || null,
+        updated_at: new Date().toISOString()
       };
 
-      // Сохранение профиля в Redis
-      await redis.set(profileKey, JSON.stringify(normalizedProfile));
+      // Check if guide profile exists
+      const { data: existingGuide } = await supabase
+        .from('guides')
+        .select('id')
+        .eq('user_id', userId)
+        .single();
+
+      let result;
+      if (existingGuide) {
+        // Update existing profile
+        const { data: updatedGuide, error: updateError } = await supabase
+          .from('guides')
+          .update(guideData)
+          .eq('user_id', userId)
+          .select()
+          .single();
+
+        if (updateError) {
+          console.error('Profile update error:', updateError);
+          return res.status(500).json({
+            success: false,
+            message: 'Error updating profile',
+            error: updateError.message
+          });
+        }
+
+        result = updatedGuide;
+      } else {
+        // Create new profile
+        guideData.created_at = new Date().toISOString();
+        const { data: newGuide, error: insertError } = await supabase
+          .from('guides')
+          .insert(guideData)
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error('Profile creation error:', insertError);
+          return res.status(500).json({
+            success: false,
+            message: 'Error creating profile',
+            error: insertError.message
+          });
+        }
+
+        result = newGuide;
+      }
+
+      // Format response
+      const profile = {
+        avatar: result.avatar_url || '',
+        bio: result.bio || '',
+        socialLinks: {
+          instagram: result.instagram_url || '',
+          facebook: result.facebook_url || '',
+          twitter: result.twitter_url || '',
+          linkedin: result.linkedin_url || '',
+          website: result.website_url || ''
+        }
+      };
 
       return res.status(200).json({
         success: true,
-        profile: normalizedProfile
+        profile
       });
     }
 
