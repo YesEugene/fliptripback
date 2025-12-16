@@ -110,22 +110,25 @@ export async function findRealLocations(timeSlots, city, interestIds = []) {
           // First try with exact category match and interest filter
           let dbResult = await searchLocationsForItinerary(cityId, categories, tags, interestIds.length > 0 ? interestIds : [], 10);
           
-          // If no results with category filter, try without category (broader search)
+          // If no results with category filter, try without category (broader search) but KEEP interest filter
           if (!dbResult.success || !dbResult.locations || dbResult.locations.length === 0) {
-            console.log(`⚠️ No locations found with category filter, trying without category...`);
-            dbResult = await searchLocationsForItinerary(cityId, [], tags, interestIds, 10);
+            console.log(`⚠️ No locations found with category filter, trying without category but keeping interest filter...`);
+            if (interestIds.length > 0) {
+              dbResult = await searchLocationsForItinerary(cityId, [], tags, interestIds, 10);
+            }
           }
           
-          // If still no results, try without category but keep interest filter (broader search)
-          if ((!dbResult.success || !dbResult.locations || dbResult.locations.length === 0) && interestIds.length > 0) {
-            console.log(`⚠️ No locations found with category+interest filter, trying without category but keeping interest filter...`);
-            dbResult = await searchLocationsForItinerary(cityId, [], tags, interestIds, 10);
-          }
-          
-          // LAST RESORT: Only if still no results, try without interest filter (but log warning)
+          // LAST RESORT: Only if still no results AND we have interestIds, try without interest filter (but log warning)
+          // This should be rare - it means no locations in DB match the interests
           if ((!dbResult.success || !dbResult.locations || dbResult.locations.length === 0) && interestIds.length > 0) {
             console.log(`⚠️⚠️⚠️ WARNING: No locations found in DB matching interests [${interestIds.join(', ')}]. Trying without interest filter as last resort...`);
             dbResult = await searchLocationsForItinerary(cityId, categories, tags, [], 10);
+          }
+          
+          // If still no results and no interestIds, try without any filters
+          if ((!dbResult.success || !dbResult.locations || dbResult.locations.length === 0) && interestIds.length === 0) {
+            console.log(`⚠️ No locations found, trying without any filters...`);
+            dbResult = await searchLocationsForItinerary(cityId, [], [], [], 10);
           }
           
           console.log(`📊 DB search result: ${dbResult.locations?.length || 0} locations found`);
