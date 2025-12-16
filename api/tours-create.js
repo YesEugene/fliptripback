@@ -113,6 +113,18 @@ export default async function handler(req, res) {
     const tourData = req.body;
     const { country, city, title, description, daily_plan, tags, meta } = tourData;
 
+    console.log('📥 Tour creation request:', {
+      userId,
+      hasCountry: !!country,
+      hasCity: !!city,
+      hasTitle: !!title,
+      hasDescription: !!description,
+      hasDailyPlan: !!daily_plan,
+      dailyPlanLength: daily_plan?.length || 0,
+      hasTags: !!tags,
+      tagsLength: tags?.length || 0
+    });
+
     if (!city || !title) {
       return res.status(400).json({
         success: false,
@@ -122,6 +134,7 @@ export default async function handler(req, res) {
 
     // Get or create city
     const cityId = await getOrCreateCity(city, country);
+    console.log('🏙️ City ID:', cityId);
 
     // Extract locations from daily_plan
     const locationsToSave = [];
@@ -150,21 +163,26 @@ export default async function handler(req, res) {
                       description: item.why || item.description || null,
                       recommendations: item.tips || item.recommendations || null,
                       verified: false, // Created by creator, needs admin verification
-                      created_by: userId
+                      source: 'guide', // Локации из туров создаются гидом
+                      google_place_id: item.google_place_id || null,
+                      website: item.website || null,
+                      phone: item.phone || null,
+                      booking_url: item.booking_url || null,
+                      price_level: item.price_level !== undefined ? parseInt(item.price_level) : 2
                     };
+
+                    // Only add user fields if userId is valid UUID
+                    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                    if (userId && uuidRegex.test(userId)) {
+                      locationData.created_by = userId;
+                      locationData.updated_by = userId;
+                    } else {
+                      console.warn('⚠️ Skipping user fields for location - invalid UUID:', userId);
+                    }
 
                     const { data: newLocation, error: locationError } = await supabase
                       .from('locations')
-                      .insert({
-                        ...locationData,
-                        source: 'guide', // Локации из туров создаются гидом
-                        updated_by: userId,
-                        google_place_id: item.google_place_id || null,
-                        website: item.website || null,
-                        phone: item.phone || null,
-                        booking_url: item.booking_url || null,
-                        price_level: item.price_level !== undefined ? parseInt(item.price_level) : 2
-                      })
+                      .insert(locationData)
                       .select()
                       .single();
 
@@ -306,6 +324,15 @@ export default async function handler(req, res) {
       verified: false
     };
     
+    console.log('💾 Inserting tour with data:', {
+      [userColumnName]: userId,
+      country,
+      city_id: cityId,
+      title,
+      duration_type: durationType,
+      duration_value: durationValue
+    });
+
     const { data: tour, error: tourError } = await supabase
       .from('tours')
       .insert(baseTourData)
@@ -313,11 +340,13 @@ export default async function handler(req, res) {
       .single();
 
     if (tourError) {
-      console.error('Error creating tour:', tourError);
+      console.error('❌ Error creating tour:', tourError);
+      console.error('❌ Tour data:', baseTourData);
       return res.status(500).json({
         success: false,
         error: 'Failed to create tour',
-        message: tourError.message
+        message: tourError.message,
+        details: tourError
       });
     }
 
