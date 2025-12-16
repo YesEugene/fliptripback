@@ -397,6 +397,28 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Handle special action: generateTags (for tag suggestions, no OpenAI/Google Places calls)
+    if (req.body.action === 'generateTags') {
+      const { text } = req.body;
+      if (!text) {
+        return res.status(400).json({ error: 'Text is required for tag generation' });
+      }
+      
+      // Simple keyword extraction (no OpenAI call to save costs)
+      const commonWords = ['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'should', 'could', 'may', 'might', 'must', 'can'];
+      const words = text.toLowerCase()
+        .replace(/[^\w\s]/g, ' ')
+        .split(/\s+/)
+        .filter(word => word.length > 3 && !commonWords.includes(word));
+      
+      const uniqueTags = [...new Set(words)].slice(0, 15);
+      
+      return res.status(200).json({ 
+        success: true,
+        tags: uniqueTags 
+      });
+    }
+    
     const { city, audience, interests, interest_ids, date, date_from, date_to, budget, previewOnly, category_id, subcategory_id } = req.body;
     
     // Support both interests (legacy) and interest_ids (new system)
