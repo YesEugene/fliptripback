@@ -339,7 +339,7 @@ export default async function handler(req, res) {
                       category: item.category || null,
                       description: item.why || item.description || null,
                       recommendations: item.tips || item.recommendations || null,
-                      verified: false,
+                      // verified: false - removed, column doesn't exist in locations schema
                       source: 'guide',
                       google_place_id: item.google_place_id || null,
                       website: item.website || null,

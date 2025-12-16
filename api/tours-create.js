@@ -195,7 +195,7 @@ export default async function handler(req, res) {
                       category: item.category || null,
                       description: item.why || item.description || null,
                       recommendations: item.tips || item.recommendations || null,
-                      verified: false, // Created by creator, needs admin verification
+                      // verified: false - removed, column doesn't exist in locations schema
                       source: 'guide', // Локации из туров создаются гидом
                       google_place_id: item.google_place_id || null,
                       website: item.website || null,
@@ -352,8 +352,8 @@ export default async function handler(req, res) {
       preview_media_url: previewMediaUrl,
       preview_media_type: previewMediaType,
       is_published: false,
-      status: 'draft',
-      verified: false
+      status: 'draft'
+      // verified: false - removed, column doesn't exist in schema
     };
 
     // Add country if provided (column should exist according to schema)
