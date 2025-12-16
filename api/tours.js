@@ -1,21 +1,12 @@
 /**
  * Tours Database Module - Unified Tours Endpoint
  * Serverless function to get a single tour or list tours with filters
+ * 
+ * According to plan: Tours are permanent entities stored in PostgreSQL, not Redis
+ * Redis is only for temporary data (itineraries, sessions)
  */
 
-import { Redis } from '@upstash/redis';
-
-// Lazy initialization of Redis client
-function getRedis() {
-  const url = process.env.FTSTORAGE_KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const token = process.env.FTSTORAGE_KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-  
-  if (!url || !token) {
-    throw new Error('Redis environment variables not set');
-  }
-  
-  return new Redis({ url, token });
-}
+import { supabase } from '../database/db.js';
 
 export default async function handler(req, res) {
   // CORS headers
