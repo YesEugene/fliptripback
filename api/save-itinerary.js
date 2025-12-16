@@ -15,16 +15,12 @@ function getRedis() {
 }
 
 export default async function handler(req, res) {
-  // CORS headers - ВСЕГДА устанавливаем первыми
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-  res.setHeader('Access-Control-Max-Age', '86400');
 
-  // OPTIONS запрос - обрабатываем СРАЗУ
   if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
+    return res.status(200).end();
   }
 
   if (req.method !== 'POST') {
@@ -54,10 +50,6 @@ export default async function handler(req, res) {
       altUrl: process.env.UPSTASH_REDIS_REST_URL ? 'set' : 'not set',
       altToken: process.env.UPSTASH_REDIS_REST_TOKEN ? 'set' : 'not set',
     });
-    // Убеждаемся, что CORS headers установлены даже в случае ошибки
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
     return res.status(500).json({ 
       success: false, 
       error: 'Failed to save itinerary', 

@@ -3,10 +3,6 @@
 
 import OpenAI from 'openai';
 import { Client } from '@googlemaps/google-maps-services-js';
-import { searchLocationsForItinerary } from '../database/services/locationsService.js';
-import { getOrCreateCity } from '../database/services/citiesService.js';
-import { supabase } from '../database/db.js';
-import { supabase } from '../database/db.js';
 
 // Инициализация
 const openai = new OpenAI({
@@ -79,133 +75,52 @@ Make it creative, locally relevant, and perfectly suited for ${audience} interes
 // МОДУЛЬ 1: ПОИСК РЕАЛЬНЫХ МЕСТ
 // =============================================================================
 
-export async function findRealLocations(timeSlots, city, interestIds = []) {
+async function findRealLocations(timeSlots, city) {
   console.log('📍 МОДУЛЬ 1: Поиск реальных мест...');
-  console.log('🔍 findRealLocations called with interestIds:', interestIds, 'type:', typeof interestIds, 'length:', interestIds?.length || 0);
-  
-  // Get city_id from city name
-  let cityId = null;
-  try {
-    cityId = await getOrCreateCity(city, null);
-    console.log(`🏙️ City ID for ${city}: ${cityId}`);
-  } catch (error) {
-    console.error('Error getting city ID:', error);
-  }
   
   const locations = [];
   
   for (const slot of timeSlots) {
     try {
-      let foundLocation = null;
+      const searchQuery = `${slot.keywords.join(' ')} ${slot.category} in ${city}`;
+      console.log(`🔍 Поиск: ${searchQuery}`);
       
-      // STEP 1: Search in database first
-      if (cityId) {
-        try {
-          const categories = slot.category ? [slot.category] : [];
-          const tags = slot.keywords || [];
-          
-          console.log(`🔍 Searching DB for: cityId=${cityId}, category=${slot.category}, categories=[${categories.join(',')}], tags=[${tags.join(',')}], interestIds=[${interestIds.map(id => String(id)).join(',')}] (${interestIds.length} total, types: ${interestIds.map(id => typeof id).join(',')})`);
-          
-          // CRITICAL: Only search with interestIds if they are provided and not empty
-          // First try with exact category match and interest filter
-          let dbResult = await searchLocationsForItinerary(cityId, categories, tags, interestIds.length > 0 ? interestIds : [], 10);
-          
-          // If no results with category filter, try without category (broader search) but KEEP interest filter
-          if (!dbResult.success || !dbResult.locations || dbResult.locations.length === 0) {
-            console.log(`⚠️ No locations found with category filter, trying without category but keeping interest filter...`);
-            if (interestIds.length > 0) {
-              dbResult = await searchLocationsForItinerary(cityId, [], tags, interestIds, 10);
-            }
-          }
-          
-          // LAST RESORT: Only if still no results AND we have interestIds, try without interest filter (but log warning)
-          // This should be rare - it means no locations in DB match the interests
-          if ((!dbResult.success || !dbResult.locations || dbResult.locations.length === 0) && interestIds.length > 0) {
-            console.log(`⚠️⚠️⚠️ WARNING: No locations found in DB matching interests [${interestIds.join(', ')}]. Trying without interest filter as last resort...`);
-            dbResult = await searchLocationsForItinerary(cityId, categories, tags, [], 10);
-          }
-          
-          // If still no results and no interestIds, try without any filters
-          if ((!dbResult.success || !dbResult.locations || dbResult.locations.length === 0) && interestIds.length === 0) {
-            console.log(`⚠️ No locations found, trying without any filters...`);
-            dbResult = await searchLocationsForItinerary(cityId, [], [], [], 10);
-          }
-          
-          console.log(`📊 DB search result: ${dbResult.locations?.length || 0} locations found`);
-          
-          if (dbResult.success && dbResult.locations && dbResult.locations.length > 0) {
-            // Use first matching location from DB
-            const dbLocation = dbResult.locations[0];
-            foundLocation = {
-              name: dbLocation.name,
-              address: dbLocation.address,
-              rating: 4.5, // Default rating for verified locations
-              priceLevel: dbLocation.price_level || 2,
-              photos: dbLocation.photos?.map(p => p.url) || [],
-              fromDatabase: true,
-              locationId: dbLocation.id,
-              description: dbLocation.description,
-              recommendations: dbLocation.recommendations,
-              category: dbLocation.category
-            };
-            console.log(`✅ Найдено в БД: ${dbLocation.name} (category: ${dbLocation.category}, verified: ${dbLocation.verified}, source: ${dbLocation.source})`);
-          } else {
-            console.log(`⚠️ No locations found in DB for cityId: ${cityId}, category: ${categories.join(',')}`);
-          }
-        } catch (dbError) {
-          console.error('Database search error:', dbError);
+      const response = await googleMapsClient.textSearch({
+        params: {
+          query: searchQuery,
+          key: process.env.GOOGLE_MAPS_KEY,
+          language: 'en'
         }
-      } else {
-        console.log(`⚠️ City ID not found for city: ${city}`);
-      }
-      
-      // STEP 2: If not found in DB, search in Google Places
-      if (!foundLocation) {
-        const searchQuery = `${slot.keywords.join(' ')} ${slot.category} in ${city}`;
-        console.log(`🔍 Поиск в Google Places: ${searchQuery}`);
-        
-        const response = await googleMapsClient.textSearch({
-          params: {
-            query: searchQuery,
-            key: process.env.GOOGLE_MAPS_KEY,
-            language: 'en'
-          }
-        });
+      });
 
-        if (response.data.results.length > 0) {
-          const place = response.data.results[0];
-          foundLocation = {
+      if (response.data.results.length > 0) {
+        const place = response.data.results[0];
+        locations.push({
+          ...slot,
+          realPlace: {
             name: place.name,
             address: place.formatted_address,
             rating: place.rating || 4.0,
             priceLevel: place.price_level || 2,
             photos: place.photos ? place.photos.slice(0, 3).map(photo => 
               `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photo.photo_reference}&key=${process.env.GOOGLE_MAPS_KEY}`
-            ) : [],
-            fromDatabase: false,
-            googlePlaceId: place.place_id
-          };
-          console.log(`✅ Найдено в Google: ${place.name}`);
-        }
-      }
-      
-      // STEP 3: If still not found, use fallback
-      if (!foundLocation) {
+            ) : []
+          }
+        });
+        console.log(`✅ Найдено: ${place.name}`);
+      } else {
         console.log(`⚠️ Место не найдено для: ${slot.activity}`);
-        foundLocation = {
-          name: slot.activity,
-          address: `${city} City Center`,
-          rating: 4.0,
-          priceLevel: 2,
-          photos: [],
-          fromDatabase: false
-        };
+        locations.push({
+          ...slot,
+          realPlace: {
+            name: slot.activity,
+            address: `${city} City Center`,
+            rating: 4.0,
+            priceLevel: 2,
+            photos: []
+          }
+        });
       }
-      
-      locations.push({
-        ...slot,
-        realPlace: foundLocation
-      });
     } catch (error) {
       console.error(`❌ Ошибка поиска для ${slot.activity}:`, error.message);
       locations.push({
@@ -215,8 +130,7 @@ export async function findRealLocations(timeSlots, city, interestIds = []) {
           address: `${city} City Center`,
           rating: 4.0,
           priceLevel: 2,
-          photos: [],
-          fromDatabase: false
+          photos: []
         }
       });
     }
@@ -230,7 +144,7 @@ export async function findRealLocations(timeSlots, city, interestIds = []) {
 // МОДУЛЬ 2: ГЕНЕРАЦИЯ ОПИСАНИЙ ЛОКАЦИЙ
 // =============================================================================
 
-export async function generateLocationDescription(locationName, address, category, interests, audience, concept) {
+async function generateLocationDescription(locationName, address, category, interests, audience, concept) {
   console.log(`✍️ МОДУЛЬ 2: Генерация описания для ${locationName}...`);
   
   const prompt = `You are a masterful travel writer creating an immersive, vivid description of ${locationName} in ${address}.
@@ -273,9 +187,7 @@ Now create a similarly rich, detailed description for ${locationName}:`;
     return description;
   } catch (error) {
     console.error(`❌ МОДУЛЬ 2: Ошибка описания для ${locationName}:`, error.message);
-    // Extract city from address if available
-    const cityFromAddress = address ? address.split(',')[address.split(',').length - 1]?.trim() : 'the city';
-    return `Experience the authentic charm of ${locationName}, a beloved ${category} that captures the essence of ${cityFromAddress}. This location offers a perfect blend of local culture and unique atmosphere that resonates with ${audience}'s passion for ${Array.isArray(interests) ? interests.join(' and ') : interests}. The vibrant energy and distinctive character make it an unforgettable stop on your journey through the city. Every moment here connects you to the authentic spirit of the destination, creating memories that will last long after your visit ends.`;
+    return `Experience the authentic charm of ${locationName}, a beloved ${category} that captures the essence of ${city}. This location offers a perfect blend of local culture and unique atmosphere that resonates with ${audience}'s passion for ${Array.isArray(interests) ? interests.join(' and ') : interests}. The vibrant energy and distinctive character make it an unforgettable stop on your journey through the city. Every moment here connects you to the authentic spirit of the destination, creating memories that will last long after your visit ends.`;
   }
 }
 
@@ -283,7 +195,7 @@ Now create a similarly rich, detailed description for ${locationName}:`;
 // МОДУЛЬ 3: ГЕНЕРАЦИЯ РЕКОМЕНДАЦИЙ
 // =============================================================================
 
-export async function generateLocationRecommendations(locationName, category, interests, audience, concept) {
+async function generateLocationRecommendations(locationName, category, interests, audience, concept) {
   console.log(`💡 МОДУЛЬ 3: Генерация рекомендаций для ${locationName}...`);
   
   const prompt = `IMPORTANT: Write EXACTLY 1 complete sentence in English with practical tips for visiting this location.
@@ -324,7 +236,7 @@ Create the tips:`;
 // МОДУЛЬ ЦЕНООБРАЗОВАНИЯ: Google Places price_level → реальные цены
 // =============================================================================
 
-export function calculateRealPrice(category, priceLevel, city) {
+function calculateRealPrice(category, priceLevel, city) {
   console.log(`💰 МОДУЛЬ ЦЕНЫ: Расчет для ${category}, уровень ${priceLevel}, город ${city}`);
   
   // Базовые цены по категориям (price_level: 0=бесплатно, 1=дешево, 2=средне, 3=дорого, 4=очень дорого)
@@ -359,7 +271,7 @@ export function calculateRealPrice(category, priceLevel, city) {
   return realPrice;
 }
 
-export function formatPriceRange(category, priceLevel, city) {
+function formatPriceRange(category, priceLevel, city) {
   const price = calculateRealPrice(category, priceLevel, city);
   
   if (price === 0) return 'Free';
@@ -535,146 +447,31 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { action, text, city, audience, interests, interest_ids, date, date_from, date_to, budget, previewOnly } = req.body;
-    
-    // Support both interests (legacy) and interest_ids (new system)
-    // Handle both array and single value formats
-    let interestIds = [];
-    if (interest_ids) {
-      if (Array.isArray(interest_ids)) {
-        interestIds = interest_ids;
-      } else if (typeof interest_ids === 'string') {
-        // Handle comma-separated string
-        interestIds = interest_ids.split(',').map(id => id.trim()).filter(id => id);
-      } else {
-        interestIds = [interest_ids];
-      }
-    }
-    const interestsList = interests || [];
-    
-    console.log('📥 Received interest_ids:', interestIds, 'count:', interestIds.length, 'type:', typeof interestIds[0]);
-    console.log('📥 Full request body:', JSON.stringify(req.body, null, 2));
-    
-    // Handle tag generation request
-    if (action === 'generateTags') {
-      if (!text || text.trim().length === 0) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Text is required' 
-        });
-      }
-
-      // Generate tags using OpenAI
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-3.5-turbo',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a travel tag generator. Generate 5-10 relevant, concise tags (single words or short phrases) based on the tour description. Tags should be travel-related keywords like: adventure, culture, food, nature, history, architecture, nightlife, family-friendly, romantic, budget, luxury, etc. Return only a JSON array of tag strings, no explanations.'
-          },
-          {
-            role: 'user',
-            content: `Generate tags for this tour description: ${text}`
-          }
-        ],
-        temperature: 0.7,
-        max_tokens: 150
-      });
-
-      const responseText = completion.choices[0]?.message?.content || '[]';
-      
-      // Try to parse as JSON array
-      let tags = [];
-      try {
-        tags = JSON.parse(responseText);
-        if (!Array.isArray(tags)) {
-          tags = responseText
-            .replace(/[\[\]"]/g, '')
-            .split(',')
-            .map(tag => tag.trim())
-            .filter(tag => tag.length > 0);
-        }
-      } catch (parseError) {
-        tags = responseText
-          .replace(/[\[\]"]/g, '')
-          .split(',')
-          .map(tag => tag.trim())
-          .filter(tag => tag.length > 0);
-      }
-
-      // Limit to 10 tags and clean them
-      tags = tags
-        .slice(0, 10)
-        .map(tag => tag.toLowerCase().trim())
-        .filter(tag => tag.length > 0 && tag.length < 30);
-
-      return res.status(200).json({
-        success: true,
-        tags
-      });
-    }
-    
-    // Regular itinerary generation
-    // Use date_from if provided, otherwise fall back to date (legacy support)
-    const itineraryDate = date_from || date || new Date().toISOString().slice(0, 10);
-    console.log('🚀 FLIPTRIP CLEAN: Генерация плана для:', { city, audience, interests, interest_ids: interestIds, date: itineraryDate, date_from, date_to, budget, previewOnly });
+    const { city, audience, interests, date, budget, previewOnly } = req.body;
+    console.log('🚀 FLIPTRIP CLEAN: Генерация плана для:', { city, audience, interests, date, budget });
 
     // Проверяем API ключи
     if (!process.env.OPENAI_API_KEY || !process.env.GOOGLE_MAPS_KEY) {
       throw new Error('API keys required');
     }
 
-    // Get interest names by IDs if interestIds provided
-    let interestsForConcept = interestsList;
-    if (interestIds.length > 0 && interestsList.length === 0) {
-      try {
-        const { data: interestsData, error: interestsError } = await supabase
-          .from('interests')
-          .select('id, name')
-          .in('id', interestIds.map(id => String(id)));
-        
-        if (!interestsError && interestsData && interestsData.length > 0) {
-          interestsForConcept = interestsData.map(i => i.name);
-          console.log('📋 Получены названия интересов по ID:', interestsForConcept);
-        } else {
-          console.error('❌ Ошибка получения интересов:', interestsError);
-          console.log('⚠️ Используем пустой список интересов для концепции');
-        }
-      } catch (err) {
-        console.error('❌ Ошибка при получении интересов из БД:', err);
-      }
-    }
-
-    // МОДУЛЬ 0: Создаем концепцию дня (use interest names, not IDs)
-    const dayConcept = await generateDayConcept(city, audience, interestsForConcept, itineraryDate, budget);
+    // МОДУЛЬ 0: Создаем концепцию дня
+    const dayConcept = await generateDayConcept(city, audience, interests, date, budget);
     
-    // МОДУЛЬ 1: Находим реальные места (pass interestIds for DB filtering)
-    console.log(`🔍 Поиск локаций с interestIds: [${interestIds.join(', ')}]`);
-    const locations = await findRealLocations(dayConcept.timeSlots, city, interestIds);
+    // МОДУЛЬ 1: Находим реальные места
+    const locations = await findRealLocations(dayConcept.timeSlots, city);
     
-    // МОДУЛЬ 4: Генерируем мета-информацию (use interest names)
-    const metaInfo = await generateMetaInfo(city, audience, interestsForConcept, itineraryDate, dayConcept.concept);
+    // МОДУЛЬ 4: Генерируем мета-информацию
+    const metaInfo = await generateMetaInfo(city, audience, interests, date, dayConcept.concept);
 
     // МОДУЛИ 2-3: Генерируем описания и рекомендации для каждого места
-    let activities = await Promise.all(locations.map(async (slot) => {
+    const activities = await Promise.all(locations.map(async (slot) => {
       const place = slot.realPlace;
       
-      // Use description and recommendations from DB if available, otherwise generate
-      let description = place.description;
-      let recommendations = place.recommendations;
-      
-      // Always generate descriptions for preview (DB might not have them yet)
-      if (!description || !recommendations || previewOnly) {
-        console.log(`📝 Generating description for ${place.name} (previewOnly: ${previewOnly}, hasDBDescription: ${!!description})`);
-        const [generatedDescription, generatedRecommendations] = await Promise.all([
-          description ? Promise.resolve(description) : generateLocationDescription(place.name, place.address, slot.category, interestsForConcept, audience, dayConcept.concept),
-          recommendations ? Promise.resolve(recommendations) : generateLocationRecommendations(place.name, slot.category, interestsForConcept, audience, dayConcept.concept)
-        ]);
-        
-        description = generatedDescription;
-        recommendations = generatedRecommendations;
-        console.log(`✅ Generated description for ${place.name} (length: ${description?.length || 0})`);
-      }
+      const [description, recommendations] = await Promise.all([
+        generateLocationDescription(place.name, place.address, slot.category, interests, audience, dayConcept.concept),
+        generateLocationRecommendations(place.name, slot.category, interests, audience, dayConcept.concept)
+      ]);
 
       // Рассчитываем реальную цену на основе Google Places price_level
       const realPrice = calculateRealPrice(slot.category, place.priceLevel, city);
@@ -698,10 +495,12 @@ export default async function handler(req, res) {
       };
     }));
 
-    // NEW APPROACH: Always generate full plan
-    // Preview logic is handled on frontend (showing only 2 blocks when previewOnly=true)
-    // No need to slice activities here - full plan is needed for unlock after payment
-    console.log(`📋 Generated ${activities.length} activities (full plan, previewOnly=${previewOnly})`);
+    // CRITICAL: For preview, we save ALL activities but flag as previewOnly
+    // Frontend will show only 2 blocks, but full plan is saved for after payment
+    // DO NOT slice here - save full plan with previewOnly flag
+    if (previewOnly) {
+      console.log('👁️ PREVIEW MODE: Saving FULL plan with previewOnly=true flag');
+    }
 
     // МОДУЛЬ КОНТРОЛЯ БЮДЖЕТА: корректируем цены под бюджет ±30%
     const targetBudget = parseInt(budget);
