@@ -103,7 +103,7 @@ export async function findRealLocations(timeSlots, city, interestIds = []) {
           const categories = slot.category ? [slot.category] : [];
           const tags = slot.keywords || [];
           
-          console.log(`🔍 Searching DB for: cityId=${cityId}, category=${slot.category}, categories=[${categories.join(',')}], tags=[${tags.join(',')}], interestIds=[${interestIds.join(',')}] (${interestIds.length} total)`);
+          console.log(`🔍 Searching DB for: cityId=${cityId}, category=${slot.category}, categories=[${categories.join(',')}], tags=[${tags.join(',')}], interestIds=[${interestIds.map(id => String(id)).join(',')}] (${interestIds.length} total, types: ${interestIds.map(id => typeof id).join(',')})`);
           
           // First try with exact category match and interest filter
           let dbResult = await searchLocationsForItinerary(cityId, categories, tags, interestIds, 10);
