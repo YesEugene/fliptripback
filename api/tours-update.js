@@ -8,7 +8,29 @@
  */
 
 import { supabase } from '../database/db.js';
-import { getOrCreateCity } from '../database/services/citiesService.js';
+
+// Fallback function for getOrCreateCity (in case import fails)
+async function getOrCreateCityFallback(cityName, countryName) {
+  if (!supabase || !cityName) return null;
+  try {
+    const { data: existing } = await supabase
+      .from('cities')
+      .select('id')
+      .ilike('name', cityName)
+      .limit(1)
+      .single();
+    if (existing) return existing.id;
+    const { data: newCity } = await supabase
+      .from('cities')
+      .insert({ name: cityName, country: countryName })
+      .select('id')
+      .single();
+    return newCity?.id || null;
+  } catch (err) {
+    console.error('Error in fallback getOrCreateCity:', err);
+    return null;
+  }
+}
 
 export default async function handler(req, res) {
   // CORS headers - устанавливаем ПЕРВЫМИ (как в admin-locations.js)
@@ -187,7 +209,19 @@ export default async function handler(req, res) {
     }
 
     // Get or create city
-    const cityId = await getOrCreateCity(city, country);
+    // Get or create city (try import first, fallback to inline function)
+    let cityId = null;
+    try {
+      const citiesModule = await import('../database/services/citiesService.js');
+      if (citiesModule.getOrCreateCity) {
+        cityId = await citiesModule.getOrCreateCity(city, country);
+      } else {
+        cityId = await getOrCreateCityFallback(city, country);
+      }
+    } catch (e) {
+      console.warn('⚠️ Could not import citiesService, using fallback:', e.message);
+      cityId = await getOrCreateCityFallback(city, country);
+    }
 
     // Determine which column to use for guide_id
     let userColumnName = 'guide_id';

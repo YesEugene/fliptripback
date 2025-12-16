@@ -375,7 +375,7 @@ export default async function handler(req, res) {
     let tour = null; // Declare tour variable
     
     // Try insert without country first if country column might not exist
-    let tourData, tourError;
+    let insertData, insertError;
     
     // First attempt: with all data
     const insertResult = await supabase
@@ -384,11 +384,11 @@ export default async function handler(req, res) {
       .select()
       .single();
     
-    tourData = insertResult.data;
-    tourError = insertResult.error;
+    insertData = insertResult.data;
+    insertError = insertResult.error;
     
     // If error is about country column, retry without it
-    if (tourError && tourError.message && tourError.message.includes("'country' column")) {
+    if (insertError && insertError.message && insertError.message.includes("'country' column")) {
       console.log('⚠️ Country column error, retrying without country...');
       const baseTourDataWithoutCountry = { ...baseTourData };
       delete baseTourDataWithoutCountry.country;
@@ -399,11 +399,11 @@ export default async function handler(req, res) {
         .select()
         .single();
       
-      tourData = retryResult.data;
-      tourError = retryResult.error;
+      insertData = retryResult.data;
+      insertError = retryResult.error;
     }
-
-    if (tourError) {
+    
+    if (insertError) {
       console.error('❌ Error creating tour:', tourError);
       console.error('❌ Tour data keys:', Object.keys(baseTourData));
       console.error('❌ Error code:', tourError.code);
