@@ -54,15 +54,55 @@ export default async function handler(req, res) {
       supabase.from('payments').select('*', { count: 'exact', head: true })
     ]);
 
+    // Get additional stats
+    const { count: verifiedLocationsCount } = await supabase
+      .from('locations')
+      .select('*', { count: 'exact', head: true })
+      .eq('verified', true);
+    
+    const { count: unverifiedLocationsCount } = await supabase
+      .from('locations')
+      .select('*', { count: 'exact', head: true })
+      .eq('verified', false);
+
+    // Get tours by status
+    const { data: allTours } = await supabase
+      .from('tours')
+      .select('verified');
+    
+    const toursByStatus = {
+      verified: 0,
+      unverified: 0
+    };
+    if (allTours) {
+      allTours.forEach(tour => {
+        if (tour.verified) {
+          toursByStatus.verified++;
+        } else {
+          toursByStatus.unverified++;
+        }
+      });
+    }
+
     return res.status(200).json({
       success: true,
       stats: {
-        tours: toursCount || 0,
-        locations: locationsCount || 0,
-        creators: creatorsCount || 0,
-        users: usersCount || 0,
-        generatedTours: generatedToursCount || 0,
-        payments: paymentsCount || 0
+        counts: {
+          users: usersCount || 0,
+          guides: creatorsCount || 0, // creators = guides
+          tours: toursCount || 0,
+          locations: locationsCount || 0,
+          itineraries: generatedToursCount || 0,
+          planGenerations: generatedToursCount || 0
+        },
+        revenue: {
+          total: 0 // TODO: Calculate from payments
+        },
+        toursByStatus: toursByStatus,
+        locationsByVerified: {
+          verified: verifiedLocationsCount || 0,
+          unverified: unverifiedLocationsCount || 0
+        }
       }
     });
   } catch (error) {
@@ -72,12 +112,25 @@ export default async function handler(req, res) {
       error: 'Failed to fetch statistics',
       message: error.message,
       stats: {
-        tours: 0,
-        locations: 0,
-        creators: 0,
-        users: 0,
-        generatedTours: 0,
-        payments: 0
+        counts: {
+          users: 0,
+          guides: 0,
+          tours: 0,
+          locations: 0,
+          itineraries: 0,
+          planGenerations: 0
+        },
+        revenue: {
+          total: 0
+        },
+        toursByStatus: {
+          verified: 0,
+          unverified: 0
+        },
+        locationsByVerified: {
+          verified: 0,
+          unverified: 0
+        }
       }
     });
   }
