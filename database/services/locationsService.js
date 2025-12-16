@@ -261,6 +261,7 @@ export async function searchLocationsForItinerary(cityId, categories = [], tags 
       // Normalize interest IDs to strings for comparison
       const normalizedInterestIds = interestIds.map(id => String(id));
       console.log(`🔍 Filtering by interest_ids (normalized):`, normalizedInterestIds);
+      console.log(`📊 Total locations before filtering: ${filtered.length}`);
       
       filtered = filtered.filter(location => {
         // Extract interest IDs from the nested structure
@@ -276,18 +277,18 @@ export async function searchLocationsForItinerary(cityId, categories = [], tags 
           });
         }
         
-        console.log(`📍 Location "${location.name}" (ID: ${location.id}) has interest_ids:`, locationInterestIds);
-        
         // Location matches if it has at least one of the requested interests
         const matches = normalizedInterestIds.some(interestId => locationInterestIds.includes(interestId));
         if (matches) {
-          console.log(`✅ Location "${location.name}" matches interest filter`);
-        } else if (locationInterestIds.length > 0) {
-          console.log(`❌ Location "${location.name}" does NOT match (has: ${locationInterestIds.join(', ')}, need: ${normalizedInterestIds.join(', ')})`);
+          console.log(`✅ Location "${location.name}" (ID: ${location.id}) matches - has interests: [${locationInterestIds.join(', ')}]`);
+        } else {
+          console.log(`❌ Location "${location.name}" (ID: ${location.id}) does NOT match - has: [${locationInterestIds.join(', ') || 'none'}], need: [${normalizedInterestIds.join(', ')}]`);
         }
         return matches;
       });
       console.log(`✅ Filtered by interest_ids: ${filtered.length} locations match out of ${data.length} total`);
+    } else {
+      console.log(`⚠️ No interestIds provided, returning all locations (${filtered.length} total)`);
     }
     // Legacy: Filter by tags if provided (fallback)
     else if (tags.length > 0) {

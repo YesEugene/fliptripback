@@ -5,6 +5,7 @@ import OpenAI from 'openai';
 import { Client } from '@googlemaps/google-maps-services-js';
 import { searchLocationsForItinerary } from '../database/services/locationsService.js';
 import { getOrCreateCity } from '../database/services/citiesService.js';
+import { supabase } from '../database/db.js';
 
 // Инициализация
 const openai = new OpenAI({
