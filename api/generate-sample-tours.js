@@ -552,6 +552,8 @@ export default async function handler(req, res) {
     
     // Get a creator user (or create a dummy one for testing)
     let creatorId = null;
+    let userColumnName = null;
+    
     try {
       const { data: users } = await supabase
         .from('users')
@@ -562,6 +564,35 @@ export default async function handler(req, res) {
       if (users && users.length > 0) {
         creatorId = users[0].id;
         console.log(`✅ Using creator ID: ${creatorId}`);
+        
+        // Determine which column to use for guide_id
+        // Test if guide_id column exists, if not try other options
+        const testResult = await supabase
+          .from('tours')
+          .select('id')
+          .eq('guide_id', creatorId)
+          .limit(1);
+        
+        if (testResult.error && testResult.error.code === '42703') {
+          // guide_id doesn't exist, try other columns
+          const testColumns = ['creator_id', 'user_id', 'created_by'];
+          for (const colName of testColumns) {
+            const test = await supabase
+              .from('tours')
+              .select('id')
+              .eq(colName, creatorId)
+              .limit(1);
+            
+            if (!test.error || test.error.code !== '42703') {
+              userColumnName = colName;
+              console.log(`✅ Using ${colName} column`);
+              break;
+            }
+          }
+        } else {
+          userColumnName = 'guide_id';
+          console.log('✅ Using guide_id column');
+        }
       } else {
         console.warn('⚠️ No creator/guide user found. Tours will be created without creator_id.');
       }
@@ -604,8 +635,9 @@ export default async function handler(req, res) {
           is_published: true
         };
         
-        if (creatorId) {
-          baseTourData.creator_id = creatorId;
+        // Add creator/guide ID using the correct column name
+        if (creatorId && userColumnName) {
+          baseTourData[userColumnName] = creatorId;
         }
         
         const { data: tour, error: tourError } = await supabase
