@@ -106,8 +106,9 @@ export async function findRealLocations(timeSlots, city, interestIds = []) {
           
           console.log(`🔍 Searching DB for: cityId=${cityId}, category=${slot.category}, categories=[${categories.join(',')}], tags=[${tags.join(',')}], interestIds=[${interestIds.map(id => String(id)).join(',')}] (${interestIds.length} total, types: ${interestIds.map(id => typeof id).join(',')})`);
           
+          // CRITICAL: Only search with interestIds if they are provided and not empty
           // First try with exact category match and interest filter
-          let dbResult = await searchLocationsForItinerary(cityId, categories, tags, interestIds, 10);
+          let dbResult = await searchLocationsForItinerary(cityId, categories, tags, interestIds.length > 0 ? interestIds : [], 10);
           
           // If no results with category filter, try without category (broader search)
           if (!dbResult.success || !dbResult.locations || dbResult.locations.length === 0) {
