@@ -111,11 +111,26 @@ export default async function handler(req, res) {
 
       // Check if tour exists and belongs to user
       console.log(`🔍 DELETE: Checking tour ${id} for userId ${userId}`);
+      // Select only id first, then determine which column exists for owner
       const { data: tour, error: tourError } = await supabase
         .from('tours')
-        .select('id, guide_id, creator_id, user_id, created_by')
+        .select('id, guide_id')
         .eq('id', id)
         .single();
+      
+      // If guide_id doesn't exist, try other columns
+      if (tourError && tourError.code === '42703') {
+        console.log(`⚠️ guide_id column doesn't exist, trying other columns...`);
+        const { data: tourAlt, error: tourErrorAlt } = await supabase
+          .from('tours')
+          .select('id, creator_id, user_id, created_by')
+          .eq('id', id)
+          .single();
+        
+        if (!tourErrorAlt && tourAlt) {
+          return { data: tourAlt, error: null };
+        }
+      }
 
       if (tourError) {
         console.error(`❌ DELETE: Tour check error:`, tourError);
@@ -243,9 +258,10 @@ export default async function handler(req, res) {
 
     // Verify user owns the tour
     console.log(`🔍 Checking tour ownership for tour ID: ${id}, userId: ${userId}`);
+    // Use select('*') to get all columns, then check which owner column exists
     const { data: existingTour, error: tourCheckError } = await supabase
       .from('tours')
-      .select('id, guide_id, creator_id, user_id, created_by')
+      .select('*')
       .eq('id', id)
       .single();
 
@@ -276,8 +292,17 @@ export default async function handler(req, res) {
       created_by: existingTour.created_by
     });
 
-    // Check ownership (try different column names)
-    const ownerId = existingTour.guide_id || existingTour.creator_id || existingTour.user_id || existingTour.created_by;
+    // Check ownership - use guide_id if available, otherwise try other columns
+    let ownerId = null;
+    if (existingTour.guide_id !== undefined) {
+      ownerId = existingTour.guide_id;
+    } else if (existingTour.creator_id !== undefined) {
+      ownerId = existingTour.creator_id;
+    } else if (existingTour.user_id !== undefined) {
+      ownerId = existingTour.user_id;
+    } else if (existingTour.created_by !== undefined) {
+      ownerId = existingTour.created_by;
+    }
     console.log(`🔐 Ownership check: ownerId=${ownerId}, userId=${userId}, match=${ownerId === userId}`);
     if (ownerId !== userId) {
       console.warn(`⚠️ Ownership mismatch: ownerId=${ownerId}, userId=${userId}`);
