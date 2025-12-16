@@ -286,6 +286,9 @@ export default async function handler(req, res) {
         verified
       } = req.body;
 
+      console.log('📥 PUT /api/admin-locations - ID:', id);
+      console.log('📥 Request body:', JSON.stringify(req.body, null, 2));
+
       if (!id) {
         return res.status(400).json({
           success: false,
@@ -328,6 +331,8 @@ export default async function handler(req, res) {
       if (verified !== undefined) updateData.verified = verified;
       if (userId) updateData.updated_by = userId;
 
+      console.log('📝 Update data:', JSON.stringify(updateData, null, 2));
+
       // Update location
       const { data: location, error: updateError } = await supabase
         .from('locations')
@@ -337,8 +342,11 @@ export default async function handler(req, res) {
         .single();
 
       if (updateError) {
+        console.error('❌ Supabase update error:', updateError);
         throw updateError;
       }
+
+      console.log('✅ Location updated:', location?.id);
 
       // Update tags if provided
       if (tags !== undefined && Array.isArray(tags)) {
@@ -423,6 +431,8 @@ export default async function handler(req, res) {
 
       const { id } = req.query;
 
+      console.log('🗑️ DELETE /api/admin-locations - ID:', id);
+
       if (!id) {
         return res.status(400).json({
           success: false,
@@ -437,6 +447,7 @@ export default async function handler(req, res) {
         .eq('id', id);
 
       if (deleteError) {
+        console.error('❌ Supabase delete error:', deleteError);
         throw deleteError;
       }
 
