@@ -1,24 +1,15 @@
 /**
- * Tours Create API - Create new tour and save to Redis + locations to database
- * Serverless function to create tours (save to Redis) and extract/save locations (to DB)
+ * Tours Create API - Create new tour and save to PostgreSQL database
+ * Serverless function to create tours (save to PostgreSQL) and extract/save locations (to PostgreSQL)
+ * 
+ * According to plan:
+ * - Tours are permanent entities stored in PostgreSQL (tours → tour_days → tour_blocks → tour_items)
+ * - Locations are permanent entities stored in PostgreSQL (locations table)
+ * - Redis is only for temporary data (itineraries, sessions)
  */
 
-import { Redis } from '@upstash/redis';
 import { supabase } from '../database/db.js';
 import { getOrCreateCity } from '../database/services/citiesService.js';
-import { v4 as uuidv4 } from 'uuid';
-
-// Lazy initialization of Redis client
-function getRedis() {
-  const url = process.env.FTSTORAGE_KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const token = process.env.FTSTORAGE_KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-  
-  if (!url || !token) {
-    throw new Error('Redis environment variables not set');
-  }
-  
-  return new Redis({ url, token });
-}
 
 export default async function handler(req, res) {
   // CORS headers
