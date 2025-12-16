@@ -148,7 +148,6 @@ export async function getTourById(tourId) {
       .select(`
         *,
         city:cities(name),
-        guide:users(id, email),
         tour_days(
           id,
           day_number,

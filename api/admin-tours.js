@@ -41,7 +41,6 @@ export default async function handler(req, res) {
         .select(`
           *,
           city:cities(name),
-          guide:users(id, email),
           tour_tags(
             tag:tags(id, name)
           )
@@ -70,6 +69,23 @@ export default async function handler(req, res) {
         throw error;
       }
 
+      // Get guide emails separately if guide_id exists
+      const guideIds = [...new Set((tours || []).map(t => t.guide_id).filter(Boolean))];
+      const guideEmailsMap = {};
+      
+      if (guideIds.length > 0) {
+        const { data: guides } = await supabase
+          .from('users')
+          .select('id, email')
+          .in('id', guideIds);
+        
+        if (guides) {
+          guides.forEach(guide => {
+            guideEmailsMap[guide.id] = guide.email;
+          });
+        }
+      }
+
       // Format tours for display
       const formattedTours = (tours || []).map(tour => ({
         id: tour.id,
@@ -77,7 +93,8 @@ export default async function handler(req, res) {
         description: tour.description,
         city: tour.city?.name || tour.city_id,
         country: tour.country || null,
-        guide: tour.guide?.email || 'N/A',
+        guide: tour.guide_id ? (guideEmailsMap[tour.guide_id] || 'N/A') : 'N/A',
+        guideId: tour.guide_id || null,
         duration: {
           type: tour.duration_type || 'hours',
           value: tour.duration_value || 6
