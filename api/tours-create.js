@@ -12,39 +12,27 @@ import { supabase } from '../database/db.js';
 import { getOrCreateCity } from '../database/services/citiesService.js';
 
 export default async function handler(req, res) {
-  // CORS headers - ВСЕГДА устанавливаем ПЕРВЫМИ, ДО любых других операций
-  // Это критично для Vercel serverless functions
-  try {
-    const origin = req.headers.origin;
-    const allowedOrigins = [
-      'https://www.flip-trip.com',
-      'https://fliptripfrontend.vercel.app',
-      'http://localhost:5173',
-      'http://localhost:3000'
-    ];
-    
-    // Set CORS headers for all requests
-    if (origin && allowedOrigins.includes(origin)) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
-    } else {
-      res.setHeader('Access-Control-Allow-Origin', '*');
-    }
-    
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-    res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
-    res.setHeader('Access-Control-Max-Age', '86400');
-
-    // Handle preflight OPTIONS request - возвращаем СРАЗУ
-    if (req.method === 'OPTIONS') {
-      return res.status(200).end();
-    }
-  } catch (corsError) {
-    console.error('CORS setup error:', corsError);
-    // Continue anyway - try to set basic CORS
+  // CORS headers - устанавливаем ПЕРВЫМИ (как в admin-locations.js)
+  const origin = req.headers.origin;
+  const allowedOrigins = [
+    'https://www.flip-trip.com',
+    'https://fliptripfrontend.vercel.app',
+    'http://localhost:5173',
+    'http://localhost:3000'
+  ];
+  
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  }
+  
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
   }
 
   if (req.method !== 'POST') {
