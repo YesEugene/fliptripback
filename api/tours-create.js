@@ -307,7 +307,6 @@ export default async function handler(req, res) {
     // 1. Create main tour record
     const baseTourData = {
       [userColumnName]: userId,
-      country: country || null,
       city_id: cityId,
       title,
       description: description || null,
@@ -323,6 +322,27 @@ export default async function handler(req, res) {
       status: 'draft',
       verified: false
     };
+
+    // Add country only if column exists (to avoid errors if migration not applied)
+    // Try to add country, but don't fail if column doesn't exist
+    if (country) {
+      // Check if country column exists by trying a test query
+      try {
+        const testQuery = await supabase
+          .from('tours')
+          .select('country')
+          .limit(0);
+        
+        // If no error, column exists - add it to insert
+        if (!testQuery.error || testQuery.error.code !== '42703') {
+          baseTourData.country = country;
+        } else {
+          console.warn('⚠️ Country column does not exist, skipping. Please run add-country-column.sql migration.');
+        }
+      } catch (e) {
+        console.warn('⚠️ Could not check country column, skipping:', e.message);
+      }
+    }
     
     console.log('💾 Inserting tour with data:', {
       [userColumnName]: userId,
