@@ -410,6 +410,8 @@ export default async function handler(req, res) {
       }
     }
 
+    console.log(`✅ Tour ${id} updated successfully`);
+
     return res.status(200).json({
       success: true,
       tour: tour,
@@ -417,7 +419,12 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    console.error('Update tour error:', error);
+    console.error('❌ Update tour error:', error);
+    // Ensure CORS headers are set even on error
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    
     return res.status(500).json({
       success: false,
       error: 'Failed to update tour',
