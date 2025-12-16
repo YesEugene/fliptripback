@@ -125,9 +125,18 @@ export default async function handler(req, res) {
     }
   }
 
+  // Handle PUT and PATCH for tour updates
   if (req.method !== 'PUT' && req.method !== 'PATCH') {
-    return res.status(405).json({ success: false, message: 'Method not allowed' });
+    console.log(`⚠️ tours-update: Method ${req.method} not allowed (expected PUT or PATCH)`);
+    return res.status(405).json({ 
+      success: false, 
+      message: 'Method not allowed',
+      allowedMethods: ['PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      receivedMethod: req.method
+    });
   }
+  
+  console.log(`✅ tours-update: Processing ${req.method} request for tour ID: ${req.query.id}`);
 
   try {
     if (!supabase) {
