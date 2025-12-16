@@ -95,7 +95,7 @@ export default async function handler(req, res) {
       .from('tours')
       .select(`
         *,
-        city:cities(name, country)
+        city:cities(name)
       `)
       .eq('creator_id', userId)
       .order('created_at', { ascending: false });
@@ -137,7 +137,7 @@ export default async function handler(req, res) {
         id: tour.id,
         title: tour.title,
         description: tour.description,
-        country: tour.country,
+        country: tour.country || null, // country is stored in tours table, not cities
         city: tour.city?.name || null,
         city_id: tour.city_id,
         daily_plan: dailyPlan,
