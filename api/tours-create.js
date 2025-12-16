@@ -338,7 +338,8 @@ export default async function handler(req, res) {
       duration_value: durationValue
     });
 
-    const { data: tour, error: tourError } = await supabase
+    let tour = null; // Declare tour variable
+    const { data: tourData, error: tourError } = await supabase
       .from('tours')
       .insert(baseTourData)
       .select()
@@ -370,13 +371,9 @@ export default async function handler(req, res) {
           });
         }
         
-        // Success on retry - continue with tour from retry
-        console.log(`✅ Tour created (without country): ${tourRetry.id}`);
-        // Use tourRetry for rest of the code
-        const tour = tourRetry;
-        
-        // Continue with tags and normalized structure using tour from retry
-        // (rest of code will use 'tour' variable)
+        // Success on retry
+        tour = tourRetry;
+        console.log(`✅ Tour created (without country): ${tour.id}`);
       } else {
         return res.status(500).json({
           success: false,
@@ -386,7 +383,16 @@ export default async function handler(req, res) {
         });
       }
     } else {
+      tour = tourData;
       console.log(`✅ Tour created: ${tour.id}`);
+    }
+
+    // Ensure tour variable exists
+    if (!tour) {
+      return res.status(500).json({
+        success: false,
+        error: 'Tour creation failed - no tour object'
+      });
     }
 
     // 2. Save tags if provided
