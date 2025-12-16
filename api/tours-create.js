@@ -331,7 +331,12 @@ export default async function handler(req, res) {
     }
     
     // Extract format and pricing from tourData
-    const format = tourData.format || 'self_guided';
+    // Ensure format is one of the allowed values (self_guided, with_guide)
+    const rawFormat = tourData.format || 'self_guided';
+    const format = (rawFormat === 'self_guided' || rawFormat === 'with_guide') 
+      ? rawFormat 
+      : 'self_guided'; // Default to self_guided if invalid
+    console.log(`📋 Tour format: ${format} (from: ${rawFormat})`);
     const pricePdf = tourData.price?.pdfPrice || 16.00;
     const priceGuided = tourData.price?.guidedPrice || null;
     const previewMediaUrl = tourData.preview || null;
