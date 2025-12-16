@@ -404,10 +404,10 @@ export default async function handler(req, res) {
     }
     
     if (insertError) {
-      console.error('❌ Error creating tour:', tourError);
+      console.error('❌ Error creating tour:', insertError);
       console.error('❌ Tour data keys:', Object.keys(baseTourData));
-      console.error('❌ Error code:', tourError.code);
-      console.error('❌ Error message:', tourError.message);
+      console.error('❌ Error code:', insertError.code);
+      console.error('❌ Error message:', insertError.message);
       
       // Ensure CORS headers before returning error
       res.setHeader('Access-Control-Allow-Origin', '*');
@@ -415,15 +415,15 @@ export default async function handler(req, res) {
       return res.status(500).json({
         success: false,
         error: 'Failed to create tour',
-        message: tourError.message,
-        details: tourError.code,
-        hint: tourError.message.includes("'country' column") 
+        message: insertError.message,
+        details: insertError.code,
+        hint: insertError.message.includes("'country' column") 
           ? 'Please run add-country-column.sql migration' 
           : 'Check database schema and tour data'
       });
     }
     
-    tour = tourData;
+    tour = insertData;
     console.log(`✅ Tour created: ${tour.id}`);
 
     // Ensure tour variable exists
