@@ -263,6 +263,21 @@ export async function searchLocationsForItinerary(cityId, categories = [], tags 
       console.log(`🔍 Filtering by interest_ids (normalized):`, normalizedInterestIds);
       console.log(`📊 Total locations before filtering: ${filtered.length}`);
       
+      // Debug: Log all locations and their interests before filtering
+      filtered.forEach(location => {
+        const locationInterestIds = [];
+        if (location.interests && Array.isArray(location.interests)) {
+          location.interests.forEach(li => {
+            if (li.interest && li.interest.id) {
+              locationInterestIds.push(String(li.interest.id));
+            } else if (li.interest_id) {
+              locationInterestIds.push(String(li.interest_id));
+            }
+          });
+        }
+        console.log(`📍 Location "${location.name}" (ID: ${location.id}, verified: ${location.verified}, source: ${location.source}) has interest_ids: [${locationInterestIds.join(', ') || 'none'}]`);
+      });
+      
       filtered = filtered.filter(location => {
         // Extract interest IDs from the nested structure
         const locationInterestIds = [];
@@ -280,13 +295,22 @@ export async function searchLocationsForItinerary(cityId, categories = [], tags 
         // Location matches if it has at least one of the requested interests
         const matches = normalizedInterestIds.some(interestId => locationInterestIds.includes(interestId));
         if (matches) {
-          console.log(`✅ Location "${location.name}" (ID: ${location.id}) matches - has interests: [${locationInterestIds.join(', ')}]`);
+          console.log(`✅ Location "${location.name}" (ID: ${location.id}) MATCHES - has interests: [${locationInterestIds.join(', ')}]`);
+        } else if (locationInterestIds.length > 0) {
+          console.log(`❌ Location "${location.name}" (ID: ${location.id}) does NOT match - has: [${locationInterestIds.join(', ')}], need: [${normalizedInterestIds.join(', ')}]`);
         } else {
-          console.log(`❌ Location "${location.name}" (ID: ${location.id}) does NOT match - has: [${locationInterestIds.join(', ') || 'none'}], need: [${normalizedInterestIds.join(', ')}]`);
+          console.log(`⚠️ Location "${location.name}" (ID: ${location.id}) has NO interests assigned`);
         }
         return matches;
       });
       console.log(`✅ Filtered by interest_ids: ${filtered.length} locations match out of ${data.length} total`);
+      
+      if (filtered.length === 0 && data.length > 0) {
+        console.log(`⚠️⚠️⚠️ WARNING: No locations match the interest filter! This might indicate:`);
+        console.log(`   1. Locations in DB don't have the selected interests assigned`);
+        console.log(`   2. Interest IDs don't match (check if IDs are correct)`);
+        console.log(`   3. Location-interests relationships are missing in location_interests table`);
+      }
     } else {
       console.log(`⚠️ No interestIds provided, returning all locations (${filtered.length} total)`);
     }

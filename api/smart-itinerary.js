@@ -114,9 +114,15 @@ export async function findRealLocations(timeSlots, city, interestIds = []) {
             dbResult = await searchLocationsForItinerary(cityId, [], tags, interestIds, 10);
           }
           
-          // If still no results and we have interestIds, try without interest filter (fallback)
+          // If still no results, try without category but keep interest filter (broader search)
           if ((!dbResult.success || !dbResult.locations || dbResult.locations.length === 0) && interestIds.length > 0) {
-            console.log(`⚠️ No locations found with interest filter, trying without interest filter...`);
+            console.log(`⚠️ No locations found with category+interest filter, trying without category but keeping interest filter...`);
+            dbResult = await searchLocationsForItinerary(cityId, [], tags, interestIds, 10);
+          }
+          
+          // LAST RESORT: Only if still no results, try without interest filter (but log warning)
+          if ((!dbResult.success || !dbResult.locations || dbResult.locations.length === 0) && interestIds.length > 0) {
+            console.log(`⚠️⚠️⚠️ WARNING: No locations found in DB matching interests [${interestIds.join(', ')}]. Trying without interest filter as last resort...`);
             dbResult = await searchLocationsForItinerary(cityId, categories, tags, [], 10);
           }
           
