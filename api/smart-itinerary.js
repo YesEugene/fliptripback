@@ -4,6 +4,7 @@
 import OpenAI from 'openai';
 import { Client } from '@googlemaps/google-maps-services-js';
 import { searchLocationsForItinerary } from '../database/services/locationsService.js';
+import { searchToursForItinerary } from '../database/services/toursService.js';
 import { getOrCreateCity } from '../database/services/citiesService.js';
 import { supabase } from '../database/db.js';
 
@@ -563,6 +564,120 @@ export default async function handler(req, res) {
         console.error('❌ Ошибка при получении интересов из БД:', err);
       }
     }
+
+    // =============================================================================
+    // ПРИОРИТЕТ 1: ПОИСК ТУРОВ В БД (согласно плану)
+    // =============================================================================
+    console.log('🔍 ПРИОРИТЕТ 1: Поиск туров в БД...');
+    
+    let cityId = null;
+    try {
+      cityId = await getOrCreateCity(city, null);
+    } catch (error) {
+      console.error('Error getting city ID:', error);
+    }
+    
+    let foundTour = null;
+    if (cityId) {
+      try {
+        // Extract tags from interests or use empty array
+        const tags = interestsForConcept || [];
+        
+        // Determine format (default to self_guided)
+        const format = 'self_guided'; // Can be extended later
+        
+        // Search for tours matching criteria
+        const toursResult = await searchToursForItinerary(
+          cityId,
+          [], // categories (can be extended)
+          tags,
+          interestIds.map(id => String(id)),
+          format,
+          budget ? parseInt(budget) : null,
+          1 // Limit to 1 best match
+        );
+        
+        if (toursResult.success && toursResult.tours && toursResult.tours.length > 0) {
+          foundTour = toursResult.tours[0];
+          console.log(`✅ Найден подходящий тур: "${foundTour.title}" (ID: ${foundTour.id})`);
+        } else {
+          console.log('ℹ️ Подходящих туров в БД не найдено, генерируем новый маршрут');
+        }
+      } catch (tourSearchError) {
+        console.error('❌ Ошибка поиска туров:', tourSearchError);
+        // Continue with generation if tour search fails
+      }
+    }
+    
+    // If tour found, convert it to itinerary format and return
+    if (foundTour) {
+      console.log('📋 Используем найденный тур из БД');
+      
+      // Convert tour structure to itinerary format
+      const activities = [];
+      
+      // Iterate through tour_days → tour_blocks → tour_items
+      if (foundTour.tour_days && Array.isArray(foundTour.tour_days)) {
+        foundTour.tour_days.forEach(day => {
+          if (day.tour_blocks && Array.isArray(day.tour_blocks)) {
+            day.tour_blocks.forEach(block => {
+              if (day.tour_items && Array.isArray(day.tour_items)) {
+                day.tour_items.forEach(item => {
+                  const location = item.location;
+                  if (location) {
+                    activities.push({
+                      time: block.start_time ? `${block.start_time} - ${block.end_time || block.start_time}` : 'TBD',
+                      title: item.custom_title || location.name,
+                      address: location.address || '',
+                      description: item.custom_description || location.description || '',
+                      recommendations: item.custom_recommendations || location.recommendations || '',
+                      category: location.category || 'attraction',
+                      photos: location.photos?.map(p => p.url) || [],
+                      price: item.approx_cost || 0,
+                      priceRange: item.approx_cost ? `€${item.approx_cost}` : 'Free',
+                      rating: 4.5, // Default for verified locations
+                      fromDatabase: true,
+                      locationId: location.id
+                    });
+                  }
+                });
+              }
+            });
+          }
+        });
+      }
+      
+      // Generate meta info for the tour
+      const metaInfo = await generateMetaInfo(city, audience, interestsForConcept, itineraryDate);
+      
+      const result = {
+        title: foundTour.title || metaInfo.title,
+        subtitle: foundTour.description || metaInfo.subtitle,
+        city,
+        date: itineraryDate,
+        budget,
+        conceptual_plan: {
+          concept: foundTour.description || `Curated tour: ${foundTour.title}`,
+          architecture: "database_tour",
+          source: "database"
+        },
+        weather: metaInfo.weather,
+        activities,
+        totalCost: activities.reduce((sum, act) => sum + act.price, 0),
+        withinBudget: true,
+        previewOnly: previewOnly || false,
+        tourId: foundTour.id, // Include tour ID for reference
+        fromDatabase: true
+      };
+      
+      console.log('✅ FLIPTRIP CLEAN: Использован тур из БД');
+      return res.status(200).json(result);
+    }
+    
+    // =============================================================================
+    // ПРИОРИТЕТ 2: ГЕНЕРАЦИЯ НОВОГО МАРШРУТА (если тур не найден)
+    // =============================================================================
+    console.log('🎨 ПРИОРИТЕТ 2: Генерация нового маршрута...');
 
     // МОДУЛЬ 0: Создаем концепцию дня (use interest names, not IDs)
     const dayConcept = await generateDayConcept(city, audience, interestsForConcept, itineraryDate, budget);

@@ -199,74 +199,88 @@ export default async function handler(req, res) {
       }
     }
 
-    // Save tour to database
-    // Check table structure by querying information_schema
-    const { data: columnsData, error: columnsError } = await supabase.rpc('exec_sql', {
-      query: `
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_name = 'tours' 
-        AND column_name IN ('creator_id', 'user_id', 'created_by', 'owner_id', 'guide_id')
-        LIMIT 1
-      `
-    }).catch(() => ({ data: null, error: null }));
+    // Save tour to database in normalized structure
+    // First, determine which column to use for guide_id
+    let userColumnName = 'guide_id'; // Default according to plan
     
-    // If RPC doesn't work, try to get structure from a sample query
-    let userColumnName = null;
-    if (!columnsData || columnsError) {
-      // Try to insert with different column names and see which works
-      const testColumns = ['creator_id', 'user_id', 'created_by', 'owner_id', 'guide_id'];
-      
+    // Test if guide_id column exists, if not try other options
+    const testResult = await supabase
+      .from('tours')
+      .select('id')
+      .eq('guide_id', userId)
+      .limit(1);
+    
+    if (testResult.error && testResult.error.code === '42703') {
+      // guide_id doesn't exist, try other columns
+      const testColumns = ['creator_id', 'user_id', 'created_by'];
       for (const colName of testColumns) {
-        const testResult = await supabase
+        const test = await supabase
           .from('tours')
           .select('id')
           .eq(colName, userId)
           .limit(1);
         
-        // If query succeeds (even with 0 results), column exists
-        if (!testResult.error || testResult.error.code !== '42703') {
+        if (!test.error || test.error.code !== '42703') {
           userColumnName = colName;
-          console.log(`✅ Found user column: ${colName}`);
+          console.log(`✅ Using existing column: ${colName}`);
           break;
         }
       }
-    } else if (columnsData && columnsData.length > 0) {
-      userColumnName = columnsData[0].column_name;
+    } else {
+      console.log('✅ Using guide_id column');
     }
     
+    // Calculate duration from daily_plan
+    const totalDays = daily_plan?.length || 0;
+    let durationType = 'hours';
+    let durationValue = 6; // Default
+    
+    if (totalDays > 1) {
+      durationType = 'days';
+      durationValue = totalDays;
+    } else if (daily_plan && daily_plan.length > 0) {
+      // Estimate hours from blocks
+      let totalBlocks = 0;
+      daily_plan.forEach(day => {
+        if (day.blocks && Array.isArray(day.blocks)) {
+          totalBlocks += day.blocks.length;
+        }
+      });
+      durationValue = Math.max(3, Math.min(totalBlocks * 3, 12));
+    }
+    
+    // Extract format and pricing from tourData
+    const format = tourData.format || 'self_guided';
+    const pricePdf = tourData.price?.pdfPrice || 16.00;
+    const priceGuided = tourData.price?.guidedPrice || null;
+    const previewMediaUrl = tourData.preview || null;
+    const previewMediaType = tourData.previewType || 'image';
+    
+    // 1. Create main tour record
     const baseTourData = {
+      [userColumnName]: userId,
       country: country || null,
       city_id: cityId,
       title,
       description: description || null,
-      daily_plan: daily_plan || [],
-      tags: tags || [],
-      meta: meta || {},
-      verified: false, // Needs admin verification
-      created_at: new Date().toISOString()
+      duration_type: durationType,
+      duration_value: durationValue,
+      default_format: format,
+      price_pdf: pricePdf,
+      price_guided: priceGuided,
+      currency: tourData.price?.currency || 'USD',
+      preview_media_url: previewMediaUrl,
+      preview_media_type: previewMediaType,
+      is_published: false,
+      status: 'draft',
+      verified: false
     };
     
-    // Insert tour with the correct user column (or without if none exists)
-    let result;
-    if (userColumnName) {
-      result = await supabase
-        .from('tours')
-        .insert({ ...baseTourData, [userColumnName]: userId })
-        .select()
-        .single();
-    } else {
-      // Try without user column - maybe it's added later or not required
-      result = await supabase
-        .from('tours')
-        .insert(baseTourData)
-        .select()
-        .single();
-      console.warn('⚠️ No user column found, saving tour without user reference');
-    }
-    
-    const tour = result.data;
-    const tourError = result.error;
+    const { data: tour, error: tourError } = await supabase
+      .from('tours')
+      .insert(baseTourData)
+      .select()
+      .single();
 
     if (tourError) {
       console.error('Error creating tour:', tourError);
@@ -277,13 +291,161 @@ export default async function handler(req, res) {
       });
     }
 
-    console.log(`✅ Tour created: ${tour.id}, Locations saved: ${locationsToSave.length}`);
+    console.log(`✅ Tour created: ${tour.id}`);
+
+    // 2. Save tags if provided
+    if (tags && Array.isArray(tags) && tags.length > 0) {
+      // Get tag IDs by names
+      const { data: tagsData } = await supabase
+        .from('tags')
+        .select('id, name')
+        .in('name', tags);
+      
+      if (tagsData && tagsData.length > 0) {
+        const tourTagInserts = tagsData.map(tag => ({
+          tour_id: tour.id,
+          tag_id: tag.id
+        }));
+        await supabase.from('tour_tags').insert(tourTagInserts);
+        console.log(`✅ Linked ${tourTagInserts.length} tags to tour`);
+      }
+    }
+
+    // 3. Save normalized structure: tour_days → tour_blocks → tour_items
+    let totalItemsSaved = 0;
+    const locationIdMap = new Map(); // Map item title+address to location_id
+    
+    // Pre-populate locationIdMap with saved locations
+    for (const locationId of locationsToSave) {
+      const { data: location } = await supabase
+        .from('locations')
+        .select('id, name, address')
+        .eq('id', locationId)
+        .single();
+      
+      if (location) {
+        const key = `${location.name}|${location.address}`;
+        locationIdMap.set(key, location.id);
+      }
+    }
+
+    if (daily_plan && Array.isArray(daily_plan)) {
+      for (let dayIndex = 0; dayIndex < daily_plan.length; dayIndex++) {
+        const day = daily_plan[dayIndex];
+        
+        // Create tour_day
+        const { data: tourDay, error: dayError } = await supabase
+          .from('tour_days')
+          .insert({
+            tour_id: tour.id,
+            day_number: day.day || dayIndex + 1,
+            title: day.title || null,
+            date_hint: day.date || null
+          })
+          .select()
+          .single();
+        
+        if (dayError || !tourDay) {
+          console.error(`Error creating tour_day ${dayIndex}:`, dayError);
+          continue;
+        }
+        
+        // Process blocks
+        if (day.blocks && Array.isArray(day.blocks)) {
+          for (let blockIndex = 0; blockIndex < day.blocks.length; blockIndex++) {
+            const block = day.blocks[blockIndex];
+            
+            // Parse time range (e.g., "09:00 - 12:00")
+            const timeMatch = block.time?.match(/(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})/);
+            const startTime = timeMatch ? timeMatch[1] : null;
+            const endTime = timeMatch ? timeMatch[2] : null;
+            
+            // Create tour_block
+            const { data: tourBlock, error: blockError } = await supabase
+              .from('tour_blocks')
+              .insert({
+                tour_day_id: tourDay.id,
+                start_time: startTime,
+                end_time: endTime,
+                title: block.title || null
+              })
+              .select()
+              .single();
+            
+            if (blockError || !tourBlock) {
+              console.error(`Error creating tour_block ${blockIndex}:`, blockError);
+              continue;
+            }
+            
+            // Process items
+            if (block.items && Array.isArray(block.items)) {
+              for (let itemIndex = 0; itemIndex < block.items.length; itemIndex++) {
+                const item = block.items[itemIndex];
+                
+                // Find location_id for this item
+                let locationId = null;
+                if (item.title && item.address) {
+                  const key = `${item.title}|${item.address}`;
+                  locationId = locationIdMap.get(key);
+                  
+                  // If not found, try to find in database
+                  if (!locationId) {
+                    const { data: existingLocation } = await supabase
+                      .from('locations')
+                      .select('id')
+                      .eq('name', item.title)
+                      .eq('city_id', cityId)
+                      .limit(1)
+                      .single();
+                    
+                    if (existingLocation) {
+                      locationId = existingLocation.id;
+                      locationIdMap.set(key, locationId);
+                    }
+                  }
+                }
+                
+                // Create tour_item
+                const { data: tourItem, error: itemError } = await supabase
+                  .from('tour_items')
+                  .insert({
+                    tour_block_id: tourBlock.id,
+                    location_id: locationId, // FK to locations!
+                    custom_title: item.title || null,
+                    custom_description: item.why || item.description || null,
+                    custom_recommendations: item.tips || item.recommendations || null,
+                    order_index: itemIndex,
+                    duration_minutes: item.duration || null,
+                    approx_cost: item.cost || null,
+                    notes: item.notes || null
+                  })
+                  .select()
+                  .single();
+                
+                if (!itemError && tourItem) {
+                  totalItemsSaved++;
+                } else {
+                  console.error(`Error creating tour_item ${itemIndex}:`, itemError);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    console.log(`✅ Tour structure saved: ${totalItemsSaved} items, ${locationsToSave.length} locations`);
 
     return res.status(201).json({
       success: true,
-      tour,
+      tour: {
+        ...tour,
+        // Include legacy daily_plan for backward compatibility
+        daily_plan: daily_plan || []
+      },
       locationsSaved: locationsToSave.length,
-      message: `Tour created successfully. ${locationsToSave.length} location(s) saved to database.`
+      itemsSaved: totalItemsSaved,
+      message: `Tour created successfully. ${locationsToSave.length} location(s) and ${totalItemsSaved} item(s) saved to database.`
     });
 
   } catch (error) {
