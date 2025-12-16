@@ -81,6 +81,7 @@ Make it creative, locally relevant, and perfectly suited for ${audience} interes
 
 export async function findRealLocations(timeSlots, city, interestIds = []) {
   console.log('📍 МОДУЛЬ 1: Поиск реальных мест...');
+  console.log('🔍 findRealLocations called with interestIds:', interestIds, 'type:', typeof interestIds, 'length:', interestIds?.length || 0);
   
   // Get city_id from city name
   let cityId = null;
