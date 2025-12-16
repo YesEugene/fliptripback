@@ -110,20 +110,51 @@ export default async function handler(req, res) {
       }
 
       // Check if tour exists and belongs to user
+      console.log(`🔍 DELETE: Checking tour ${id} for userId ${userId}`);
       const { data: tour, error: tourError } = await supabase
         .from('tours')
         .select('id, guide_id, creator_id, user_id, created_by')
         .eq('id', id)
         .single();
 
-      if (tourError || !tour) {
-        return res.status(404).json({ success: false, message: 'Tour not found' });
+      if (tourError) {
+        console.error(`❌ DELETE: Tour check error:`, tourError);
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Tour not found',
+          details: tourError.message,
+          tourId: id
+        });
       }
+
+      if (!tour) {
+        console.error(`❌ DELETE: Tour not found: ${id}`);
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Tour not found',
+          tourId: id
+        });
+      }
+
+      console.log(`✅ DELETE: Tour found:`, {
+        id: tour.id,
+        guide_id: tour.guide_id,
+        creator_id: tour.creator_id,
+        user_id: tour.user_id,
+        created_by: tour.created_by
+      });
 
       // Check ownership (try different column names)
       const ownerId = tour.guide_id || tour.creator_id || tour.user_id || tour.created_by;
+      console.log(`🔐 DELETE: Ownership check: ownerId=${ownerId}, userId=${userId}, match=${ownerId === userId}`);
       if (ownerId !== userId) {
-        return res.status(403).json({ success: false, message: 'You can only delete your own tours' });
+        console.warn(`⚠️ DELETE: Ownership mismatch: ownerId=${ownerId}, userId=${userId}`);
+        return res.status(403).json({ 
+          success: false, 
+          message: 'You can only delete your own tours',
+          ownerId,
+          userId
+        });
       }
 
       // Delete tour (cascade will handle related records)
