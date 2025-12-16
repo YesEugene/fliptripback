@@ -33,6 +33,9 @@ async function getOrCreateCityFallback(cityName, countryName) {
 }
 
 export default async function handler(req, res) {
+  // Log request for debugging
+  console.log(`📡 tours-update: ${req.method} ${req.url}`);
+  
   // CORS headers - устанавливаем ПЕРВЫМИ (как в admin-locations.js)
   const origin = req.headers.origin;
   const allowedOrigins = [
