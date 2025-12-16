@@ -111,26 +111,12 @@ export default async function handler(req, res) {
 
       // Check if tour exists and belongs to user
       console.log(`🔍 DELETE: Checking tour ${id} for userId ${userId}`);
-      // Select only id first, then determine which column exists for owner
+      // Use select('*') to get all columns, then check which owner column exists
       const { data: tour, error: tourError } = await supabase
         .from('tours')
-        .select('id, guide_id')
+        .select('*')
         .eq('id', id)
         .single();
-      
-      // If guide_id doesn't exist, try other columns
-      if (tourError && tourError.code === '42703') {
-        console.log(`⚠️ guide_id column doesn't exist, trying other columns...`);
-        const { data: tourAlt, error: tourErrorAlt } = await supabase
-          .from('tours')
-          .select('id, creator_id, user_id, created_by')
-          .eq('id', id)
-          .single();
-        
-        if (!tourErrorAlt && tourAlt) {
-          return { data: tourAlt, error: null };
-        }
-      }
 
       if (tourError) {
         console.error(`❌ DELETE: Tour check error:`, tourError);
