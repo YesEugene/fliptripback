@@ -91,43 +91,56 @@ export default async function handler(req, res) {
     }
 
     // Get tours created by this user
-    // First, get one tour to see what columns exist
-    const sampleResult = await supabase
-      .from('tours')
-      .select('*')
-      .limit(1);
-    
-    // Determine which column to use for filtering
+    // Try to query with different column names until one works
+    let tours = null;
+    let toursError = null;
     let creatorColumn = null;
-    if (sampleResult.data && sampleResult.data.length > 0) {
-      const sampleTour = sampleResult.data[0];
-      // Check which column exists
-      if (sampleTour.creator_id !== undefined) {
-        creatorColumn = 'creator_id';
-      } else if (sampleTour.user_id !== undefined) {
-        creatorColumn = 'user_id';
-      } else if (sampleTour.created_by !== undefined) {
-        creatorColumn = 'created_by';
-      }
-    }
     
-    // If no sample tour, try creator_id as default
-    if (!creatorColumn) {
-      creatorColumn = 'creator_id';
-    }
-    
-    // Get tours created by this user using the correct column
-    const result = await supabase
+    // Try creator_id first
+    let result = await supabase
       .from('tours')
       .select(`
         *,
         city:cities(name)
       `)
-      .eq(creatorColumn, userId)
+      .eq('creator_id', userId)
       .order('created_at', { ascending: false });
     
-    const tours = result.data;
-    const toursError = result.error;
+    if (result.error) {
+      // If creator_id doesn't exist, try user_id
+      if (result.error.code === '42703' && result.error.message?.includes('creator_id')) {
+        result = await supabase
+          .from('tours')
+          .select(`
+            *,
+            city:cities(name)
+          `)
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false });
+        creatorColumn = 'user_id';
+      }
+      
+      // If user_id also doesn't exist, try created_by
+      if (result.error && result.error.code === '42703') {
+        result = await supabase
+          .from('tours')
+          .select(`
+            *,
+            city:cities(name)
+          `)
+          .eq('created_by', userId)
+          .order('created_at', { ascending: false });
+        creatorColumn = 'created_by';
+      }
+    } else {
+      creatorColumn = 'creator_id';
+    }
+    
+    tours = result.data;
+    toursError = result.error;
+    
+    // Log which column was used
+    console.log(`🔍 Using column '${creatorColumn || 'creator_id'}' for filtering tours by user ${userId}`);
 
     if (toursError) {
       console.error('Error fetching guide tours:', toursError);

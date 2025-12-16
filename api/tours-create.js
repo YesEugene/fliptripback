@@ -186,31 +186,6 @@ export default async function handler(req, res) {
     }
 
     // Save tour to database
-    // First, get one existing tour to see what columns exist
-    const sampleResult = await supabase
-      .from('tours')
-      .select('*')
-      .limit(1);
-    
-    // Determine which column to use for creator
-    let creatorColumn = null;
-    if (sampleResult.data && sampleResult.data.length > 0) {
-      const sampleTour = sampleResult.data[0];
-      // Check which column exists
-      if (sampleTour.creator_id !== undefined) {
-        creatorColumn = 'creator_id';
-      } else if (sampleTour.user_id !== undefined) {
-        creatorColumn = 'user_id';
-      } else if (sampleTour.created_by !== undefined) {
-        creatorColumn = 'created_by';
-      }
-    }
-    
-    // If no sample tour, try creator_id as default
-    if (!creatorColumn) {
-      creatorColumn = 'creator_id';
-    }
-    
     const baseTourData = {
       country: country || null,
       city_id: cityId,
@@ -223,15 +198,47 @@ export default async function handler(req, res) {
       created_at: new Date().toISOString()
     };
     
-    // Insert tour with the correct creator column
-    const result = await supabase
+    // Try to insert with different column names until one works
+    let tour = null;
+    let tourError = null;
+    let creatorColumn = null;
+    
+    // Try creator_id first
+    let result = await supabase
       .from('tours')
-      .insert({ ...baseTourData, [creatorColumn]: userId })
+      .insert({ ...baseTourData, creator_id: userId })
       .select()
       .single();
     
-    const tour = result.data;
-    const tourError = result.error;
+    if (result.error) {
+      // If creator_id doesn't exist, try user_id
+      if (result.error.code === '42703' && result.error.message?.includes('creator_id')) {
+        result = await supabase
+          .from('tours')
+          .insert({ ...baseTourData, user_id: userId })
+          .select()
+          .single();
+        creatorColumn = 'user_id';
+      }
+      
+      // If user_id also doesn't exist, try created_by
+      if (result.error && result.error.code === '42703') {
+        result = await supabase
+          .from('tours')
+          .insert({ ...baseTourData, created_by: userId })
+          .select()
+          .single();
+        creatorColumn = 'created_by';
+      }
+    } else {
+      creatorColumn = 'creator_id';
+    }
+    
+    tour = result.data;
+    tourError = result.error;
+    
+    // Log which column was used
+    console.log(`🔍 Using column '${creatorColumn || 'creator_id'}' for saving tour`);
 
     if (tourError) {
       console.error('Error creating tour:', tourError);
