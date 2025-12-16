@@ -203,6 +203,7 @@ export default async function handler(req, res) {
 
     const tourData = req.body;
     const { country, city, title, description, daily_plan, tags, meta } = tourData;
+    // country is optional - can be empty or undefined
 
     if (!city || !title) {
       return res.status(400).json({
