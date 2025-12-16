@@ -33,8 +33,9 @@ async function getOrCreateCityFallback(cityName, countryName) {
 }
 
 export default async function handler(req, res) {
-  // Log request for debugging
-  console.log(`📡 tours-update: ${req.method} ${req.url}`);
+  // Log request for debugging - CRITICAL for Vercel deployment
+  console.log(`📡 tours-update endpoint called: ${req.method} ${req.url}`);
+  console.log(`📡 Request headers:`, Object.keys(req.headers));
   
   // CORS headers - устанавливаем ПЕРВЫМИ (как в admin-locations.js)
   const origin = req.headers.origin;
