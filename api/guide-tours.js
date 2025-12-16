@@ -91,14 +91,37 @@ export default async function handler(req, res) {
     }
 
     // Get tours created by this user
-    const { data: tours, error: toursError } = await supabase
+    // Try different possible column names for creator/user
+    let tours = null;
+    let toursError = null;
+    
+    // First try creator_id
+    let query = supabase
       .from('tours')
       .select(`
         *,
         city:cities(name)
       `)
-      .eq('creator_id', userId)
       .order('created_at', { ascending: false });
+    
+    // Try to filter by creator_id, if column doesn't exist, try user_id or created_by
+    try {
+      const result = await query.eq('creator_id', userId);
+      tours = result.data;
+      toursError = result.error;
+    } catch (e) {
+      // If creator_id doesn't exist, try user_id
+      try {
+        const result = await query.eq('user_id', userId);
+        tours = result.data;
+        toursError = result.error;
+      } catch (e2) {
+        // If user_id doesn't exist, try created_by
+        const result = await query.eq('created_by', userId);
+        tours = result.data;
+        toursError = result.error;
+      }
+    }
 
     if (toursError) {
       console.error('Error fetching guide tours:', toursError);

@@ -186,22 +186,50 @@ export default async function handler(req, res) {
     }
 
     // Save tour to database
-    const { data: tour, error: tourError } = await supabase
-      .from('tours')
-      .insert({
-        creator_id: userId,
-        country: country || null,
-        city_id: cityId,
-        title,
-        description: description || null,
-        daily_plan: daily_plan || [],
-        tags: tags || [],
-        meta: meta || {},
-        verified: false, // Needs admin verification
-        created_at: new Date().toISOString()
-      })
-      .select()
-      .single();
+    // Try different possible column names for creator/user
+    let tour = null;
+    let tourError = null;
+    
+    const tourData = {
+      country: country || null,
+      city_id: cityId,
+      title,
+      description: description || null,
+      daily_plan: daily_plan || [],
+      tags: tags || [],
+      meta: meta || {},
+      verified: false, // Needs admin verification
+      created_at: new Date().toISOString()
+    };
+    
+    // Try creator_id first, then user_id, then created_by
+    try {
+      const result = await supabase
+        .from('tours')
+        .insert({ ...tourData, creator_id: userId })
+        .select()
+        .single();
+      tour = result.data;
+      tourError = result.error;
+    } catch (e) {
+      try {
+        const result = await supabase
+          .from('tours')
+          .insert({ ...tourData, user_id: userId })
+          .select()
+          .single();
+        tour = result.data;
+        tourError = result.error;
+      } catch (e2) {
+        const result = await supabase
+          .from('tours')
+          .insert({ ...tourData, created_by: userId })
+          .select()
+          .single();
+        tour = result.data;
+        tourError = result.error;
+      }
+    }
 
     if (tourError) {
       console.error('Error creating tour:', tourError);
