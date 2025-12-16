@@ -120,8 +120,26 @@ export default async function handler(req, res) {
 
     // Apply filters
     if (city) {
-      // Join with cities table
-      query = query.eq('city:cities.name', city);
+      // First, get city ID by name
+      const { data: cityData } = await supabase
+        .from('cities')
+        .select('id')
+        .ilike('name', city)
+        .limit(1)
+        .maybeSingle();
+      
+      if (cityData && cityData.id) {
+        query = query.eq('city_id', cityData.id);
+      } else {
+        // If city not found, return empty result
+        return res.status(200).json({
+          success: true,
+          tours: [],
+          total: 0,
+          limit: parseInt(limit),
+          offset: parseInt(offset)
+        });
+      }
     }
 
     if (format) {
