@@ -258,7 +258,8 @@ async function getOrCreateTags(tagNames) {
 
 export default async function handler(req, res) {
   const origin = req.headers.origin;
-  const allowedOrigins = ['https://www.flip-trip.com', 'https://flip-trip.com', 'https://fliptripfrontend.vercel.app', 'http://localhost:5173', 'http://localhost:3000'];
+  const allowedOrigins = ['https://www.flip-trip.com', 'https://flip-trip.com', 'https://fliptripfrontend.vercel.app', 'http://localhost:5173', 'http://localhost:3000', 'null'];
+  // Allow file:// origin (null) and all other origins for this admin endpoint
   if (origin && allowedOrigins.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   } else {
