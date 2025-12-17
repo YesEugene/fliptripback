@@ -151,8 +151,8 @@ export default async function handler(req, res) {
         });
       }
 
-      // Hash password
-      const hashedPassword = await bcrypt.hash(password, 10);
+      // Hash password (use finalPassword which may be generated)
+      const hashedPassword = await bcrypt.hash(finalPassword, 10);
 
       // Create user directly in users table
       const userId = uuidv4();
