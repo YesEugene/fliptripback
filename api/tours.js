@@ -112,6 +112,11 @@ export default async function handler(req, res) {
         city:cities(name),
         tour_tags(
           tag:tags(id, name)
+        ),
+        guide:guides!tours_guide_id_fkey(
+          id,
+          name,
+          avatar_url
         )
       `)
       .eq('is_published', true)
