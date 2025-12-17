@@ -489,34 +489,94 @@ const sampleTours = [
     city: 'Vienna',
     country: 'Austria',
     title: 'Classical Music & Architecture',
-    description: 'Experience Vienna\'s imperial grandeur and musical heritage.',
-    tags: ['culture', 'music', 'architecture'],
+    description: 'Experience Vienna\'s imperial grandeur and musical heritage. From opulent palaces to world-class opera, discover why Vienna is the capital of classical music.',
+    tags: ['culture', 'music', 'architecture', 'imperial'],
     preview_media_url: 'https://images.unsplash.com/photo-1516550893923-42d28e5677af?w=800&h=600&fit=crop&q=80',
     daily_plan: [
       {
         day: 1,
         blocks: [
           {
-            time: '10:00 - 12:00',
+            time: '09:00 - 11:00',
             items: [
               {
                 title: 'Schönbrunn Palace',
-                address: 'Schönbrunner Schloßstraße 47, 1130 Wien',
+                address: 'Schönbrunner Schloßstraße 47, 1130 Wien, Austria',
                 category: 'landmark',
-                description: 'Visit the former imperial summer residence.',
-                recommendations: 'Book a guided tour to see the private apartments.'
+                description: 'Visit the former imperial summer residence, a UNESCO World Heritage site with stunning Baroque architecture.',
+                recommendations: 'Book tickets online. The Grand Tour includes 40 rooms. Gardens are free to visit.'
               }
             ]
           },
           {
-            time: '15:00 - 17:00',
+            time: '11:30 - 13:00',
+            items: [
+              {
+                title: 'Schönbrunn Gardens',
+                address: 'Schönbrunner Schloßstraße 47, 1130 Wien, Austria',
+                category: 'park',
+                description: 'Stroll through the beautiful palace gardens, maze, and climb to the Gloriette for city views.',
+                recommendations: 'Free entry to gardens. Perfect for a morning walk. The maze is fun for all ages.'
+              }
+            ]
+          },
+          {
+            time: '13:30 - 15:00',
+            items: [
+              {
+                title: 'Naschmarkt',
+                address: 'Naschmarkt, 1060 Wien, Austria',
+                category: 'market',
+                description: 'Explore Vienna\'s most famous market with fresh produce, international food, and local specialties.',
+                recommendations: 'Great for lunch. Try Viennese specialties or international cuisine. Very vibrant atmosphere.'
+              }
+            ]
+          },
+          {
+            time: '15:30 - 17:00',
+            items: [
+              {
+                title: 'Hofburg Palace',
+                address: 'Hofburg, 1010 Wien, Austria',
+                category: 'landmark',
+                description: 'Visit the former imperial palace, now home to museums, the Spanish Riding School, and the Austrian president.',
+                recommendations: 'Very large complex. Choose specific areas to visit. The Sisi Museum is popular.'
+              }
+            ]
+          },
+          {
+            time: '17:30 - 19:00',
+            items: [
+              {
+                title: 'St. Stephen\'s Cathedral',
+                address: 'Stephansplatz 3, 1010 Wien, Austria',
+                category: 'landmark',
+                description: 'Admire Vienna\'s iconic Gothic cathedral in the heart of the city.',
+                recommendations: 'Free entry to main area. Climb the tower for views (paid). The roof tiles are beautiful.'
+              }
+            ]
+          },
+          {
+            time: '19:30 - 21:30',
             items: [
               {
                 title: 'Vienna State Opera',
-                address: 'Opernring 2, 1010 Wien',
+                address: 'Opernring 2, 1010 Wien, Austria',
                 category: 'landmark',
-                description: 'Attend a performance at one of the world\'s greatest opera houses.',
-                recommendations: 'Book tickets in advance for popular performances.'
+                description: 'Attend a performance at one of the world\'s greatest opera houses, or take a guided tour.',
+                recommendations: 'Book tickets months in advance for popular performances. Standing room tickets available day-of.'
+              }
+            ]
+          },
+          {
+            time: '22:00 - 23:30',
+            items: [
+              {
+                title: 'Viennese Coffee House',
+                address: 'Various, Vienna, Austria',
+                category: 'cafe',
+                description: 'Experience the traditional Viennese coffee house culture, a UNESCO intangible cultural heritage.',
+                recommendations: 'Try Sachertorte or Apfelstrudel. Classic cafes: Café Central, Café Sacher, Café Demel.'
               }
             ]
           }
