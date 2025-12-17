@@ -161,6 +161,13 @@ export default async function handler(req, res) {
         updated_at: new Date().toISOString()
       };
 
+      // Remove null values for optional fields to avoid constraint issues
+      Object.keys(guideData).forEach(key => {
+        if (guideData[key] === null && key !== 'user_id' && key !== 'name') {
+          delete guideData[key];
+        }
+      });
+
       // Check if guide profile exists
       const { data: existingGuide, error: checkError } = await supabase
         .from('guides')
