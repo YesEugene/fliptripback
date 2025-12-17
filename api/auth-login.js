@@ -45,7 +45,7 @@ export default async function handler(req, res) {
 
     console.log('🔐 Login attempt for email:', email);
 
-    // Поиск пользователя в БД
+    // Поиск пользователя в БД - сначала без фильтра is_active
     const { data: user, error: userError } = await supabase
       .from('users')
       .select('*')
@@ -55,8 +55,10 @@ export default async function handler(req, res) {
     console.log('👤 User lookup result:', {
       found: !!user,
       error: userError?.message || null,
+      errorCode: userError?.code || null,
       isActive: user?.is_active,
-      hasPasswordHash: !!user?.password_hash
+      hasPasswordHash: !!user?.password_hash,
+      userId: user?.id || null
     });
 
     if (userError && userError.code !== 'PGRST116') {
