@@ -2,24 +2,29 @@
 import { supabase } from '../database/db.js';
 
 export default async function handler(req, res) {
-  // CORS headers
+  // CORS headers - устанавливаем ПЕРВЫМИ
   const origin = req.headers.origin;
   const allowedOrigins = [
     'https://www.flip-trip.com',
+    'https://flip-trip.com',
     'https://fliptripfrontend.vercel.app',
     'http://localhost:5173',
     'http://localhost:3000'
   ];
   
-  if (origin && allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  } else {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-  }
+  // Helper function to set CORS headers
+  const setCorsHeaders = () => {
+    if (origin && allowedOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    } else {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    }
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+    res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
+  };
   
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
+  setCorsHeaders();
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -28,6 +33,7 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     try {
       if (!supabase) {
+        setCorsHeaders();
         return res.status(500).json({
           success: false,
           error: 'Database not configured'
@@ -74,6 +80,7 @@ export default async function handler(req, res) {
           .single();
 
         if (error || !tour) {
+          setCorsHeaders();
           return res.status(404).json({
             success: false,
             error: 'Tour not found',
@@ -215,6 +222,8 @@ export default async function handler(req, res) {
       });
     } catch (error) {
       console.error('❌ Error fetching tours:', error);
+      // Ensure CORS headers are set even on error
+      setCorsHeaders();
       return res.status(500).json({
         success: false,
         error: 'Failed to fetch tours',
@@ -227,6 +236,7 @@ export default async function handler(req, res) {
   if (req.method === 'PUT' || req.method === 'PATCH') {
     try {
       if (!supabase) {
+        setCorsHeaders();
         return res.status(500).json({
           success: false,
           error: 'Database not configured'
@@ -235,6 +245,7 @@ export default async function handler(req, res) {
 
       const { id } = req.query;
       if (!id) {
+        setCorsHeaders();
         return res.status(400).json({
           success: false,
           error: 'Tour ID is required'
@@ -246,6 +257,7 @@ export default async function handler(req, res) {
 
       // Validate required fields
       if (!title) {
+        setCorsHeaders();
         return res.status(400).json({
           success: false,
           error: 'Title is required'
@@ -326,6 +338,8 @@ export default async function handler(req, res) {
       });
     } catch (error) {
       console.error('❌ Error updating tour:', error);
+      // Ensure CORS headers are set even on error
+      setCorsHeaders();
       return res.status(500).json({
         success: false,
         error: 'Failed to update tour',
@@ -338,6 +352,7 @@ export default async function handler(req, res) {
   if (req.method === 'DELETE') {
     try {
       if (!supabase) {
+        setCorsHeaders();
         return res.status(500).json({
           success: false,
           error: 'Database not configured'
@@ -347,6 +362,7 @@ export default async function handler(req, res) {
       const { id } = req.query;
 
       if (!id) {
+        setCorsHeaders();
         return res.status(400).json({
           success: false,
           error: 'Tour ID is required'
@@ -371,6 +387,8 @@ export default async function handler(req, res) {
       });
     } catch (error) {
       console.error('❌ Error deleting tour:', error);
+      // Ensure CORS headers are set even on error
+      setCorsHeaders();
       return res.status(500).json({
         success: false,
         error: 'Failed to delete tour',
@@ -379,6 +397,8 @@ export default async function handler(req, res) {
     }
   }
 
+  // Method not allowed
+  setCorsHeaders();
   return res.status(405).json({ error: 'Method not allowed' });
 }
 
