@@ -152,7 +152,9 @@ export default async function handler(req, res) {
       }
 
       // Hash password (use finalPassword which may be generated)
+      console.log('🔑 Hashing password (length:', finalPassword.length, 'generated:', generatedPassword, ')');
       const hashedPassword = await bcrypt.hash(finalPassword, 10);
+      console.log('🔑 Password hashed successfully (hash length:', hashedPassword.length, ')');
 
       // Create user directly in users table
       const userId = uuidv4();
