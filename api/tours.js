@@ -120,6 +120,9 @@ export default async function handler(req, res) {
       offset = 0
     } = req.query;
 
+    console.log('🔍 Loading tours from database...');
+    console.log('📋 Query params:', { city, format, interests, limit, offset });
+    
     let query = supabase
       .from('tours')
       .select(`
@@ -171,7 +174,15 @@ export default async function handler(req, res) {
 
     const { data: tours, error } = await query;
 
+    console.log('📊 Query result:', {
+      count: tours?.length || 0,
+      error: error?.message || null,
+      errorCode: error?.code || null
+    });
+
     if (error) {
+      console.error('❌ Database query error:', error);
+      console.error('❌ Error details:', JSON.stringify(error, null, 2));
       throw error;
     }
 
@@ -224,10 +235,12 @@ export default async function handler(req, res) {
     // Convert to legacy format
     const formattedTours = toursWithGuides;
 
+    console.log(`✅ Returning ${formattedTours.length} formatted tours`);
+
     return res.status(200).json({
       success: true,
       tours: formattedTours,
-      total: filteredTours.length,
+      total: formattedTours.length,
       limit: parseInt(limit),
       offset: parseInt(offset)
     });
