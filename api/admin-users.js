@@ -1,5 +1,7 @@
 // Admin Users API - Returns users for admin dashboard
 import { supabase } from '../database/db.js';
+import bcrypt from 'bcryptjs';
+import { v4 as uuidv4 } from 'uuid';
 
 export default async function handler(req, res) {
   // CORS headers
@@ -89,8 +91,9 @@ export default async function handler(req, res) {
         });
       }
 
-      const { email, password, name, role } = req.body;
+      const { email, password, name, role = 'user' } = req.body;
 
+      // Validation
       if (!email || !password) {
         return res.status(400).json({
           success: false,
@@ -98,39 +101,76 @@ export default async function handler(req, res) {
         });
       }
 
-      // Create user in Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true
-      });
+      // Check if user already exists
+      const { data: existingUser, error: checkError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
 
-      if (authError) {
-        throw authError;
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('Error checking existing user:', checkError);
+        return res.status(500).json({
+          success: false,
+          error: 'Error checking existing user',
+          message: checkError.message
+        });
       }
 
-      // Update user metadata in users table
-      if (authData.user) {
-        const { error: updateError } = await supabase
-          .from('users')
-          .update({
-            name: name || null,
-            role: role || 'user'
-          })
-          .eq('id', authData.user.id);
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          error: 'User with this email already exists'
+        });
+      }
 
-        if (updateError) {
-          console.warn('Warning: Could not update user metadata:', updateError);
+      // Hash password
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      // Create user directly in users table
+      const userId = uuidv4();
+      const { data: newUser, error: insertError } = await supabase
+        .from('users')
+        .insert({
+          id: userId,
+          email,
+          password_hash: hashedPassword,
+          name: name || null,
+          role: role
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error('Error creating user:', insertError);
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to create user',
+          message: insertError.message
+        });
+      }
+
+      // If guide or creator, create guide profile
+      if (role === 'guide' || role === 'creator') {
+        const { error: guideError } = await supabase
+          .from('guides')
+          .insert({
+            user_id: userId,
+            name: name || email.split('@')[0] || 'Guide'
+          });
+
+        if (guideError) {
+          console.warn('Warning: Could not create guide profile:', guideError);
         }
       }
 
       return res.status(201).json({
         success: true,
         user: {
-          id: authData.user.id,
-          email: authData.user.email,
-          name: name || null,
-          role: role || 'user'
+          id: newUser.id,
+          email: newUser.email,
+          name: newUser.name,
+          role: newUser.role
         }
       });
     } catch (error) {
