@@ -4,10 +4,11 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 
 export default async function handler(req, res) {
-  // CORS headers
+  // CORS headers - ALWAYS set first
   const origin = req.headers.origin;
   const allowedOrigins = [
     'https://www.flip-trip.com',
+    'https://flip-trip.com',
     'https://fliptripfrontend.vercel.app',
     'http://localhost:5173',
     'http://localhost:3000'
@@ -175,6 +176,21 @@ export default async function handler(req, res) {
       });
     } catch (error) {
       console.error('❌ Error creating user:', error);
+      // Ensure CORS headers are set even on error
+      const origin = req.headers.origin;
+      const allowedOrigins = [
+        'https://www.flip-trip.com',
+        'https://flip-trip.com',
+        'https://fliptripfrontend.vercel.app',
+        'http://localhost:5173',
+        'http://localhost:3000'
+      ];
+      if (origin && allowedOrigins.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+      } else {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+      }
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
       return res.status(500).json({
         success: false,
         error: 'Failed to create user',
