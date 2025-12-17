@@ -476,6 +476,807 @@ const enhancedTours = [
         ]
       }
     ]
+  },
+  {
+    city: 'Rome',
+    country: 'Italy',
+    title: 'Ancient History Tour of Rome',
+    description: 'Journey through 2,000 years of history in the Eternal City. From the Colosseum to the Vatican, discover Rome\'s ancient and Renaissance treasures over two unforgettable days.',
+    tags: ['history', 'culture', 'landmark', 'architecture'],
+    duration_days: 2,
+    daily_plan: [
+      {
+        day: 1,
+        blocks: [
+          {
+            time: '09:00 - 11:00',
+            items: [
+              {
+                title: 'Colosseum',
+                address: 'Piazza del Colosseo, 1, 00184 Roma RM, Italy',
+                category: 'landmark',
+                description: 'Step into the ancient amphitheater where gladiators once fought. A symbol of Imperial Rome.',
+                recommendations: 'Book skip-the-line tickets with arena access. Combine with Roman Forum ticket.'
+              }
+            ]
+          },
+          {
+            time: '11:30 - 13:00',
+            items: [
+              {
+                title: 'Roman Forum',
+                address: 'Via della Salara Vecchia, 5/6, 00186 Roma RM, Italy',
+                category: 'landmark',
+                description: 'Walk through the ruins of ancient Rome\'s political and social center.',
+                recommendations: 'Get an audio guide or join a tour to understand the significance of each ruin.'
+              }
+            ]
+          },
+          {
+            time: '13:30 - 15:00',
+            items: [
+              {
+                title: 'Palatine Hill',
+                address: '00186 Roma RM, Italy',
+                category: 'landmark',
+                description: 'Explore the most famous of Rome\'s seven hills, where emperors built their palaces.',
+                recommendations: 'Included with Forum ticket. Great views of the city from the top.'
+              }
+            ]
+          },
+          {
+            time: '15:30 - 17:00',
+            items: [
+              {
+                title: 'Pantheon',
+                address: 'Piazza della Rotonda, 00186 Roma RM, Italy',
+                category: 'landmark',
+                description: 'Marvel at the best-preserved ancient Roman building, with its incredible dome.',
+                recommendations: 'Free entry. Visit early or late to avoid crowds. The oculus is spectacular.'
+              }
+            ]
+          },
+          {
+            time: '17:30 - 19:00',
+            items: [
+              {
+                title: 'Trevi Fountain',
+                address: 'Piazza di Trevi, 00187 Roma RM, Italy',
+                category: 'landmark',
+                description: 'Throw a coin in the most famous fountain in the world and make a wish.',
+                recommendations: 'Visit early morning or late evening for fewer crowds. Very crowded during day.'
+              }
+            ]
+          },
+          {
+            time: '19:30 - 21:30',
+            items: [
+              {
+                title: 'Trastevere',
+                address: 'Trastevere, 00153 Roma RM, Italy',
+                category: 'neighborhood',
+                description: 'Experience authentic Roman life in this charming medieval neighborhood.',
+                recommendations: 'Perfect for dinner. Try traditional Roman cuisine at a local trattoria.'
+              }
+            ]
+          }
+        ]
+      },
+      {
+        day: 2,
+        blocks: [
+          {
+            time: '09:00 - 11:30',
+            items: [
+              {
+                title: 'Vatican Museums',
+                address: '00120 Vatican City',
+                category: 'museum',
+                description: 'Explore one of the world\'s greatest art collections, including the Sistine Chapel.',
+                recommendations: 'Book skip-the-line tickets months in advance. Allocate 3-4 hours minimum.'
+              }
+            ]
+          },
+          {
+            time: '12:00 - 13:30',
+            items: [
+              {
+                title: 'St. Peter\'s Basilica',
+                address: 'Piazza San Pietro, 00120 Città del Vaticano, Vatican City',
+                category: 'landmark',
+                description: 'Visit the largest church in the world and admire Michelangelo\'s Pietà.',
+                recommendations: 'Free entry but long queues. Climb the dome for incredible views (paid).'
+              }
+            ]
+          },
+          {
+            time: '14:00 - 15:30',
+            items: [
+              {
+                title: 'Castel Sant\'Angelo',
+                address: 'Lungotevere Castello, 50, 00193 Roma RM, Italy',
+                category: 'landmark',
+                description: 'Explore the ancient mausoleum turned fortress with panoramic views of Rome.',
+                recommendations: 'Less crowded than other attractions. Great views from the terrace.'
+              }
+            ]
+          },
+          {
+            time: '16:00 - 17:30',
+            items: [
+              {
+                title: 'Spanish Steps',
+                address: 'Piazza di Spagna, 00187 Roma RM, Italy',
+                category: 'landmark',
+                description: 'Climb the famous 135 steps and enjoy the view of the elegant Piazza di Spagna.',
+                recommendations: 'Sitting on the steps is now prohibited. Visit for photos and views.'
+              }
+            ]
+          },
+          {
+            time: '18:00 - 19:30',
+            items: [
+              {
+                title: 'Piazza Navona',
+                address: 'Piazza Navona, 00186 Roma RM, Italy',
+                category: 'landmark',
+                description: 'Admire Bernini\'s Fountain of the Four Rivers in this beautiful Baroque square.',
+                recommendations: 'Perfect for evening strolls. Many cafes and restaurants around the square.'
+              }
+            ]
+          },
+          {
+            time: '20:00 - 22:00',
+            items: [
+              {
+                title: 'Campo de\' Fiori',
+                address: 'Campo de\' Fiori, 00186 Roma RM, Italy',
+                category: 'neighborhood',
+                description: 'Experience the vibrant market square by day and lively nightlife by evening.',
+                recommendations: 'Great for dinner and drinks. Try local Roman specialties at nearby restaurants.'
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    city: 'Lisbon',
+    country: 'Portugal',
+    title: 'Coastal Charm of Lisbon',
+    description: 'Discover Lisbon\'s stunning coastal beauty, historic neighborhoods, and delicious cuisine. A perfect blend of culture, history, and seaside relaxation.',
+    tags: ['culture', 'nature', 'food', 'coastal'],
+    duration_days: 1,
+    daily_plan: [
+      {
+        day: 1,
+        blocks: [
+          {
+            time: '09:00 - 10:30',
+            items: [
+              {
+                title: 'Belém Tower',
+                address: 'Av. Brasília, 1400-038 Lisboa, Portugal',
+                category: 'landmark',
+                description: 'Visit the iconic fortified tower that served as a point of embarkation for Portuguese explorers.',
+                recommendations: 'Arrive early to avoid crowds. The surrounding area is beautiful for photos.'
+              }
+            ]
+          },
+          {
+            time: '11:00 - 12:30',
+            items: [
+              {
+                title: 'Jerónimos Monastery',
+                address: 'Praça do Império 1400-206 Lisboa, Portugal',
+                category: 'landmark',
+                description: 'Admire the stunning Manueline architecture of this UNESCO World Heritage site.',
+                recommendations: 'Free entry on first Sunday of month. The cloisters are particularly beautiful.'
+              }
+            ]
+          },
+          {
+            time: '13:00 - 14:30',
+            items: [
+              {
+                title: 'Pastéis de Belém',
+                address: 'R. de Belém 84-92, 1300-085 Lisboa, Portugal',
+                category: 'restaurant',
+                description: 'Taste the original pastel de nata at the famous bakery where they were first created.',
+                recommendations: 'Expect a queue but it moves quickly. Best pastéis in Lisbon!'
+              }
+            ]
+          },
+          {
+            time: '15:00 - 16:30',
+            items: [
+              {
+                title: 'Alfama District',
+                address: 'Alfama, Lisbon, Portugal',
+                category: 'neighborhood',
+                description: 'Get lost in the narrow streets of Lisbon\'s oldest district, with its Moorish influence.',
+                recommendations: 'Take Tram 28 for a scenic ride. Listen to Fado music in local taverns.'
+              }
+            ]
+          },
+          {
+            time: '17:00 - 18:30',
+            items: [
+              {
+                title: 'São Jorge Castle',
+                address: 'R. de Santa Cruz do Castelo, 1100-129 Lisboa, Portugal',
+                category: 'landmark',
+                description: 'Explore the medieval castle with panoramic views over Lisbon and the Tagus River.',
+                recommendations: 'Best visited at sunset for stunning views. Wear comfortable shoes for the climb.'
+              }
+            ]
+          },
+          {
+            time: '19:00 - 20:30',
+            items: [
+              {
+                title: 'Time Out Market',
+                address: 'Av. 24 de Julho 49, 1200-479 Lisboa, Portugal',
+                category: 'market',
+                description: 'Experience Lisbon\'s food scene at this modern market with top local chefs.',
+                recommendations: 'Very popular, arrive early for dinner. Try Portuguese specialties from different stalls.'
+              }
+            ]
+          },
+          {
+            time: '21:00 - 22:30',
+            items: [
+              {
+                title: 'Bairro Alto',
+                address: 'Bairro Alto, 1200-109 Lisboa, Portugal',
+                category: 'neighborhood',
+                description: 'Experience Lisbon\'s vibrant nightlife in this historic neighborhood.',
+                recommendations: 'Great for evening drinks. Many bars and restaurants. Very lively atmosphere.'
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    city: 'Berlin',
+    country: 'Germany',
+    title: 'Modern Art & Nightlife in Berlin',
+    description: 'Dive into Berlin\'s contemporary art scene and legendary nightlife. From world-class galleries to underground clubs, experience the city\'s creative energy.',
+    tags: ['art', 'nightlife', 'culture', 'modern'],
+    duration_days: 1,
+    daily_plan: [
+      {
+        day: 1,
+        blocks: [
+          {
+            time: '10:00 - 12:00',
+            items: [
+              {
+                title: 'East Side Gallery',
+                address: 'Mühlenstraße 3-100, 10243 Berlin, Germany',
+                category: 'art_gallery',
+                description: 'See the longest remaining section of the Berlin Wall, covered in powerful murals by international artists.',
+                recommendations: 'Free to visit. Take your time to appreciate each artwork. Very photogenic.'
+              }
+            ]
+          },
+          {
+            time: '12:30 - 14:00',
+            items: [
+              {
+                title: 'Hamburger Bahnhof',
+                address: 'Invalidenstraße 50-51, 10557 Berlin, Germany',
+                category: 'museum',
+                description: 'Explore contemporary art in a former railway station, featuring works by Warhol, Beuys, and more.',
+                recommendations: 'Less crowded than other museums. The building itself is impressive.'
+              }
+            ]
+          },
+          {
+            time: '14:30 - 16:00',
+            items: [
+              {
+                title: 'Mitte District',
+                address: 'Mitte, Berlin, Germany',
+                category: 'neighborhood',
+                description: 'Explore Berlin\'s central district with galleries, boutiques, and trendy cafes.',
+                recommendations: 'Perfect for lunch. Many excellent restaurants and cafes in the area.'
+              }
+            ]
+          },
+          {
+            time: '16:30 - 18:00',
+            items: [
+              {
+                title: 'Brandenburg Gate',
+                address: 'Pariser Platz, 10117 Berlin, Germany',
+                category: 'landmark',
+                description: 'Visit Berlin\'s most iconic landmark, symbol of German reunification.',
+                recommendations: 'Best visited during golden hour for photos. Nearby Holocaust Memorial is worth visiting.'
+              }
+            ]
+          },
+          {
+            time: '18:30 - 20:00',
+            items: [
+              {
+                title: 'Reichstag Building',
+                address: 'Platz der Republik 1, 11011 Berlin, Germany',
+                category: 'landmark',
+                description: 'Visit the German parliament building with its stunning glass dome offering 360° city views.',
+                recommendations: 'Free entry but requires advance online registration. Book weeks in advance.'
+              }
+            ]
+          },
+          {
+            time: '20:30 - 22:00',
+            items: [
+              {
+                title: 'Kreuzberg District',
+                address: 'Kreuzberg, Berlin, Germany',
+                category: 'neighborhood',
+                description: 'Experience Berlin\'s most vibrant nightlife district with diverse bars, clubs, and restaurants.',
+                recommendations: 'Great for dinner. Try Turkish food (döner kebab) or international cuisine.'
+              }
+            ]
+          },
+          {
+            time: '22:30 - 02:00',
+            items: [
+              {
+                title: 'Berghain',
+                address: 'Am Wriezener Bahnhof, 10243 Berlin, Germany',
+                category: 'nightclub',
+                description: 'Experience Berlin\'s legendary techno club (if you can get in). A cultural institution.',
+                recommendations: 'Very selective door policy. Dress appropriately. Opens Friday night, closes Monday morning.'
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    city: 'London',
+    country: 'United Kingdom',
+    title: 'Royal London Experience',
+    description: 'Discover London\'s royal heritage, iconic landmarks, and world-class museums. A comprehensive two-day journey through the British capital.',
+    tags: ['culture', 'history', 'family', 'royal'],
+    duration_days: 2,
+    daily_plan: [
+      {
+        day: 1,
+        blocks: [
+          {
+            time: '09:00 - 11:00',
+            items: [
+              {
+                title: 'Buckingham Palace',
+                address: 'Westminster, London SW1A 1AA, UK',
+                category: 'landmark',
+                description: 'Watch the famous Changing of the Guard ceremony at the official residence of the British monarch.',
+                recommendations: 'Arrive by 10:30 AM for best viewing. Check schedule as it doesn\'t happen daily.'
+              }
+            ]
+          },
+          {
+            time: '11:30 - 13:00',
+            items: [
+              {
+                title: 'Westminster Abbey',
+                address: '20 Deans Yd, London SW1P 3PA, UK',
+                category: 'landmark',
+                description: 'Visit the coronation church and final resting place of British monarchs and notable figures.',
+                recommendations: 'Book tickets online. Audio guide included. Very popular, arrive early.'
+              }
+            ]
+          },
+          {
+            time: '13:30 - 15:00',
+            items: [
+              {
+                title: 'Big Ben & Houses of Parliament',
+                address: 'Westminster, London SW1A 0AA, UK',
+                category: 'landmark',
+                description: 'Admire the iconic clock tower and the seat of British democracy.',
+                recommendations: 'Best viewed from Westminster Bridge. Tours available but book in advance.'
+              }
+            ]
+          },
+          {
+            time: '15:30 - 17:30',
+            items: [
+              {
+                title: 'British Museum',
+                address: 'Great Russell St, London WC1B 3DG, UK',
+                category: 'museum',
+                description: 'Explore one of the world\'s greatest museums with artifacts from around the globe.',
+                recommendations: 'Free entry. Very large - focus on specific galleries. The Rosetta Stone is a must-see.'
+              }
+            ]
+          },
+          {
+            time: '18:00 - 19:30',
+            items: [
+              {
+                title: 'Covent Garden',
+                address: 'Covent Garden, London WC2E 8RF, UK',
+                category: 'neighborhood',
+                description: 'Explore the historic market area with shops, restaurants, and street performers.',
+                recommendations: 'Great for dinner. Many excellent restaurants. Street performers add to the atmosphere.'
+              }
+            ]
+          },
+          {
+            time: '20:00 - 21:30',
+            items: [
+              {
+                title: 'West End Show',
+                address: 'Various theaters, West End, London',
+                category: 'activity',
+                description: 'Experience world-class theater in London\'s famous West End district.',
+                recommendations: 'Book tickets in advance for popular shows. TKTS booth offers same-day discounts.'
+              }
+            ]
+          }
+        ]
+      },
+      {
+        day: 2,
+        blocks: [
+          {
+            time: '09:00 - 11:00',
+            items: [
+              {
+                title: 'Tower of London',
+                address: 'London EC3N 4AB, UK',
+                category: 'landmark',
+                description: 'Explore the historic castle, see the Crown Jewels, and learn about its dark history.',
+                recommendations: 'Book tickets online. Join a Beefeater tour for fascinating stories. Allow 2-3 hours.'
+              }
+            ]
+          },
+          {
+            time: '11:30 - 13:00',
+            items: [
+              {
+                title: 'Tower Bridge',
+                address: 'Tower Bridge Rd, London SE1 2UP, UK',
+                category: 'landmark',
+                description: 'Walk across the iconic bridge and visit the exhibition for panoramic views.',
+                recommendations: 'Free to walk across. Paid exhibition offers great views from the walkway.'
+              }
+            ]
+          },
+          {
+            time: '13:30 - 15:00',
+            items: [
+              {
+                title: 'Borough Market',
+                address: '8 Southwark St, London SE1 1TL, UK',
+                category: 'market',
+                description: 'Experience one of London\'s oldest food markets with gourmet treats and local produce.',
+                recommendations: 'Great for lunch. Try artisanal cheeses, fresh bread, and international street food.'
+              }
+            ]
+          },
+          {
+            time: '15:30 - 17:00',
+            items: [
+              {
+                title: 'Tate Modern',
+                address: 'Bankside, London SE1 9TG, UK',
+                category: 'museum',
+                description: 'Explore modern and contemporary art in a former power station on the Thames.',
+                recommendations: 'Free entry to permanent collection. Special exhibitions require tickets. Great views from the restaurant.'
+              }
+            ]
+          },
+          {
+            time: '17:30 - 19:00',
+            items: [
+              {
+                title: 'St. Paul\'s Cathedral',
+                address: 'St. Paul\'s Churchyard, London EC4M 8AD, UK',
+                category: 'landmark',
+                description: 'Climb to the top of the dome for stunning views of London.',
+                recommendations: 'Book tickets online. The climb is steep but worth it. Whispering Gallery is unique.'
+              }
+            ]
+          },
+          {
+            time: '19:30 - 21:30',
+            items: [
+              {
+                title: 'Shoreditch',
+                address: 'Shoreditch, London, UK',
+                category: 'neighborhood',
+                description: 'Explore London\'s trendy East End with street art, independent shops, and diverse dining.',
+                recommendations: 'Great for dinner. Many excellent restaurants. Very vibrant and creative area.'
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    city: 'Madrid',
+    country: 'Spain',
+    title: 'Food & Culture in Madrid',
+    description: 'Savor the flavors of Spanish cuisine and immerse yourself in Madrid\'s rich cultural heritage. A culinary and cultural journey through Spain\'s capital.',
+    tags: ['food', 'culture', 'city_tour', 'dining'],
+    duration_days: 1,
+    daily_plan: [
+      {
+        day: 1,
+        blocks: [
+          {
+            time: '09:00 - 10:30',
+            items: [
+              {
+                title: 'Plaza Mayor',
+                address: 'Pl. Mayor, 28012 Madrid, Spain',
+                category: 'landmark',
+                description: 'Start your day in Madrid\'s historic central square, surrounded by beautiful architecture.',
+                recommendations: 'Arrive early for fewer crowds. Enjoy churros con chocolate at a nearby cafe.'
+              }
+            ]
+          },
+          {
+            time: '11:00 - 12:30',
+            items: [
+              {
+                title: 'Royal Palace of Madrid',
+                address: 'Calle de Bailén, s/n, 28071 Madrid, Spain',
+                category: 'landmark',
+                description: 'Tour the official residence of the Spanish royal family, one of Europe\'s largest palaces.',
+                recommendations: 'Book tickets online. Allow 2 hours. The armory and pharmacy are highlights.'
+              }
+            ]
+          },
+          {
+            time: '13:00 - 14:30',
+            items: [
+              {
+                title: 'Mercado de San Miguel',
+                address: 'Plaza de San Miguel, s/n, 28005 Madrid, Spain',
+                category: 'market',
+                description: 'Taste authentic Spanish tapas, fresh seafood, and local delicacies in this beautiful market.',
+                recommendations: 'Very popular, can be crowded. Try jamón ibérico, croquetas, and fresh oysters.'
+              }
+            ]
+          },
+          {
+            time: '15:00 - 16:30',
+            items: [
+              {
+                title: 'Prado Museum',
+                address: 'Calle de Ruiz de Alarcón, 23, 28014 Madrid, Spain',
+                category: 'museum',
+                description: 'Admire masterpieces by Goya, Velázquez, El Greco, and other Spanish masters.',
+                recommendations: 'Free entry 6-8 PM Mon-Sat. Very large - focus on Spanish art section.'
+              }
+            ]
+          },
+          {
+            time: '17:00 - 18:30',
+            items: [
+              {
+                title: 'Retiro Park',
+                address: 'Plaza de la Independencia, 7, 28001 Madrid, Spain',
+                category: 'park',
+                description: 'Relax in Madrid\'s beautiful central park, rent a rowboat, or visit the Crystal Palace.',
+                recommendations: 'Perfect for a break. The lake and gardens are beautiful. Great for photos.'
+              }
+            ]
+          },
+          {
+            time: '19:00 - 20:30',
+            items: [
+              {
+                title: 'Tapas Tour in La Latina',
+                address: 'La Latina, Madrid, Spain',
+                category: 'neighborhood',
+                description: 'Experience Madrid\'s tapas culture in this historic neighborhood with traditional bars.',
+                recommendations: 'Go bar-hopping. Try different tapas at each place. Very authentic experience.'
+              }
+            ]
+          },
+          {
+            time: '21:00 - 23:00',
+            items: [
+              {
+                title: 'Flamenco Show',
+                address: 'Various venues, Madrid, Spain',
+                category: 'activity',
+                description: 'Experience authentic flamenco, Spain\'s passionate dance and music tradition.',
+                recommendations: 'Book in advance. Many venues in the city center. Some include dinner.'
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    city: 'Prague',
+    country: 'Czech Republic',
+    title: 'Medieval Magic of Prague',
+    description: 'Step into a fairy tale in Prague\'s historic Old Town. Discover medieval architecture, charming streets, and rich Czech culture over two magical days.',
+    tags: ['history', 'architecture', 'romantic', 'medieval'],
+    duration_days: 2,
+    daily_plan: [
+      {
+        day: 1,
+        blocks: [
+          {
+            time: '09:00 - 11:30',
+            items: [
+              {
+                title: 'Prague Castle',
+                address: 'Hradčany, 119 08 Praha 1, Czech Republic',
+                category: 'landmark',
+                description: 'Explore the largest ancient castle complex in the world, home to Czech kings and presidents.',
+                recommendations: 'Buy tickets online. Allocate at least 3 hours. St. Vitus Cathedral is stunning.'
+              }
+            ]
+          },
+          {
+            time: '12:00 - 13:30',
+            items: [
+              {
+                title: 'Golden Lane',
+                address: 'Zlatá ulička, 119 00 Praha 1, Czech Republic',
+                category: 'landmark',
+                description: 'Walk through the charming medieval street within the castle complex.',
+                recommendations: 'Included with castle ticket. Franz Kafka lived at house #22.'
+              }
+            ]
+          },
+          {
+            time: '14:00 - 15:30',
+            items: [
+              {
+                title: 'Charles Bridge',
+                address: 'Karlův most, 110 00 Praha 1, Czech Republic',
+                category: 'landmark',
+                description: 'Walk across the historic bridge with stunning views and Baroque statues.',
+                recommendations: 'Visit early morning or sunset for best photos. Very crowded during day.'
+              }
+            ]
+          },
+          {
+            time: '16:00 - 17:30',
+            items: [
+              {
+                title: 'Old Town Square',
+                address: 'Staroměstské nám., 110 00 Staré Město, Czech Republic',
+                category: 'landmark',
+                description: 'Admire the Astronomical Clock and the beautiful architecture of the historic square.',
+                recommendations: 'Watch the clock show on the hour. Many cafes and restaurants around the square.'
+              }
+            ]
+          },
+          {
+            time: '18:00 - 19:30',
+            items: [
+              {
+                title: 'Jewish Quarter (Josefov)',
+                address: 'Josefov, 110 00 Praha 1, Czech Republic',
+                category: 'neighborhood',
+                description: 'Explore the historic Jewish quarter with synagogues and the Old Jewish Cemetery.',
+                recommendations: 'Buy combined ticket for all sites. Very moving and historically significant.'
+              }
+            ]
+          },
+          {
+            time: '20:00 - 22:00',
+            items: [
+              {
+                title: 'Traditional Czech Dinner',
+                address: 'Various restaurants, Old Town, Prague',
+                category: 'restaurant',
+                description: 'Enjoy authentic Czech cuisine: goulash, dumplings, and Czech beer.',
+                recommendations: 'Try traditional dishes like svíčková or duck. Pair with local Pilsner beer.'
+              }
+            ]
+          }
+        ]
+      },
+      {
+        day: 2,
+        blocks: [
+          {
+            time: '09:00 - 10:30',
+            items: [
+              {
+                title: 'Petřín Hill',
+                address: 'Petřín, 118 00 Praha 1, Czech Republic',
+                category: 'park',
+                description: 'Take the funicular to the top for panoramic views and visit the observation tower.',
+                recommendations: 'Great for morning exercise. The views are spectacular. Less crowded than castle.'
+              }
+            ]
+          },
+          {
+            time: '11:00 - 12:30',
+            items: [
+              {
+                title: 'Lennon Wall',
+                address: 'Velkopřevorské nám., 100 00 Praha 1, Czech Republic',
+                category: 'landmark',
+                description: 'See the colorful wall covered in John Lennon-inspired graffiti and messages of peace.',
+                recommendations: 'Free to visit. Constantly changing artwork. Great for photos.'
+              }
+            ]
+          },
+          {
+            time: '13:00 - 14:30',
+            items: [
+              {
+                title: 'Wenceslas Square',
+                address: 'Václavské nám., 110 00 Nové Město, Czech Republic',
+                category: 'landmark',
+                description: 'Walk through Prague\'s main commercial square, site of many historical events.',
+                recommendations: 'Great for shopping and lunch. Many restaurants and cafes in the area.'
+              }
+            ]
+          },
+          {
+            time: '15:00 - 16:30',
+            items: [
+              {
+                title: 'Municipal House',
+                address: 'nám. Republiky 5, 111 21 Praha 1, Czech Republic',
+                category: 'landmark',
+                description: 'Admire the Art Nouveau architecture and enjoy a coffee in the elegant cafe.',
+                recommendations: 'Beautiful interior. The cafe is worth a visit even if you don\'t attend a concert.'
+              }
+            ]
+          },
+          {
+            time: '17:00 - 18:30',
+            items: [
+              {
+                title: 'Vltava River Cruise',
+                address: 'Various departure points, Prague',
+                category: 'activity',
+                description: 'See Prague from the water on a relaxing river cruise.',
+                recommendations: 'Many operators available. Evening cruises offer beautiful city lights.'
+              }
+            ]
+          },
+          {
+            time: '19:00 - 21:00',
+            items: [
+              {
+                title: 'Dancing House',
+                address: 'Jiráskovo nám. 1981/6, 120 00 Praha 2, Czech Republic',
+                category: 'landmark',
+                description: 'Admire the unique modern architecture of this deconstructivist building.',
+                recommendations: 'Great for photos. The rooftop bar offers nice views (paid access).'
+              }
+            ]
+          },
+          {
+            time: '21:30 - 23:00',
+            items: [
+              {
+                title: 'Prague Nightlife',
+                address: 'Various venues, Old Town, Prague',
+                category: 'nightlife',
+                description: 'Experience Prague\'s vibrant nightlife with bars, clubs, and live music.',
+                recommendations: 'Many options in Old Town and New Town. Czech beer is excellent and affordable.'
+              }
+            ]
+          }
+        ]
+      }
+    ]
   }
 ];
 
