@@ -137,8 +137,7 @@ export default async function handler(req, res) {
         });
       }
 
-      const { search, status, city, format } = req.query;
-
+      // Use search, status, city, format from the destructuring above (line 43)
       let query = supabase
         .from('tours')
         .select(`
