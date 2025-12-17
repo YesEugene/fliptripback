@@ -187,9 +187,13 @@ export default async function handler(req, res) {
       let result;
       if (existingGuide) {
         // Update existing profile
+        // Don't update user_id on existing records
+        const updateData = { ...guideData };
+        delete updateData.user_id;
+        
         const { data: updatedGuide, error: updateError } = await supabase
           .from('guides')
-          .update(guideData)
+          .update(updateData)
           .eq('user_id', userId)
           .select()
           .single();
