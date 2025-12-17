@@ -95,28 +95,35 @@ export default async function handler(req, res) {
       console.log('📥 Received user creation request:', {
         email: req.body?.email,
         hasPassword: !!req.body?.password,
+        passwordLength: req.body?.password?.length,
         name: req.body?.name,
         role: req.body?.role,
-        bodyKeys: Object.keys(req.body || {})
+        bodyKeys: Object.keys(req.body || {}),
+        fullBody: JSON.stringify(req.body)
       });
 
       const { email, password, name, role = 'user' } = req.body;
 
-      // Validation
-      if (!email || !password) {
-        console.error('❌ Validation failed:', {
-          hasEmail: !!email,
+      // Validation - check for empty strings too
+      if (!email || !email.trim()) {
+        console.error('❌ Validation failed: email is missing or empty');
+        return res.status(400).json({
+          success: false,
+          error: 'Email is required',
+          details: 'Email field is missing or empty'
+        });
+      }
+
+      if (!password || !password.trim() || password.length < 6) {
+        console.error('❌ Validation failed: password is missing, empty, or too short', {
           hasPassword: !!password,
-          email,
-          passwordLength: password?.length
+          passwordLength: password?.length,
+          passwordValue: password ? '***' : 'missing'
         });
         return res.status(400).json({
           success: false,
-          error: 'Email and password are required',
-          details: {
-            email: email || 'missing',
-            password: password ? 'provided' : 'missing'
-          }
+          error: 'Password is required and must be at least 6 characters',
+          details: password ? `Password is too short (${password.length} characters)` : 'Password field is missing'
         });
       }
 
