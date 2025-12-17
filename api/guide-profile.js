@@ -162,11 +162,20 @@ export default async function handler(req, res) {
       };
 
       // Check if guide profile exists
-      const { data: existingGuide } = await supabase
+      const { data: existingGuide, error: checkError } = await supabase
         .from('guides')
         .select('id')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
+      
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('Profile check error:', checkError);
+        return res.status(500).json({
+          success: false,
+          message: 'Error checking profile',
+          error: checkError.message
+        });
+      }
 
       let result;
       if (existingGuide) {
