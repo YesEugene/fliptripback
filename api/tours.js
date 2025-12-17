@@ -65,15 +65,23 @@ export default async function handler(req, res) {
           ),
           tour_tags(
             tag:tags(id, name)
-          ),
-          guide:guides!tours_guide_id_fkey(
-            id,
-            name,
-            avatar_url
           )
         `)
         .eq('id', id)
         .single();
+
+      // Load guide info separately if guide_id exists
+      let guideInfo = null;
+      if (tour && tour.guide_id) {
+        const { data: guide } = await supabase
+          .from('guides')
+          .select('id, name, avatar_url')
+          .eq('user_id', tour.guide_id)
+          .maybeSingle();
+        if (guide) {
+          guideInfo = guide;
+        }
+      }
 
       if (error || !tour) {
         return res.status(404).json({ 
@@ -87,7 +95,9 @@ export default async function handler(req, res) {
         ...tour,
         // Extract city name from city object if it exists
         city: tour.city?.name || tour.city || null,
-        daily_plan: convertTourToDailyPlan(tour)
+        daily_plan: convertTourToDailyPlan(tour),
+        // Add guide info if available
+        guide: guideInfo
       };
 
       return res.status(200).json({
@@ -117,11 +127,6 @@ export default async function handler(req, res) {
         city:cities(name),
         tour_tags(
           tag:tags(id, name)
-        ),
-        guide:guides!tours_guide_id_fkey(
-          id,
-          name,
-          avatar_url
         )
       `)
       .eq('is_published', true)
@@ -194,11 +199,30 @@ export default async function handler(req, res) {
       );
     }
 
+    // Load guide info for all tours
+    const toursWithGuides = await Promise.all(
+      filteredTours.map(async (tour) => {
+        let guideInfo = null;
+        if (tour.guide_id) {
+          const { data: guide } = await supabase
+            .from('guides')
+            .select('id, name, avatar_url')
+            .eq('user_id', tour.guide_id)
+            .maybeSingle();
+          if (guide) {
+            guideInfo = guide;
+          }
+        }
+        return {
+          ...tour,
+          guide: guideInfo,
+          daily_plan: [] // Would need to load full structure for this
+        };
+      })
+    );
+
     // Convert to legacy format
-    const formattedTours = filteredTours.map(tour => ({
-      ...tour,
-      daily_plan: [] // Would need to load full structure for this
-    }));
+    const formattedTours = toursWithGuides;
 
     return res.status(200).json({
       success: true,
