@@ -3,16 +3,7 @@
  * POST /api/update-sample-tours
  */
 
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!supabaseUrl || !supabaseServiceKey) {
-  console.error('❌ Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
-}
-
-const db = supabaseUrl && supabaseServiceKey ? createClient(supabaseUrl, supabaseServiceKey) : null;
+import { supabase } from '../database/db.js';
 
 // Enhanced tour data (same as in update-sample-tours.js script)
 const enhancedTours = [
@@ -1282,10 +1273,10 @@ const enhancedTours = [
 
 // Helper functions (same as in script)
 async function getOrCreateCity(cityName, countryName) {
-  if (!cityName || !db) return null;
+  if (!cityName || !supabase) return null;
   
   try {
-    const { data: existing } = await db
+    const { data: existing } = await supabase
       .from('cities')
       .select('id')
       .ilike('name', cityName)
@@ -1296,7 +1287,7 @@ async function getOrCreateCity(cityName, countryName) {
       return existing.id;
     }
     
-    const { data: newCity, error } = await db
+    const { data: newCity, error } = await supabase
       .from('cities')
       .insert({ name: cityName, country: countryName || null })
       .select('id')
@@ -1315,12 +1306,12 @@ async function getOrCreateCity(cityName, countryName) {
 }
 
 async function getOrCreateTags(tagNames) {
-  if (!db) return [];
+  if (!supabase) return [];
   const tagIds = [];
   
   for (const tagName of tagNames) {
     try {
-      const { data: existing } = await db
+      const { data: existing } = await supabase
         .from('tags')
         .select('id')
         .ilike('name', tagName)
@@ -1332,7 +1323,7 @@ async function getOrCreateTags(tagNames) {
         continue;
       }
       
-      const { data: newTag, error } = await db
+      const { data: newTag, error } = await supabase
         .from('tags')
         .insert({ name: tagName })
         .select('id')
@@ -1380,7 +1371,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ success: false, message: 'Method not allowed' });
   }
 
-  if (!db) {
+  if (!supabase) {
     return res.status(500).json({ success: false, error: 'Database not configured' });
   }
 
@@ -1396,7 +1387,7 @@ export default async function handler(req, res) {
         console.log(`\n📝 Updating tour: ${tourData.title}`);
         
         // Find existing tour by title
-        const { data: existingTours, error: findError } = await db
+        const { data: existingTours, error: findError } = await supabase
           .from('tours')
           .select('id, title')
           .ilike('title', tourData.title)
@@ -1430,7 +1421,7 @@ export default async function handler(req, res) {
         console.log(`✅ Tags: ${tourData.tags.join(', ')} (IDs: ${tagIds.join(', ')})`);
         
         // Update tour basic info
-        const { error: updateError } = await db
+        const { error: updateError } = await supabase
           .from('tours')
           .update({
             title: tourData.title,
@@ -1450,7 +1441,7 @@ export default async function handler(req, res) {
         console.log(`✅ Updated tour basic info`);
         
         // Get existing tour days to delete
-        const { data: existingDays } = await db
+        const { data: existingDays } = await supabase
           .from('tour_days')
           .select('id')
           .eq('tour_id', existingTour.id);
@@ -1459,7 +1450,7 @@ export default async function handler(req, res) {
           const dayIds = existingDays.map(d => d.id);
           
           // Get existing blocks
-          const { data: existingBlocks } = await db
+          const { data: existingBlocks } = await supabase
             .from('tour_blocks')
             .select('id')
             .in('tour_day_id', dayIds);
@@ -1468,18 +1459,18 @@ export default async function handler(req, res) {
             const blockIds = existingBlocks.map(b => b.id);
             
             // Delete items
-            await db.from('tour_items').delete().in('tour_block_id', blockIds);
+            await supabase.from('tour_items').delete().in('tour_block_id', blockIds);
           }
           
           // Delete blocks
-          await db.from('tour_blocks').delete().in('tour_day_id', dayIds);
+          await supabase.from('tour_blocks').delete().in('tour_day_id', dayIds);
         }
         
         // Delete days
-        await db.from('tour_days').delete().eq('tour_id', existingTour.id);
+        await supabase.from('tour_days').delete().eq('tour_id', existingTour.id);
         
         // Delete existing tour tags
-        await db.from('tour_tags').delete().eq('tour_id', existingTour.id);
+        await supabase.from('tour_tags').delete().eq('tour_id', existingTour.id);
         
         // Create new tour tags
         if (tagIds.length > 0) {
@@ -1487,13 +1478,13 @@ export default async function handler(req, res) {
             tour_id: existingTour.id,
             tag_id: tagId
           }));
-          await db.from('tour_tags').insert(tourTagInserts);
+          await supabase.from('tour_tags').insert(tourTagInserts);
           console.log(`✅ Created ${tourTagInserts.length} tour tags`);
         }
         
         // Create new tour structure
         for (const dayPlan of tourData.daily_plan) {
-          const { data: newDay, error: dayError } = await db
+          const { data: newDay, error: dayError } = await supabase
             .from('tour_days')
             .insert({
               tour_id: existingTour.id,
@@ -1509,7 +1500,7 @@ export default async function handler(req, res) {
           }
           
           for (const blockPlan of dayPlan.blocks) {
-            const { data: newBlock, error: blockError } = await db
+            const { data: newBlock, error: blockError } = await supabase
               .from('tour_blocks')
               .insert({
                 tour_day_id: newDay.id,
@@ -1530,7 +1521,7 @@ export default async function handler(req, res) {
               
               // Try to find existing location first
               let locationId = null;
-              const { data: existingLocation } = await db
+              const { data: existingLocation } = await supabase
                 .from('locations')
                 .select('id')
                 .ilike('name', itemPlan.title)
@@ -1554,7 +1545,7 @@ export default async function handler(req, res) {
                   source: 'admin'
                 };
                 
-                const { data: newLocation, error: locationError } = await db
+                const { data: newLocation, error: locationError } = await supabase
                   .from('locations')
                   .insert(locationData)
                   .select('id')
@@ -1569,7 +1560,7 @@ export default async function handler(req, res) {
               }
               
               if (locationId) {
-                const { error: itemError } = await db
+                const { error: itemError } = await supabase
                   .from('tour_items')
                   .insert({
                     tour_block_id: newBlock.id,
