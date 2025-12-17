@@ -43,29 +43,69 @@ export default async function handler(req, res) {
       });
     }
 
+    console.log('🔐 Login attempt for email:', email);
+
     // Поиск пользователя в БД
     const { data: user, error: userError } = await supabase
       .from('users')
       .select('*')
       .eq('email', email)
-      .eq('is_active', true)
-      .single();
+      .maybeSingle(); // Use maybeSingle instead of single to avoid errors
 
-    if (userError || !user) {
+    console.log('👤 User lookup result:', {
+      found: !!user,
+      error: userError?.message || null,
+      isActive: user?.is_active,
+      hasPasswordHash: !!user?.password_hash
+    });
+
+    if (userError && userError.code !== 'PGRST116') {
+      console.error('❌ Database error during login:', userError);
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Ошибка базы данных',
+        error: userError.message
+      });
+    }
+
+    if (!user) {
+      console.log('❌ User not found:', email);
       return res.status(401).json({ 
         success: false, 
         message: 'Неверный email или пароль' 
+      });
+    }
+
+    if (!user.is_active) {
+      console.log('❌ User is inactive:', email);
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Аккаунт неактивен. Обратитесь к администратору.' 
+      });
+    }
+
+    if (!user.password_hash) {
+      console.error('❌ User has no password hash:', email);
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Ошибка: пароль не установлен. Обратитесь к администратору.' 
       });
     }
 
     // Проверка пароля
+    console.log('🔑 Comparing password...');
     const passwordMatch = await bcrypt.compare(password, user.password_hash);
+    console.log('🔑 Password match result:', passwordMatch);
+    
     if (!passwordMatch) {
+      console.log('❌ Password mismatch for user:', email);
       return res.status(401).json({ 
         success: false, 
         message: 'Неверный email или пароль' 
       });
     }
+
+    console.log('✅ Login successful for user:', email);
 
     // Обновление last_login
     await supabase
