@@ -163,7 +163,8 @@ export default async function handler(req, res) {
           email,
           password_hash: hashedPassword,
           name: name || null,
-          role: role
+          role: role,
+          is_active: true // Set user as active by default
         })
         .select()
         .single();
@@ -208,21 +209,25 @@ export default async function handler(req, res) {
         }
       }
 
-      return res.status(201).json({
+      const response = {
         success: true,
         user: {
           id: newUser.id,
           email: newUser.email,
           name: newUser.name,
           role: newUser.role
-        },
-        // Include generated password only if it was auto-generated
-        // Frontend should display this to admin so they can share it with the user
-        ...(generatedPassword ? { 
-          generatedPassword: finalPassword,
-          message: 'Password was auto-generated. Please save it and share with the user.'
-        } : {})
-      });
+        }
+      };
+
+      // Include generated password only if it was auto-generated
+      if (generatedPassword) {
+        response.generatedPassword = finalPassword;
+        response.temporaryPassword = finalPassword; // Also include as temporaryPassword for frontend compatibility
+        response.message = 'Password was auto-generated. Please save it and share with the user.';
+        console.log(`✅ User created with generated password (length: ${finalPassword.length})`);
+      }
+
+      return res.status(201).json(response);
     } catch (error) {
       console.error('❌ Error creating user:', error);
       // Ensure CORS headers are set even on error
