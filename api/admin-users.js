@@ -199,15 +199,45 @@ export default async function handler(req, res) {
 
       // If guide or creator, create guide profile
       if (role === 'guide' || role === 'creator') {
-        const { error: guideError } = await supabase
-          .from('guides')
-          .insert({
-            user_id: userId,
-            name: name || email.split('@')[0] || 'Guide'
-          });
+        // Check what column name is used in guides table
+        // Try user_id first, then id
+        let guideInsertData = {
+          name: name || email.split('@')[0] || 'Guide'
+        };
+        
+        // Try user_id first (most common)
+        try {
+          const { error: guideError } = await supabase
+            .from('guides')
+            .insert({
+              user_id: userId,
+              ...guideInsertData
+            });
 
-        if (guideError) {
-          console.warn('Warning: Could not create guide profile:', guideError);
+          if (guideError) {
+            // If user_id doesn't work, try id
+            if (guideError.code === 'PGRST204' || guideError.message?.includes('user_id')) {
+              console.log('⚠️ user_id column not found, trying id column...');
+              const { error: guideError2 } = await supabase
+                .from('guides')
+                .insert({
+                  id: userId,
+                  ...guideInsertData
+                });
+              
+              if (guideError2) {
+                console.warn('Warning: Could not create guide profile:', guideError2);
+              } else {
+                console.log('✅ Guide profile created with id column');
+              }
+            } else {
+              console.warn('Warning: Could not create guide profile:', guideError);
+            }
+          } else {
+            console.log('✅ Guide profile created with user_id column');
+          }
+        } catch (err) {
+          console.warn('Warning: Exception creating guide profile:', err.message);
         }
       }
 
@@ -221,13 +251,26 @@ export default async function handler(req, res) {
         }
       };
 
-      // Include generated password only if it was auto-generated
+      // ALWAYS include password in response if it was generated
+      // This is critical for admin to share with user
       if (generatedPassword) {
         response.generatedPassword = finalPassword;
-        response.temporaryPassword = finalPassword; // Also include as temporaryPassword for frontend compatibility
+        response.temporaryPassword = finalPassword;
+        response.password = finalPassword; // Also include as password for maximum compatibility
         response.message = 'Password was auto-generated. Please save it and share with the user.';
         console.log(`✅ User created with generated password (length: ${finalPassword.length})`);
+        console.log(`🔑 Generated password (for admin): ${finalPassword}`);
+      } else if (password) {
+        // If password was provided, don't return it for security
+        response.message = 'User created successfully.';
       }
+
+      console.log('📤 Sending response:', {
+        success: response.success,
+        hasGeneratedPassword: !!response.generatedPassword,
+        hasTemporaryPassword: !!response.temporaryPassword,
+        hasPassword: !!response.password
+      });
 
       return res.status(201).json(response);
     } catch (error) {
