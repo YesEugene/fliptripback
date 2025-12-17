@@ -65,6 +65,11 @@ export default async function handler(req, res) {
           ),
           tour_tags(
             tag:tags(id, name)
+          ),
+          guide:guides!tours_guide_id_fkey(
+            id,
+            name,
+            avatar_url
           )
         `)
         .eq('id', id)
