@@ -215,6 +215,7 @@ export default async function handler(req, res) {
         }
       }
 
+      // Build response - ALWAYS include password if it was generated
       const response = {
         success: true,
         user: {
@@ -226,25 +227,33 @@ export default async function handler(req, res) {
       };
 
       // ALWAYS include password in response if it was generated
-      // This is critical for admin to share with user
+      // Include in multiple fields for frontend compatibility
       if (generatedPassword) {
-        response.generatedPassword = finalPassword;
+        // Frontend expects tempPassword (lowercase 't')
+        response.tempPassword = finalPassword;
         response.temporaryPassword = finalPassword;
-        response.password = finalPassword; // Also include as password for maximum compatibility
+        response.generatedPassword = finalPassword;
+        response.password = finalPassword;
         response.message = 'Password was auto-generated. Please save it and share with the user.';
-        console.log(`✅ User created with generated password (length: ${finalPassword.length})`);
-        console.log(`🔑 Generated password (for admin): ${finalPassword}`);
-      } else if (password) {
-        // If password was provided, don't return it for security
+        console.log(`✅ User created with generated password`);
+        console.log(`🔑 Password value: ${finalPassword}`);
+        console.log(`🔑 Password fields in response: tempPassword=${!!response.tempPassword}, temporaryPassword=${!!response.temporaryPassword}, generatedPassword=${!!response.generatedPassword}`);
+      } else if (password && password.trim().length >= 6) {
+        // If password was provided and valid, don't return it for security
+        response.message = 'User created successfully.';
+      } else {
+        // This shouldn't happen, but just in case
         response.message = 'User created successfully.';
       }
 
-      console.log('📤 Sending response:', {
+      console.log('📤 Final response object:', JSON.stringify({
         success: response.success,
         hasGeneratedPassword: !!response.generatedPassword,
         hasTemporaryPassword: !!response.temporaryPassword,
-        hasPassword: !!response.password
-      });
+        hasPassword: !!response.password,
+        generatedPasswordLength: response.generatedPassword?.length || 0,
+        temporaryPasswordLength: response.temporaryPassword?.length || 0
+      }, null, 2));
 
       return res.status(201).json(response);
     } catch (error) {
