@@ -92,13 +92,31 @@ export default async function handler(req, res) {
         });
       }
 
+      console.log('📥 Received user creation request:', {
+        email: req.body?.email,
+        hasPassword: !!req.body?.password,
+        name: req.body?.name,
+        role: req.body?.role,
+        bodyKeys: Object.keys(req.body || {})
+      });
+
       const { email, password, name, role = 'user' } = req.body;
 
       // Validation
       if (!email || !password) {
+        console.error('❌ Validation failed:', {
+          hasEmail: !!email,
+          hasPassword: !!password,
+          email,
+          passwordLength: password?.length
+        });
         return res.status(400).json({
           success: false,
-          error: 'Email and password are required'
+          error: 'Email and password are required',
+          details: {
+            email: email || 'missing',
+            password: password ? 'provided' : 'missing'
+          }
         });
       }
 
@@ -143,11 +161,28 @@ export default async function handler(req, res) {
         .single();
 
       if (insertError) {
-        console.error('Error creating user:', insertError);
+        console.error('❌ Error creating user in database:', insertError);
+        console.error('❌ Insert error details:', JSON.stringify(insertError, null, 2));
+        // Ensure CORS headers are set even on error
+        const origin = req.headers.origin;
+        const allowedOrigins = [
+          'https://www.flip-trip.com',
+          'https://flip-trip.com',
+          'https://fliptripfrontend.vercel.app',
+          'http://localhost:5173',
+          'http://localhost:3000'
+        ];
+        if (origin && allowedOrigins.includes(origin)) {
+          res.setHeader('Access-Control-Allow-Origin', origin);
+        } else {
+          res.setHeader('Access-Control-Allow-Origin', '*');
+        }
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
         return res.status(500).json({
           success: false,
           error: 'Failed to create user',
-          message: insertError.message
+          message: insertError.message,
+          code: insertError.code
         });
       }
 
