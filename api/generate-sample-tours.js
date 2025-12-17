@@ -177,34 +177,94 @@ const sampleTours = [
     city: 'Barcelona',
     country: 'Spain',
     title: 'Artistic Exploration in Barcelona',
-    description: 'Immerse yourself in Barcelona\'s rich art and architecture scene.',
-    tags: ['culture', 'art', 'architecture'],
+    description: 'Immerse yourself in Barcelona\'s rich art and architecture scene. From Gaudi\'s masterpieces to contemporary art, discover the creative soul of Catalonia.',
+    tags: ['culture', 'art', 'architecture', 'gaudi'],
     preview_media_url: 'https://images.unsplash.com/photo-1539037116277-4db20889f2d2?w=800&h=600&fit=crop&q=80',
     daily_plan: [
       {
         day: 1,
         blocks: [
           {
-            time: '10:00 - 12:00',
+            time: '09:00 - 11:30',
             items: [
               {
                 title: 'Sagrada Familia',
-                address: 'Carrer de Mallorca, 401, 08013 Barcelona',
+                address: 'Carrer de Mallorca, 401, 08013 Barcelona, Spain',
                 category: 'landmark',
-                description: 'Visit Gaudi\'s masterpiece, the unfinished basilica.',
-                recommendations: 'Purchase tickets online to skip the line.'
+                description: 'Visit Gaudi\'s unfinished masterpiece, a stunning basilica that has been under construction for over 100 years.',
+                recommendations: 'Book tickets online months in advance. Audio guide or guided tour highly recommended. Allow 2 hours.'
               }
             ]
           },
           {
-            time: '14:00 - 16:00',
+            time: '12:00 - 13:30',
             items: [
               {
                 title: 'Park Güell',
-                address: '08024 Barcelona',
+                address: '08024 Barcelona, Spain',
                 category: 'park',
-                description: 'Explore the colorful park designed by Antoni Gaudi.',
-                recommendations: 'Wear comfortable shoes for walking.'
+                description: 'Explore the colorful park designed by Antoni Gaudi with mosaic sculptures and stunning city views.',
+                recommendations: 'Book timed entry online. The monumental zone requires ticket. Free areas also beautiful.'
+              }
+            ]
+          },
+          {
+            time: '14:00 - 15:30',
+            items: [
+              {
+                title: 'La Boqueria Market',
+                address: 'La Rambla, 91, 08001 Barcelona, Spain',
+                category: 'market',
+                description: 'Experience Barcelona\'s most famous food market with fresh produce, seafood, and local specialties.',
+                recommendations: 'Very crowded, especially weekends. Try fresh fruit juices and local snacks. Great for lunch.'
+              }
+            ]
+          },
+          {
+            time: '16:00 - 17:30',
+            items: [
+              {
+                title: 'Casa Batlló',
+                address: 'Passeig de Gràcia, 43, 08008 Barcelona, Spain',
+                category: 'landmark',
+                description: 'Admire Gaudi\'s architectural masterpiece, a building that looks like it\'s from a fairy tale.',
+                recommendations: 'Book tickets online. Audio guide included. Very popular, book in advance.'
+              }
+            ]
+          },
+          {
+            time: '18:00 - 19:30',
+            items: [
+              {
+                title: 'Gothic Quarter',
+                address: 'Gothic Quarter, Barcelona, Spain',
+                category: 'neighborhood',
+                description: 'Wander through medieval streets, discover hidden plazas, and admire Gothic architecture.',
+                recommendations: 'Free to explore. Very atmospheric. Many small shops and cafes. Great for evening stroll.'
+              }
+            ]
+          },
+          {
+            time: '20:00 - 22:00',
+            items: [
+              {
+                title: 'Tapas in El Born',
+                address: 'El Born, Barcelona, Spain',
+                category: 'neighborhood',
+                description: 'Experience Barcelona\'s tapas culture in the trendy El Born neighborhood.',
+                recommendations: 'Very popular area. Try different tapas at multiple bars. Very social dining experience.'
+              }
+            ]
+          },
+          {
+            time: '22:30 - 00:30',
+            items: [
+              {
+                title: 'Flamenco Show',
+                address: 'Various, Barcelona, Spain',
+                category: 'activity',
+                description: 'Watch an authentic flamenco performance, experiencing the passion of Spanish dance and music.',
+                recommendations: 'Book in advance. Shows typically start around 9-10 PM. Some include dinner and drinks.'
               }
             ]
           }
@@ -216,8 +276,8 @@ const sampleTours = [
     city: 'Amsterdam',
     country: 'Netherlands',
     title: 'Cycling Adventure in Amsterdam',
-    description: 'Experience Amsterdam like a local with this cycling tour.',
-    tags: ['active', 'cycling', 'nature'],
+    description: 'Experience Amsterdam like a local with this cycling tour. Discover canals, museums, and the unique Dutch culture on two wheels.',
+    tags: ['active', 'cycling', 'nature', 'culture'],
     preview_media_url: 'https://images.unsplash.com/photo-1534351590666-13e3e96b5017?w=800&h=600&fit=crop&q=80',
     daily_plan: [
       {
@@ -228,22 +288,82 @@ const sampleTours = [
             items: [
               {
                 title: 'Vondelpark',
-                address: 'Vondelpark, Amsterdam',
+                address: 'Vondelpark, Amsterdam, Netherlands',
                 category: 'park',
-                description: 'Start your cycling adventure in Amsterdam\'s largest park.',
-                recommendations: 'Rent a bike from one of the many rental shops nearby.'
+                description: 'Start your cycling adventure in Amsterdam\'s largest and most famous park, perfect for a morning ride.',
+                recommendations: 'Rent a bike from one of the many rental shops. Park is free and beautiful. Watch for pedestrians.'
               }
             ]
           },
           {
-            time: '13:00 - 15:00',
+            time: '11:30 - 13:00',
+            items: [
+              {
+                title: 'Rijksmuseum',
+                address: 'Museumstraat 1, 1071 XX Amsterdam, Netherlands',
+                category: 'museum',
+                description: 'Visit the Netherlands\' national museum with masterpieces by Rembrandt, Vermeer, and other Dutch masters.',
+                recommendations: 'Book tickets online. Very popular. Focus on Gallery of Honour for highlights. Allow 2-3 hours.'
+              }
+            ]
+          },
+          {
+            time: '13:30 - 15:00',
             items: [
               {
                 title: 'Canal Ring',
-                address: 'Canal Ring, Amsterdam',
+                address: 'Canal Ring, Amsterdam, Netherlands',
                 category: 'landmark',
-                description: 'Cycle along the beautiful canal ring, a UNESCO World Heritage site.',
-                recommendations: 'Stop for photos at the famous bridges.'
+                description: 'Cycle along the beautiful 17th-century canal ring, a UNESCO World Heritage site.',
+                recommendations: 'Follow the bike paths. Stop for photos at famous bridges. Very scenic route.'
+              }
+            ]
+          },
+          {
+            time: '15:30 - 17:00',
+            items: [
+              {
+                title: 'Anne Frank House',
+                address: 'Westermarkt 20, 1016 GV Amsterdam, Netherlands',
+                category: 'museum',
+                description: 'Visit the hiding place where Anne Frank wrote her famous diary during WWII.',
+                recommendations: 'Must book tickets online months in advance. Very moving experience. No photos inside.'
+              }
+            ]
+          },
+          {
+            time: '17:30 - 19:00',
+            items: [
+              {
+                title: 'Jordaan Neighborhood',
+                address: 'Jordaan, Amsterdam, Netherlands',
+                category: 'neighborhood',
+                description: 'Explore the charming Jordaan district with its narrow streets, art galleries, and cozy cafes.',
+                recommendations: 'Great for a break. Many small restaurants and bars. Very picturesque.'
+              }
+            ]
+          },
+          {
+            time: '19:30 - 21:30',
+            items: [
+              {
+                title: 'Van Gogh Museum',
+                address: 'Museumplein 6, 1071 DJ Amsterdam, Netherlands',
+                category: 'museum',
+                description: 'Explore the world\'s largest collection of Van Gogh\'s paintings and learn about his life.',
+                recommendations: 'Book timed entry online. Very popular. Audio guide recommended. Allow 1.5-2 hours.'
+              }
+            ]
+          },
+          {
+            time: '22:00 - 23:30',
+            items: [
+              {
+                title: 'Dutch Pub Experience',
+                address: 'Various, Amsterdam, Netherlands',
+                category: 'restaurant',
+                description: 'Enjoy traditional Dutch food and local beer in a cozy brown cafe (bruin café).',
+                recommendations: 'Try bitterballen, stroopwafels, and Dutch cheese. Very cozy atmosphere.'
               }
             ]
           }
@@ -255,34 +375,94 @@ const sampleTours = [
     city: 'Rome',
     country: 'Italy',
     title: 'Ancient History Tour of Rome',
-    description: 'Step back in time and explore Rome\'s ancient wonders.',
-    tags: ['culture', 'history', 'architecture'],
+    description: 'Step back in time and explore Rome\'s ancient wonders. From the Colosseum to the Forum, discover the legacy of the Roman Empire.',
+    tags: ['culture', 'history', 'architecture', 'ancient'],
     preview_media_url: 'https://images.unsplash.com/photo-1529260830199-42c24126f198?w=800&h=600&fit=crop&q=80',
     daily_plan: [
       {
         day: 1,
         blocks: [
           {
-            time: '09:00 - 11:00',
+            time: '08:30 - 11:00',
             items: [
               {
                 title: 'Colosseum',
-                address: 'Piazza del Colosseo, 1, 00184 Roma RM',
+                address: 'Piazza del Colosseo, 1, 00184 Roma RM, Italy',
                 category: 'landmark',
-                description: 'Visit the iconic Colosseum, symbol of ancient Rome.',
-                recommendations: 'Book a guided tour to learn about gladiator history.'
+                description: 'Visit the iconic amphitheater, symbol of ancient Rome and one of the world\'s most famous landmarks.',
+                recommendations: 'Book tickets online months in advance. Combined ticket includes Forum and Palatine Hill. Guided tours recommended.'
               }
             ]
           },
           {
-            time: '12:00 - 14:00',
+            time: '11:30 - 13:30',
             items: [
               {
                 title: 'Roman Forum',
-                address: 'Via della Salara Vecchia, 5/6, 00186 Roma RM',
+                address: 'Via della Salara Vecchia, 5/6, 00186 Roma RM, Italy',
                 category: 'landmark',
-                description: 'Walk through the ruins of ancient Rome\'s political center.',
-                recommendations: 'Combine with Colosseum ticket for better value.'
+                description: 'Walk through the ruins of ancient Rome\'s political and commercial center.',
+                recommendations: 'Included with Colosseum ticket. Audio guide helpful. Allow 1-2 hours. Very hot in summer, bring water.'
+              }
+            ]
+          },
+          {
+            time: '14:00 - 15:30',
+            items: [
+              {
+                title: 'Palatine Hill',
+                address: 'Palatine Hill, 00186 Roma RM, Italy',
+                category: 'landmark',
+                description: 'Explore the hill where Rome was founded and where emperors built their palaces.',
+                recommendations: 'Included with Colosseum ticket. Great views of Forum. Less crowded than Forum.'
+              }
+            ]
+          },
+          {
+            time: '16:00 - 17:30',
+            items: [
+              {
+                title: 'Pantheon',
+                address: 'Piazza della Rotonda, 00186 Roma RM, Italy',
+                category: 'landmark',
+                description: 'Admire the best-preserved ancient Roman building, now a church with a remarkable dome.',
+                recommendations: 'Free entry. Very popular, can be crowded. The oculus (hole in dome) is fascinating.'
+              }
+            ]
+          },
+          {
+            time: '18:00 - 19:30',
+            items: [
+              {
+                title: 'Trevi Fountain',
+                address: 'Piazza di Trevi, 00187 Roma RM, Italy',
+                category: 'landmark',
+                description: 'Throw a coin in the famous Baroque fountain, ensuring your return to Rome.',
+                recommendations: 'Very crowded during day. Evening is more atmospheric. Free to visit. Throw coin with right hand over left shoulder.'
+              }
+            ]
+          },
+          {
+            time: '20:00 - 22:00',
+            items: [
+              {
+                title: 'Spanish Steps',
+                address: 'Piazza di Spagna, 00187 Roma RM, Italy',
+                category: 'landmark',
+                description: 'Climb the famous 135-step staircase and enjoy views of Rome.',
+                recommendations: 'Free to visit. Very popular spot. No sitting on steps (fines enforced). Great for people watching.'
+              }
+            ]
+          },
+          {
+            time: '22:30 - 00:00',
+            items: [
+              {
+                title: 'Traditional Roman Restaurant',
+                address: 'Various, Rome, Italy',
+                category: 'restaurant',
+                description: 'Enjoy authentic Roman cuisine in a traditional trattoria.',
+                recommendations: 'Try carbonara, cacio e pepe, or amatriciana. Book in advance for popular restaurants.'
               }
             ]
           }
@@ -294,34 +474,94 @@ const sampleTours = [
     city: 'Lisbon',
     country: 'Portugal',
     title: 'Coastal Charm of Lisbon',
-    description: 'Discover Lisbon\'s beautiful coastline and historic neighborhoods.',
-    tags: ['romantic', 'culture', 'food'],
+    description: 'Discover Lisbon\'s beautiful coastline and historic neighborhoods. From medieval castles to modern art, experience the charm of Portugal\'s capital.',
+    tags: ['romantic', 'culture', 'food', 'coastal'],
     preview_media_url: 'https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=800&h=600&fit=crop&q=80',
     daily_plan: [
       {
         day: 1,
         blocks: [
           {
-            time: '10:00 - 12:00',
+            time: '09:00 - 11:00',
             items: [
               {
                 title: 'Belém Tower',
-                address: 'Av. Brasília, 1400-038 Lisboa',
+                address: 'Av. Brasília, 1400-038 Lisboa, Portugal',
                 category: 'landmark',
-                description: 'Visit the iconic tower that once protected Lisbon\'s harbor.',
-                recommendations: 'Try the famous pastéis de nata nearby.'
+                description: 'Visit the iconic 16th-century tower that once protected Lisbon\'s harbor, a symbol of the Age of Discoveries.',
+                recommendations: 'Book tickets online. Combine with Jerónimos Monastery nearby. Free first Sunday of month.'
               }
             ]
           },
           {
-            time: '14:00 - 16:00',
+            time: '11:30 - 13:00',
+            items: [
+              {
+                title: 'Jerónimos Monastery',
+                address: 'Praça do Império 1400-206 Lisboa, Portugal',
+                category: 'landmark',
+                description: 'Admire the stunning Manueline architecture of this UNESCO World Heritage site.',
+                recommendations: 'Book tickets online. Very popular. The church is free, monastery requires ticket.'
+              }
+            ]
+          },
+          {
+            time: '13:30 - 15:00',
+            items: [
+              {
+                title: 'Pastéis de Belém',
+                address: 'R. de Belém 84-92, 1300-085 Lisboa, Portugal',
+                category: 'restaurant',
+                description: 'Try the original pastéis de nata at the famous bakery where they were first created.',
+                recommendations: 'Very popular, expect a queue. Worth the wait! Best eaten warm with cinnamon.'
+              }
+            ]
+          },
+          {
+            time: '15:30 - 17:00',
             items: [
               {
                 title: 'Alfama District',
-                address: 'Alfama, Lisbon',
+                address: 'Alfama, Lisbon, Portugal',
                 category: 'neighborhood',
-                description: 'Get lost in the narrow streets of Lisbon\'s oldest district.',
-                recommendations: 'Listen to Fado music in one of the local taverns.'
+                description: 'Get lost in the narrow, winding streets of Lisbon\'s oldest district, full of Fado music and charm.',
+                recommendations: 'Wear comfortable shoes for hills. Many viewpoints (miradouros) with great views. Try Fado in evening.'
+              }
+            ]
+          },
+          {
+            time: '17:30 - 19:00',
+            items: [
+              {
+                title: 'São Jorge Castle',
+                address: 'R. de Santa Cruz do Castelo, 1100-129 Lisboa, Portugal',
+                category: 'landmark',
+                description: 'Explore the medieval castle with panoramic views over Lisbon and the Tagus River.',
+                recommendations: 'Book tickets online. Sunset views are spectacular. Allow 1-2 hours.'
+              }
+            ]
+          },
+          {
+            time: '19:30 - 21:30',
+            items: [
+              {
+                title: 'Time Out Market',
+                address: 'Av. 24 de Julho 49, 1200-479 Lisboa, Portugal',
+                category: 'market',
+                description: 'Experience Lisbon\'s food hall with top chefs and local specialties under one roof.',
+                recommendations: 'Very popular, can be crowded. Great variety. Try Portuguese wine and seafood.'
+              }
+            ]
+          },
+          {
+            time: '22:00 - 23:30',
+            items: [
+              {
+                title: 'Fado Performance',
+                address: 'Various, Alfama, Lisbon, Portugal',
+                category: 'activity',
+                description: 'Listen to traditional Portuguese Fado music in an intimate setting in Alfama.',
+                recommendations: 'Book in advance. Shows typically start around 8-9 PM. Some include dinner. Very emotional music.'
               }
             ]
           }
@@ -333,34 +573,94 @@ const sampleTours = [
     city: 'Berlin',
     country: 'Germany',
     title: 'Modern Art & Nightlife in Berlin',
-    description: 'Experience Berlin\'s vibrant art scene and legendary nightlife.',
-    tags: ['culture', 'nightlife', 'art'],
+    description: 'Experience Berlin\'s vibrant art scene and legendary nightlife. From street art to world-class clubs, discover why Berlin is Europe\'s creative capital.',
+    tags: ['culture', 'nightlife', 'art', 'music'],
     preview_media_url: 'https://images.unsplash.com/photo-1587330979470-3595ac045ab0?w=800&h=600&fit=crop&q=80',
     daily_plan: [
       {
         day: 1,
         blocks: [
           {
-            time: '11:00 - 13:00',
+            time: '10:00 - 12:00',
             items: [
               {
                 title: 'East Side Gallery',
-                address: 'Mühlenstraße, 10243 Berlin',
+                address: 'Mühlenstraße, 10243 Berlin, Germany',
                 category: 'landmark',
-                description: 'See the longest remaining section of the Berlin Wall, covered in art.',
-                recommendations: 'Visit early morning for fewer crowds.'
+                description: 'See the longest remaining section of the Berlin Wall, covered in 105 murals by artists from around the world.',
+                recommendations: 'Free to visit. Best light in morning. Very photogenic, allow time for photos.'
               }
             ]
           },
           {
-            time: '20:00 - 23:00',
+            time: '12:30 - 14:00',
+            items: [
+              {
+                title: 'Brandenburg Gate',
+                address: 'Pariser Platz, 10117 Berlin, Germany',
+                category: 'landmark',
+                description: 'Visit Berlin\'s most iconic landmark, symbol of German reunification.',
+                recommendations: 'Free to visit. Very busy during day. Early morning or evening for fewer crowds.'
+              }
+            ]
+          },
+          {
+            time: '14:30 - 16:00',
+            items: [
+              {
+                title: 'Museum Island',
+                address: 'Museumsinsel, 10178 Berlin, Germany',
+                category: 'museum',
+                description: 'Explore five world-class museums on a UNESCO World Heritage site in the Spree River.',
+                recommendations: 'Museum Pass Berlin offers access to all. Pergamon Museum is most popular.'
+              }
+            ]
+          },
+          {
+            time: '16:30 - 18:00',
+            items: [
+              {
+                title: 'Hackescher Markt',
+                address: 'Hackescher Markt, 10178 Berlin, Germany',
+                category: 'neighborhood',
+                description: 'Explore trendy courtyards, boutiques, and cafes in this vibrant neighborhood.',
+                recommendations: 'Great for shopping and people watching. Many restaurants and bars.'
+              }
+            ]
+          },
+          {
+            time: '18:30 - 20:00',
+            items: [
+              {
+                title: 'Reichstag Building',
+                address: 'Platz der Republik 1, 11011 Berlin, Germany',
+                category: 'landmark',
+                description: 'Visit the German parliament building with its iconic glass dome offering panoramic city views.',
+                recommendations: 'Free entry but must book in advance online. Security check required. Sunset views are spectacular.'
+              }
+            ]
+          },
+          {
+            time: '20:30 - 22:30',
             items: [
               {
                 title: 'Kreuzberg District',
-                address: 'Kreuzberg, Berlin',
+                address: 'Kreuzberg, Berlin, Germany',
                 category: 'neighborhood',
-                description: 'Explore Berlin\'s most vibrant nightlife district.',
-                recommendations: 'Try the local craft beer at one of the many bars.'
+                description: 'Experience Berlin\'s most vibrant neighborhood with diverse food, street art, and alternative culture.',
+                recommendations: 'Great for dinner. Try Turkish food (Kreuzberg has large Turkish community). Very lively atmosphere.'
+              }
+            ]
+          },
+          {
+            time: '23:00 - 03:00',
+            items: [
+              {
+                title: 'Berlin Nightclub',
+                address: 'Various, Berlin, Germany',
+                category: 'nightlife',
+                description: 'Experience Berlin\'s legendary club scene, known for techno music and all-night parties.',
+                recommendations: 'Dress code: black, casual. Clubs like Berghain are famous but strict door policy. Start late (after midnight).'
               }
             ]
           }
@@ -372,34 +672,94 @@ const sampleTours = [
     city: 'London',
     country: 'United Kingdom',
     title: 'Royal London Experience',
-    description: 'Discover London\'s royal heritage and iconic landmarks.',
-    tags: ['culture', 'history', 'family'],
+    description: 'Discover London\'s royal heritage and iconic landmarks. From Buckingham Palace to the Tower of London, experience the grandeur of the British capital.',
+    tags: ['culture', 'history', 'royal', 'family'],
     preview_media_url: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=800&h=600&fit=crop&q=80',
     daily_plan: [
       {
         day: 1,
         blocks: [
           {
-            time: '10:00 - 12:00',
+            time: '09:00 - 11:00',
             items: [
               {
                 title: 'Buckingham Palace',
-                address: 'Westminster, London SW1A 1AA',
+                address: 'Westminster, London SW1A 1AA, UK',
                 category: 'landmark',
-                description: 'Watch the Changing of the Guard ceremony.',
-                recommendations: 'Arrive early to get a good viewing spot.'
+                description: 'Watch the Changing of the Guard ceremony at the official residence of the British monarch.',
+                recommendations: 'Arrive by 10:30 AM for best viewing. Ceremony starts at 11 AM. Check schedule online.'
               }
             ]
           },
           {
-            time: '14:00 - 16:00',
+            time: '11:30 - 13:00',
+            items: [
+              {
+                title: 'Westminster Abbey',
+                address: '20 Deans Yd, London SW1P 3PA, UK',
+                category: 'landmark',
+                description: 'Visit the coronation church and final resting place of British monarchs and notable figures.',
+                recommendations: 'Book tickets online. Audio guide included. Very busy, arrive early.'
+              }
+            ]
+          },
+          {
+            time: '13:30 - 15:00',
+            items: [
+              {
+                title: 'Big Ben & Houses of Parliament',
+                address: 'Westminster, London SW1A 0AA, UK',
+                category: 'landmark',
+                description: 'Admire the iconic clock tower and the seat of the UK Parliament.',
+                recommendations: 'Best viewed from Westminster Bridge. Tours of Parliament available (book in advance).'
+              }
+            ]
+          },
+          {
+            time: '15:30 - 17:00',
+            items: [
+              {
+                title: 'Tower of London',
+                address: 'London EC3N 4AB, UK',
+                category: 'landmark',
+                description: 'Explore the historic castle, see the Crown Jewels, and learn about its dark history.',
+                recommendations: 'Book tickets online. Yeoman Warder tours are free and entertaining. Allow 2-3 hours.'
+              }
+            ]
+          },
+          {
+            time: '17:30 - 19:00',
+            items: [
+              {
+                title: 'Tower Bridge',
+                address: 'Tower Bridge Rd, London SE1 2UP, UK',
+                category: 'landmark',
+                description: 'Walk across the iconic Victorian bridge and visit the exhibition inside.',
+                recommendations: 'Free to cross. Paid exhibition shows engine rooms and glass walkway. Great views.'
+              }
+            ]
+          },
+          {
+            time: '19:30 - 21:30',
             items: [
               {
                 title: 'British Museum',
-                address: 'Great Russell St, London WC1B 3DG',
+                address: 'Great Russell St, London WC1B 3DG, UK',
                 category: 'museum',
-                description: 'Explore one of the world\'s greatest museums.',
-                recommendations: 'Free entry, but book timed slots online.'
+                description: 'Explore one of the world\'s greatest museums with artifacts from around the globe.',
+                recommendations: 'Free entry. Very large, focus on specific galleries. Rosetta Stone and Parthenon Marbles are highlights.'
+              }
+            ]
+          },
+          {
+            time: '22:00 - 23:30',
+            items: [
+              {
+                title: 'West End Theatre',
+                address: 'Various, London, UK',
+                category: 'activity',
+                description: 'Catch a world-class musical or play in London\'s famous theatre district.',
+                recommendations: 'Book in advance for popular shows. Last-minute tickets available at TKTS booth.'
               }
             ]
           }
@@ -411,34 +771,94 @@ const sampleTours = [
     city: 'Madrid',
     country: 'Spain',
     title: 'Food & Culture in Madrid',
-    description: 'Indulge in Madrid\'s culinary delights and cultural treasures.',
-    tags: ['food', 'culture', 'romantic'],
+    description: 'Indulge in Madrid\'s culinary delights and cultural treasures. From tapas bars to world-class museums, experience the vibrant Spanish capital.',
+    tags: ['food', 'culture', 'art', 'nightlife'],
     preview_media_url: 'https://images.unsplash.com/photo-1539037116277-4db20889f2d2?w=800&h=600&fit=crop&q=80',
     daily_plan: [
       {
         day: 1,
         blocks: [
           {
-            time: '11:00 - 13:00',
+            time: '10:00 - 12:00',
             items: [
               {
                 title: 'Prado Museum',
-                address: 'Calle de Ruiz de Alarcón, 23, 28014 Madrid',
+                address: 'Calle de Ruiz de Alarcón, 23, 28014 Madrid, Spain',
                 category: 'museum',
-                description: 'Admire masterpieces by Goya, Velázquez, and El Greco.',
-                recommendations: 'Free entry on certain days - check schedule.'
+                description: 'Explore one of the world\'s finest art collections, featuring works by Goya, Velázquez, and El Greco.',
+                recommendations: 'Free entry 6-8 PM Mon-Sat, 5-7 PM Sun. Book timed entry online.'
               }
             ]
           },
           {
-            time: '14:00 - 16:00',
+            time: '12:30 - 14:00',
+            items: [
+              {
+                title: 'Retiro Park',
+                address: 'Plaza de la Independencia, 7, 28001 Madrid, Spain',
+                category: 'park',
+                description: 'Stroll through Madrid\'s beautiful central park, visit the Crystal Palace, and row a boat on the lake.',
+                recommendations: 'Perfect for a relaxing break. The park is huge, so wear comfortable shoes.'
+              }
+            ]
+          },
+          {
+            time: '14:30 - 16:00',
             items: [
               {
                 title: 'Mercado de San Miguel',
-                address: 'Plaza de San Miguel, s/n, 28005 Madrid',
+                address: 'Plaza de San Miguel, s/n, 28005 Madrid, Spain',
                 category: 'market',
-                description: 'Taste authentic Spanish tapas and local delicacies.',
-                recommendations: 'Try the jamón ibérico and fresh seafood.'
+                description: 'Experience Madrid\'s famous covered market with gourmet tapas, fresh produce, and local specialties.',
+                recommendations: 'Very popular, can be crowded. Try jamón ibérico, olives, and Spanish cheeses.'
+              }
+            ]
+          },
+          {
+            time: '16:30 - 18:00',
+            items: [
+              {
+                title: 'Royal Palace of Madrid',
+                address: 'Calle de Bailén, s/n, 28071 Madrid, Spain',
+                category: 'landmark',
+                description: 'Tour the official residence of the Spanish royal family, one of Europe\'s largest palaces.',
+                recommendations: 'Book tickets online. The armory and pharmacy are highlights. Free for EU citizens certain hours.'
+              }
+            ]
+          },
+          {
+            time: '18:30 - 20:00',
+            items: [
+              {
+                title: 'Plaza Mayor',
+                address: 'Plaza Mayor, 28012 Madrid, Spain',
+                category: 'landmark',
+                description: 'Admire the grand square, a hub of Madrid\'s social life since the 17th century.',
+                recommendations: 'Great for people watching. Many cafes and restaurants around the square.'
+              }
+            ]
+          },
+          {
+            time: '20:30 - 22:30',
+            items: [
+              {
+                title: 'Tapas Crawl in La Latina',
+                address: 'La Latina, Madrid, Spain',
+                category: 'neighborhood',
+                description: 'Experience authentic Madrid tapas culture in the historic La Latina neighborhood.',
+                recommendations: 'Start early (around 8 PM). Try different tapas at multiple bars. Very social experience.'
+              }
+            ]
+          },
+          {
+            time: '23:00 - 01:00',
+            items: [
+              {
+                title: 'Flamenco Show',
+                address: 'Various venues, Madrid, Spain',
+                category: 'activity',
+                description: 'Watch an authentic flamenco performance, an essential part of Spanish culture.',
+                recommendations: 'Book in advance. Shows typically start around 10:30 PM. Some include dinner.'
               }
             ]
           }
@@ -450,8 +870,8 @@ const sampleTours = [
     city: 'Prague',
     country: 'Czech Republic',
     title: 'Medieval Magic of Prague',
-    description: 'Step into a fairy tale in Prague\'s historic Old Town.',
-    tags: ['culture', 'history', 'romantic'],
+    description: 'Step into a fairy tale in Prague\'s historic Old Town. Discover medieval architecture, charming squares, and the magical atmosphere of one of Europe\'s most beautiful cities.',
+    tags: ['culture', 'history', 'architecture', 'romantic'],
     preview_media_url: 'https://images.unsplash.com/photo-1541849546-216549ae216d?w=800&h=600&fit=crop&q=80',
     daily_plan: [
       {
@@ -462,22 +882,82 @@ const sampleTours = [
             items: [
               {
                 title: 'Prague Castle',
-                address: 'Hradčany, 119 08 Praha 1',
+                address: 'Hradčany, 119 08 Prague 1, Czechia',
                 category: 'landmark',
-                description: 'Explore the largest ancient castle complex in the world.',
-                recommendations: 'Buy tickets online to skip the queue.'
+                description: 'Explore the largest ancient castle complex in the world, home to St. Vitus Cathedral and the Golden Lane.',
+                recommendations: 'Arrive early to avoid crowds. The changing of the guard happens at noon.'
               }
             ]
           },
           {
-            time: '14:00 - 16:00',
+            time: '11:30 - 13:00',
             items: [
               {
                 title: 'Charles Bridge',
-                address: 'Karlův most, 110 00 Praha 1',
+                address: 'Karlův most, 110 00 Prague 1, Czechia',
                 category: 'landmark',
-                description: 'Walk across the historic bridge with stunning city views.',
-                recommendations: 'Visit early morning or sunset for best photos.'
+                description: 'Walk across the iconic 14th-century bridge adorned with 30 baroque statues.',
+                recommendations: 'Visit early morning or late evening for fewer crowds. Sunset views are spectacular.'
+              }
+            ]
+          },
+          {
+            time: '13:30 - 15:00',
+            items: [
+              {
+                title: 'Old Town Square',
+                address: 'Staroměstské nám., 110 00 Staré Město, Czechia',
+                category: 'landmark',
+                description: 'Admire the Astronomical Clock and the stunning Gothic architecture surrounding the square.',
+                recommendations: 'Watch the Astronomical Clock show on the hour. Try trdelník from nearby vendors.'
+              }
+            ]
+          },
+          {
+            time: '15:30 - 17:00',
+            items: [
+              {
+                title: 'Jewish Quarter (Josefov)',
+                address: 'Josefov, 110 00 Prague 1, Czechia',
+                category: 'neighborhood',
+                description: 'Explore the historic Jewish Quarter with synagogues and the Old Jewish Cemetery.',
+                recommendations: 'Purchase a combined ticket for all synagogues. Very moving historical experience.'
+              }
+            ]
+          },
+          {
+            time: '17:30 - 19:00',
+            items: [
+              {
+                title: 'Wenceslas Square',
+                address: 'Václavské nám., 110 00 Nové Město, Czechia',
+                category: 'landmark',
+                description: 'Stroll through Prague\'s main commercial boulevard, rich with history and modern shops.',
+                recommendations: 'Great for shopping and people watching. Many restaurants and cafes nearby.'
+              }
+            ]
+          },
+          {
+            time: '19:30 - 21:30',
+            items: [
+              {
+                title: 'Vltava River Cruise',
+                address: 'Dvořákovo nábř., 110 00 Staré Město, Czechia',
+                category: 'activity',
+                description: 'Enjoy a dinner cruise along the Vltava River with views of Prague Castle and bridges.',
+                recommendations: 'Book in advance. Evening cruises offer the best views of illuminated Prague.'
+              }
+            ]
+          },
+          {
+            time: '22:00 - 23:30',
+            items: [
+              {
+                title: 'Traditional Czech Restaurant',
+                address: 'Various, Prague, Czechia',
+                category: 'restaurant',
+                description: 'Experience authentic Czech cuisine in a traditional restaurant with local beer.',
+                recommendations: 'Try goulash, svíčková, or roast pork with dumplings. Pilsner Urquell is a must!'
               }
             ]
           }
