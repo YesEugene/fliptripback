@@ -98,8 +98,7 @@ export default async function handler(req, res) {
         passwordLength: req.body?.password?.length,
         name: req.body?.name,
         role: req.body?.role,
-        bodyKeys: Object.keys(req.body || {}),
-        fullBody: JSON.stringify(req.body)
+        bodyKeys: Object.keys(req.body || {})
       });
 
       const { email, password, name, role = 'user' } = req.body;
@@ -114,17 +113,19 @@ export default async function handler(req, res) {
         });
       }
 
+      // Generate password if not provided (for admin-created users)
+      let finalPassword = password;
+      let generatedPassword = false;
+      
       if (!password || !password.trim() || password.length < 6) {
-        console.error('❌ Validation failed: password is missing, empty, or too short', {
-          hasPassword: !!password,
-          passwordLength: password?.length,
-          passwordValue: password ? '***' : 'missing'
-        });
-        return res.status(400).json({
-          success: false,
-          error: 'Password is required and must be at least 6 characters',
-          details: password ? `Password is too short (${password.length} characters)` : 'Password field is missing'
-        });
+        // Generate a random secure password
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+        finalPassword = '';
+        for (let i = 0; i < 12; i++) {
+          finalPassword += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        generatedPassword = true;
+        console.log('🔑 Generated password for user (not shown in logs for security)');
       }
 
       // Check if user already exists
@@ -214,7 +215,13 @@ export default async function handler(req, res) {
           email: newUser.email,
           name: newUser.name,
           role: newUser.role
-        }
+        },
+        // Include generated password only if it was auto-generated
+        // Frontend should display this to admin so they can share it with the user
+        ...(generatedPassword ? { 
+          generatedPassword: finalPassword,
+          message: 'Password was auto-generated. Please save it and share with the user.'
+        } : {})
       });
     } catch (error) {
       console.error('❌ Error creating user:', error);
