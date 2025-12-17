@@ -199,45 +199,19 @@ export default async function handler(req, res) {
 
       // If guide or creator, create guide profile
       if (role === 'guide' || role === 'creator') {
-        // Check what column name is used in guides table
-        // Try user_id first, then id
-        let guideInsertData = {
-          name: name || email.split('@')[0] || 'Guide'
-        };
-        
-        // Try user_id first (most common)
-        try {
-          const { error: guideError } = await supabase
-            .from('guides')
-            .insert({
-              user_id: userId,
-              ...guideInsertData
-            });
+        // Based on auth-register.js, guides table uses 'id' column, not 'user_id'
+        const { error: guideError } = await supabase
+          .from('guides')
+          .insert({
+            id: userId, // Use id column (same as user id)
+            name: name || email.split('@')[0] || 'Guide'
+          });
 
-          if (guideError) {
-            // If user_id doesn't work, try id
-            if (guideError.code === 'PGRST204' || guideError.message?.includes('user_id')) {
-              console.log('⚠️ user_id column not found, trying id column...');
-              const { error: guideError2 } = await supabase
-                .from('guides')
-                .insert({
-                  id: userId,
-                  ...guideInsertData
-                });
-              
-              if (guideError2) {
-                console.warn('Warning: Could not create guide profile:', guideError2);
-              } else {
-                console.log('✅ Guide profile created with id column');
-              }
-            } else {
-              console.warn('Warning: Could not create guide profile:', guideError);
-            }
-          } else {
-            console.log('✅ Guide profile created with user_id column');
-          }
-        } catch (err) {
-          console.warn('Warning: Exception creating guide profile:', err.message);
+        if (guideError) {
+          console.warn('Warning: Could not create guide profile:', guideError);
+          // This is not critical - user can still be created without guide profile
+        } else {
+          console.log('✅ Guide profile created successfully');
         }
       }
 
