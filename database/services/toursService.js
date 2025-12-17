@@ -62,7 +62,6 @@ export async function searchToursForItinerary(cityId, categories = [], tags = []
       `)
       .eq('city_id', cityId)
       .eq('is_published', true)
-      .eq('verified', true)
       .limit(limit);
 
     // Filter by format if provided
