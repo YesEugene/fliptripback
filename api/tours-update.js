@@ -338,16 +338,52 @@ export default async function handler(req, res) {
     let durationValue = 6;
 
     if (totalDays > 1) {
+      // Multiple days: show number of days
       durationType = 'days';
       durationValue = totalDays;
-    } else if (daily_plan && daily_plan.length > 0) {
-      let totalBlocks = 0;
-      daily_plan.forEach(day => {
-        if (day.blocks && Array.isArray(day.blocks)) {
-          totalBlocks += day.blocks.length;
+    } else if (totalDays === 1 && daily_plan && daily_plan[0]?.blocks) {
+      // Single day: calculate hours from first location start to last location end
+      const firstDay = daily_plan[0];
+      const blocks = firstDay.blocks || [];
+      
+      if (blocks.length > 0) {
+        // Find earliest start_time and latest end_time
+        let earliestStart = null;
+        let latestEnd = null;
+        
+        blocks.forEach(block => {
+          if (block.time) {
+            // Parse time range (e.g., "09:00 - 12:00" or "09:00:00 - 12:00:00")
+            const timeMatch = block.time.match(/(\d{1,2}):(\d{2})(?::\d{2})?\s*-\s*(\d{1,2}):(\d{2})(?::\d{2})?/);
+            if (timeMatch) {
+              const startHours = parseInt(timeMatch[1]);
+              const startMinutes = parseInt(timeMatch[2]);
+              const endHours = parseInt(timeMatch[3]);
+              const endMinutes = parseInt(timeMatch[4]);
+              
+              const startTime = startHours * 60 + startMinutes; // Convert to minutes
+              const endTime = endHours * 60 + endMinutes;
+              
+              if (earliestStart === null || startTime < earliestStart) {
+                earliestStart = startTime;
+              }
+              if (latestEnd === null || endTime > latestEnd) {
+                latestEnd = endTime;
+              }
+            }
+          }
+        });
+        
+        if (earliestStart !== null && latestEnd !== null) {
+          // Calculate duration in hours (round up to nearest hour)
+          const durationMinutes = latestEnd - earliestStart;
+          const durationHours = Math.ceil(durationMinutes / 60);
+          durationValue = Math.max(1, durationHours); // At least 1 hour
+        } else {
+          // Fallback: estimate from number of blocks
+          durationValue = Math.max(3, Math.min(blocks.length * 3, 12));
         }
-      });
-      durationValue = Math.max(3, Math.min(totalBlocks * 3, 12));
+      }
     }
 
     // Extract format and pricing
