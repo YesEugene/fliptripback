@@ -123,15 +123,46 @@ export default async function handler(req, res) {
     console.log('🔍 Loading tours from database...');
     console.log('📋 Query params:', { city, format, interests, limit, offset });
     
+    // Build select query - include location_interests only if filtering by interests
+    const baseSelect = `
+      *,
+      city:cities(name),
+      tour_tags(
+        tag:tags(id, name)
+      )
+    `;
+    
+    const selectWithInterests = `
+      *,
+      city:cities(name),
+      tour_tags(
+        tag:tags(id, name)
+      ),
+      tour_days(
+        tour_blocks(
+          tour_items(
+            location:locations(
+              id,
+              name,
+              location_interests(
+                interest:interests(
+                  id,
+                  name,
+                  category_id
+                )
+              )
+            )
+          )
+        )
+      )
+    `;
+    
+    // Use extended query if filtering by interests, otherwise use base query for performance
+    const selectQuery = interests ? selectWithInterests : baseSelect;
+    
     let query = supabase
       .from('tours')
-      .select(`
-        *,
-        city:cities(name),
-        tour_tags(
-          tag:tags(id, name)
-        )
-      `)
+      .select(selectQuery)
       .eq('is_published', true)
       .order('created_at', { ascending: false })
       .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
@@ -191,10 +222,49 @@ export default async function handler(req, res) {
 
     if (interests) {
       const interestList = Array.isArray(interests) ? interests : interests.split(',');
+      // Normalize interest names to lowercase for comparison
+      const normalizedInterestList = interestList.map(i => i.toLowerCase().trim()).filter(Boolean);
+      
       filteredTours = filteredTours.filter(t => {
-        const tourTagNames = (t.tour_tags || []).map(tt => tt.tag?.name).filter(Boolean);
-        return interestList.some(interest => tourTagNames.includes(interest));
+        // Collect all interests from all locations in the tour
+        const tourLocationInterests = new Set();
+        
+        if (t.tour_days && Array.isArray(t.tour_days)) {
+          t.tour_days.forEach(day => {
+            if (day.tour_blocks && Array.isArray(day.tour_blocks)) {
+              day.tour_blocks.forEach(block => {
+                if (block.tour_items && Array.isArray(block.tour_items)) {
+                  block.tour_items.forEach(item => {
+                    if (item.location && item.location.location_interests) {
+                      item.location.location_interests.forEach(li => {
+                        if (li.interest && li.interest.name) {
+                          tourLocationInterests.add(li.interest.name.toLowerCase().trim());
+                        }
+                      });
+                    }
+                  });
+                }
+              });
+            }
+          });
+        }
+        
+        // Fallback to tour_tags if no location_interests found (backward compatibility)
+        if (tourLocationInterests.size === 0 && t.tour_tags && Array.isArray(t.tour_tags)) {
+          t.tour_tags.forEach(tt => {
+            if (tt.tag && tt.tag.name) {
+              tourLocationInterests.add(tt.tag.name.toLowerCase().trim());
+            }
+          });
+        }
+        
+        // Check if at least one interest from filter list matches
+        return normalizedInterestList.some(interest => 
+          tourLocationInterests.has(interest)
+        );
       });
+      
+      console.log(`🔍 Filtered by interests: ${filteredTours.length} tours match ${normalizedInterestList.length} interest(s)`);
     }
 
     if (audience) {
