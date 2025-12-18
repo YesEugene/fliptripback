@@ -8,6 +8,91 @@
 
 import { supabase } from '../database/db.js';
 
+/**
+ * Mapping from location.category (old type) to interest category names
+ * This allows filtering by interest categories even when location_interests is empty
+ * 
+ * location.category values: landmark, museum, restaurant, cafe, park, etc.
+ * interest category names: active, culture, food, nature, nightlife, etc.
+ */
+const LOCATION_CATEGORY_TO_INTEREST_CATEGORY = {
+  // Active
+  'activity': 'active',
+  'sports': 'active',
+  'adventure': 'active',
+  
+  // Culture
+  'museum': 'culture',
+  'monument': 'culture',
+  'theater': 'culture',
+  'landmark': 'culture',
+  'neighborhood': 'culture',
+  
+  // Food
+  'restaurant': 'food',
+  'cafe': 'food',
+  'bar': 'food',
+  'market': 'food',
+  
+  // Nature
+  'park': 'nature',
+  'beach': 'nature',
+  
+  // Nightlife
+  'nightlife': 'nightlife',
+  
+  // Health
+  'wellness': 'health',
+  
+  // Family (could be various types)
+  'park': 'family', // parks can be family-friendly
+  'museum': 'family', // museums can be family-friendly
+  
+  // Romantic (could be various types)
+  'restaurant': 'romantic', // restaurants can be romantic
+  'park': 'romantic', // parks can be romantic
+  
+  // Unique Experiences
+  'shopping': 'unique',
+  'accommodation': 'unique',
+  'transport': 'unique',
+  'other': 'unique'
+};
+
+/**
+ * Get all interest names for a given interest category name (e.g., 'active', 'food')
+ * Loads from database to get actual interest names
+ */
+async function getInterestNamesByCategoryName(categoryName, supabaseClient) {
+  try {
+    // Get category by name (case-insensitive)
+    const { data: categories } = await supabaseClient
+      .from('interest_categories')
+      .select('id, name')
+      .ilike('name', categoryName);
+    
+    if (!categories || categories.length === 0) {
+      return [];
+    }
+    
+    // Get all interests from this category (both direct and from subcategories)
+    const categoryIds = categories.map(c => c.id);
+    const { data: interests } = await supabaseClient
+      .from('interests')
+      .select('name')
+      .in('category_id', categoryIds);
+    
+    if (interests && interests.length > 0) {
+      return interests.map(i => i.name.toLowerCase().trim());
+    }
+    
+    return [];
+  } catch (error) {
+    console.error('Error getting interests by category:', error);
+    return [];
+  }
+}
+
 export default async function handler(req, res) {
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -225,6 +310,41 @@ export default async function handler(req, res) {
       // Normalize interest names to lowercase for comparison
       const normalizedInterestList = interestList.map(i => i.toLowerCase().trim()).filter(Boolean);
       
+      // Pre-load interest category mappings for fallback (location.category -> interest names)
+      // This is done once before filtering all tours
+      const categoryInterestMap = new Map(); // location.category -> Set of interest names
+      
+      // Get unique location categories from all tours
+      const locationCategories = new Set();
+      tours?.forEach(t => {
+        if (t.tour_days && Array.isArray(t.tour_days)) {
+          t.tour_days.forEach(day => {
+            if (day.tour_blocks && Array.isArray(day.tour_blocks)) {
+              day.tour_blocks.forEach(block => {
+                if (block.tour_items && Array.isArray(block.tour_items)) {
+                  block.tour_items.forEach(item => {
+                    if (item.location && item.location.category) {
+                      locationCategories.add(item.location.category.toLowerCase().trim());
+                    }
+                  });
+                }
+              });
+            }
+          });
+        }
+      });
+      
+      // Load interest names for each unique location category (for fallback)
+      for (const locCategory of locationCategories) {
+        const interestCategoryName = LOCATION_CATEGORY_TO_INTEREST_CATEGORY[locCategory];
+        if (interestCategoryName) {
+          const interestNames = await getInterestNamesByCategoryName(interestCategoryName, supabase);
+          if (interestNames.length > 0) {
+            categoryInterestMap.set(locCategory, new Set(interestNames));
+          }
+        }
+      }
+      
       filteredTours = filteredTours.filter(t => {
         // Collect all interests from all locations in the tour
         const tourLocationInterests = new Set();
@@ -235,12 +355,26 @@ export default async function handler(req, res) {
               day.tour_blocks.forEach(block => {
                 if (block.tour_items && Array.isArray(block.tour_items)) {
                   block.tour_items.forEach(item => {
-                    if (item.location && item.location.location_interests) {
-                      item.location.location_interests.forEach(li => {
-                        if (li.interest && li.interest.name) {
-                          tourLocationInterests.add(li.interest.name.toLowerCase().trim());
+                    if (item.location) {
+                      // Method 1: Use location_interests if available
+                      if (item.location.location_interests && Array.isArray(item.location.location_interests)) {
+                        item.location.location_interests.forEach(li => {
+                          if (li.interest && li.interest.name) {
+                            tourLocationInterests.add(li.interest.name.toLowerCase().trim());
+                          }
+                        });
+                      }
+                      
+                      // Method 2: Fallback to location.category mapping (hybrid approach)
+                      if (tourLocationInterests.size === 0 && item.location.category) {
+                        const locCategory = item.location.category.toLowerCase().trim();
+                        const mappedInterests = categoryInterestMap.get(locCategory);
+                        if (mappedInterests) {
+                          mappedInterests.forEach(interest => {
+                            tourLocationInterests.add(interest);
+                          });
                         }
-                      });
+                      }
                     }
                   });
                 }
@@ -249,7 +383,7 @@ export default async function handler(req, res) {
           });
         }
         
-        // Fallback to tour_tags if no location_interests found (backward compatibility)
+        // Method 3: Fallback to tour_tags if still no interests found (backward compatibility)
         if (tourLocationInterests.size === 0 && t.tour_tags && Array.isArray(t.tour_tags)) {
           t.tour_tags.forEach(tt => {
             if (tt.tag && tt.tag.name) {
