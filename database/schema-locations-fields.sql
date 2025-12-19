@@ -109,3 +109,4 @@ COMMENT ON COLUMN locations.source IS 'Источник локации: admin (�
 COMMENT ON COLUMN locations.updated_by IS 'ID пользователя, который последний раз обновил запись';
 COMMENT ON COLUMN locations.google_place_id IS 'Внешний ID из Google Places API (для связи с Google)';
 
+

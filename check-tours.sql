@@ -45,3 +45,4 @@ FROM information_schema.columns
 WHERE table_name = 'tours'
 ORDER BY ordinal_position;
 
+

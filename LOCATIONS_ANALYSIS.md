@@ -74,3 +74,4 @@ if (interests && Array.isArray(interests) && interests.length > 0) {
    - Нужно будет либо синхронизировать их
    - Либо использовать только `location_interests` для фильтрации
 
+

@@ -37,3 +37,4 @@ WHERE table_schema = 'public'
   AND table_name = 'guides'
 ORDER BY ordinal_position;
 
+

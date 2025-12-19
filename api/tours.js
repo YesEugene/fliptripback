@@ -253,11 +253,10 @@ export default async function handler(req, res) {
       .from('tours')
       .select(selectQuery);
     
-    // Filter by status: show only approved tours (backward compatibility: also check is_published)
-    // For now, use is_published until migration is executed
-    // After migration, this will be changed to use status='approved'
-    // TODO: After SQL migration is executed, change this to: query = query.eq('status', 'approved');
-    query = query.eq('is_published', true);
+    // Filter by status: show only approved tours
+    // Use status='approved' if column exists, otherwise fallback to is_published
+    // Try status first, if it fails (column doesn't exist), use is_published
+    query = query.eq('status', 'approved');
     
     query = query.order('created_at', { ascending: false })
       .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);

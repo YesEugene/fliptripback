@@ -65,3 +65,4 @@ COMMENT ON COLUMN guides.specialties IS 'Массив специализаций
 COMMENT ON COLUMN guides.rating IS 'Средний рейтинг гида (0.00 - 5.00)';
 COMMENT ON COLUMN guides.is_verified IS 'Проверен ли гид администратором';
 
+

@@ -120,3 +120,4 @@ async function checkTourStructure() {
 
 checkTourStructure().catch(console.error);
 
+

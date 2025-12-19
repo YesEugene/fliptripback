@@ -39,3 +39,4 @@ SELECT id, title, city_id, duration_value FROM tours LIMIT 20;
 -- Or use the Node.js script below
 
 
+

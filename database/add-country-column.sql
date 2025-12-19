@@ -22,3 +22,4 @@ END $$;
 -- Комментарий к колонке
 COMMENT ON COLUMN tours.country IS 'Название страны (например: Portugal, France, Spain)';
 
+

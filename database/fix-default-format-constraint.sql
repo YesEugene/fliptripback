@@ -29,3 +29,4 @@ WHERE default_format IS NOT NULL
 RAISE NOTICE '✅ Added tours_default_format_check constraint';
 RAISE NOTICE '✅ Updated invalid default_format values to self_guided';
 
+

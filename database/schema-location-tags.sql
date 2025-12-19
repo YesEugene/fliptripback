@@ -11,3 +11,4 @@ CREATE TABLE IF NOT EXISTS location_tags (
 CREATE INDEX IF NOT EXISTS idx_location_tags_location_id ON location_tags(location_id);
 CREATE INDEX IF NOT EXISTS idx_location_tags_tag_id ON location_tags(tag_id);
 
+

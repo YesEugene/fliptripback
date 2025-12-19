@@ -74,3 +74,4 @@ export default async function handler(req, res) {
 3. **Скриншот структуры файлов** в Vercel (если доступно)
 4. **Любые ошибки из логов Vercel**, связанные с tours-update
 
+
