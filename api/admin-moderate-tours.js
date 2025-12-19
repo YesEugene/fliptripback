@@ -87,6 +87,17 @@ export default async function handler(req, res) {
       });
     }
 
+    // Validate userId is a valid UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(userId)) {
+      console.error('❌ Invalid userId format (not UUID):', userId);
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid user ID format',
+        message: `User ID must be a valid UUID, got: ${userId}`
+      });
+    }
+
     console.log('🔍 Checking admin role for userId:', userId);
 
     // Check if user is admin
