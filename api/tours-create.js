@@ -400,7 +400,7 @@ export default async function handler(req, res) {
       preview_media_url: previewMediaUrl,
       preview_media_type: previewMediaType,
       is_published: false,
-      status: 'draft'
+      status: 'pending' // New tours go to moderation queue
       // verified: false - removed, column doesn't exist in schema
     };
 
