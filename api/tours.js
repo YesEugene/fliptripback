@@ -181,6 +181,9 @@ export default async function handler(req, res) {
         ...tour,
         // Extract city name from city object if it exists
         city: tour.city?.name || tour.city || null,
+        // Map preview_media_url to preview for backward compatibility
+        preview: tour.preview_media_url || tour.preview || null,
+        previewType: tour.preview_media_type || tour.previewType || 'image',
         daily_plan: convertTourToDailyPlan(tour),
         // Add guide info if available
         guide: guideInfo
@@ -248,9 +251,18 @@ export default async function handler(req, res) {
     
     let query = supabase
       .from('tours')
-      .select(selectQuery)
-      .eq('is_published', true)
-      .order('created_at', { ascending: false })
+      .select(selectQuery);
+    
+    // Filter by status: show only approved tours (backward compatibility: also check is_published)
+    // Try status first, fallback to is_published if status column doesn't exist
+    try {
+      query = query.eq('status', 'approved');
+    } catch (e) {
+      // If status column doesn't exist, use is_published (backward compatibility)
+      query = query.eq('is_published', true);
+    }
+    
+    query = query.order('created_at', { ascending: false })
       .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
 
     // Apply filters

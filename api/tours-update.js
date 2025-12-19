@@ -301,7 +301,9 @@ export default async function handler(req, res) {
     }
 
     const tourData = req.body;
-    const { country, city, title, description, daily_plan, tags, meta } = tourData;
+    const { country, city, title, description, daily_plan, tags, meta, status } = tourData;
+    // status can be: 'draft', 'pending', 'approved', 'rejected'
+    // If not provided, keep existing status or default to 'draft'
     // country is optional - can be empty or undefined
 
     if (!city || !title) {
@@ -412,6 +414,15 @@ export default async function handler(req, res) {
       preview_media_url: previewMediaUrl,
       preview_media_type: previewMediaType
     };
+    
+    // Add status if provided (for draft/auto-save functionality)
+    if (status && ['draft', 'pending', 'approved', 'rejected'].includes(status)) {
+      updateData.status = status;
+      // If status is 'approved', also set is_published = true
+      if (status === 'approved') {
+        updateData.is_published = true;
+      }
+    }
 
     // Add country if column exists (handle gracefully)
     if (country) {
@@ -516,11 +527,67 @@ export default async function handler(req, res) {
                       locationsToSave.push(newLocation.id);
                       const key = `${newLocation.name}|${newLocation.address}`;
                       locationIdMap.set(key, newLocation.id);
+                      
+                      // Save location interests if provided
+                      if (item.interest_ids && Array.isArray(item.interest_ids) && item.interest_ids.length > 0) {
+                        const interestInserts = item.interest_ids.map(interestId => ({
+                          location_id: newLocation.id,
+                          interest_id: interestId
+                        }));
+                        
+                        if (interestInserts.length > 0) {
+                          await supabase
+                            .from('location_interests')
+                            .insert(interestInserts);
+                        }
+                      }
                     }
                   } else {
                     locationsToSave.push(existingLocation.id);
                     const key = `${item.title}|${item.address}`;
                     locationIdMap.set(key, existingLocation.id);
+                    
+                    // Update existing location with new data if provided
+                    if (item.description || item.recommendations || item.price_level !== undefined) {
+                      const updateData = {};
+                      if (item.why || item.description) {
+                        updateData.description = item.why || item.description;
+                      }
+                      if (item.tips || item.recommendations) {
+                        updateData.recommendations = item.tips || item.recommendations;
+                      }
+                      if (item.price_level !== undefined) {
+                        updateData.price_level = parseInt(item.price_level);
+                      }
+                      
+                      if (Object.keys(updateData).length > 0) {
+                        await supabase
+                          .from('locations')
+                          .update(updateData)
+                          .eq('id', existingLocation.id);
+                      }
+                    }
+                    
+                    // Update location interests if provided
+                    if (item.interest_ids && Array.isArray(item.interest_ids) && item.interest_ids.length > 0) {
+                      // Delete existing interests for this location
+                      await supabase
+                        .from('location_interests')
+                        .delete()
+                        .eq('location_id', existingLocation.id);
+                      
+                      // Insert new interests
+                      const interestInserts = item.interest_ids.map(interestId => ({
+                        location_id: existingLocation.id,
+                        interest_id: interestId
+                      }));
+                      
+                      if (interestInserts.length > 0) {
+                        await supabase
+                          .from('location_interests')
+                          .insert(interestInserts);
+                      }
+                    }
                   }
                 }
               }
