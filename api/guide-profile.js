@@ -125,8 +125,9 @@ export default async function handler(req, res) {
 
       // Format profile data
       // Note: schema uses instagram, facebook, twitter, linkedin (not _url suffix)
+      // Note: table has both 'avatar' and 'avatar_url' - prefer avatar_url, fallback to avatar
       const profile = {
-        avatar: guideProfile.avatar_url || '',
+        avatar: guideProfile.avatar_url || guideProfile.avatar || '',
         bio: guideProfile.bio || '',
         socialLinks: {
           instagram: guideProfile.instagram || '',
@@ -291,8 +292,9 @@ export default async function handler(req, res) {
 
       // Format response
       // Note: schema uses instagram, facebook, twitter, linkedin (not _url suffix)
+      // Note: table has both 'avatar' and 'avatar_url' - prefer avatar_url, fallback to avatar
       const profile = {
-        avatar: result.avatar_url || '',
+        avatar: result.avatar_url || result.avatar || '',
         bio: result.bio || '',
         socialLinks: {
           instagram: result.instagram || '',
