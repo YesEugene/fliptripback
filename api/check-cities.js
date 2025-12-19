@@ -1,6 +1,6 @@
 /**
- * Admin Cities Endpoint
- * GET /api/admin-cities - Get list of cities for dropdowns
+ * Check Cities Endpoint
+ * GET /api/check-cities - Get all cities from database for debugging
  */
 
 import { supabase } from '../database/db.js';
@@ -13,8 +13,7 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Max-Age', '86400');
 
   if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
+    return res.status(200).end();
   }
 
   if (req.method !== 'GET') {
@@ -29,37 +28,31 @@ export default async function handler(req, res) {
       });
     }
 
-    // Get all cities - simplified query without join (country is a string field in cities table)
+    // Get all cities
     const { data: cities, error } = await supabase
       .from('cities')
-      .select('id, name, country')
+      .select('*')
       .order('name', { ascending: true });
 
     if (error) {
       console.error('Error fetching cities:', error);
       return res.status(500).json({
         success: false,
-        message: 'Error fetching cities',
-        error: error.message
+        error: 'Error fetching cities',
+        message: error.message
       });
     }
 
-    // Format cities for frontend (ensure country is a string or null)
-    const formattedCities = (cities || []).map(city => ({
-      id: city.id,
-      name: city.name,
-      country: city.country || null
-    }));
-
     return res.status(200).json({
       success: true,
-      cities: formattedCities
+      count: cities?.length || 0,
+      cities: cities || []
     });
   } catch (error) {
-    console.error('Admin cities error:', error);
+    console.error('Check cities error:', error);
     return res.status(500).json({
       success: false,
-      message: 'Error fetching cities',
+      message: 'Error checking cities',
       error: error.message
     });
   }
