@@ -149,12 +149,10 @@ export default async function handler(req, res) {
 
       // Prepare guide data for insert/update
       // Note: schema uses instagram, facebook, twitter, linkedin (not _url suffix)
-      // Note: guides.id = users.id (not user_id)
+      // Note: guides table might use user_id or id - we'll try both approaches
       const guideData = {
-        id: userId, // id совпадает с users.id
         name: profileData.name || user.email?.split('@')[0] || 'Guide',
         bio: profileData.bio || null,
-        avatar_url: profileData.avatar || null,
         instagram: profileData.socialLinks?.instagram || null,
         facebook: profileData.socialLinks?.facebook || null,
         twitter: profileData.socialLinks?.twitter || null,
@@ -163,20 +161,46 @@ export default async function handler(req, res) {
         updated_at: new Date().toISOString()
       };
 
+      // Add avatar_url only if profileData.avatar is provided (to avoid column errors)
+      if (profileData.avatar !== null && profileData.avatar !== undefined && profileData.avatar !== '') {
+        guideData.avatar_url = profileData.avatar;
+      }
+
       // Remove null values for optional fields to avoid constraint issues
       Object.keys(guideData).forEach(key => {
-        if (guideData[key] === null && key !== 'id' && key !== 'name') {
+        if (guideData[key] === null && key !== 'name') {
           delete guideData[key];
         }
       });
 
       // Check if guide profile exists
-      // Note: guides.id = users.id (not user_id)
-      const { data: existingGuide, error: checkError } = await supabase
+      // Try both id and user_id (depending on table structure)
+      let existingGuide = null;
+      let checkError = null;
+      
+      // First try with id
+      const { data: guideById, error: errorById } = await supabase
         .from('guides')
-        .select('id')
+        .select('id, user_id')
         .eq('id', userId)
         .maybeSingle();
+      
+      if (!errorById && guideById) {
+        existingGuide = guideById;
+      } else {
+        // Try with user_id
+        const { data: guideByUserId, error: errorByUserId } = await supabase
+          .from('guides')
+          .select('id, user_id')
+          .eq('user_id', userId)
+          .maybeSingle();
+        
+        if (!errorByUserId && guideByUserId) {
+          existingGuide = guideByUserId;
+        } else {
+          checkError = errorByUserId || errorById;
+        }
+      }
       
       if (checkError && checkError.code !== 'PGRST116') {
         console.error('Profile check error:', checkError);
@@ -190,15 +214,17 @@ export default async function handler(req, res) {
       let result;
       if (existingGuide) {
         // Update existing profile
-        // Don't update id on existing records
         const updateData = { ...guideData };
-        delete updateData.id;
         
-        // Note: guides.id = users.id (not user_id)
+        // Determine which field to use for WHERE clause
+        const whereField = existingGuide.user_id ? 'user_id' : 'id';
+        const whereValue = existingGuide.user_id || existingGuide.id || userId;
+        
+        // Note: Try both id and user_id depending on table structure
         const { data: updatedGuide, error: updateError } = await supabase
           .from('guides')
           .update(updateData)
-          .eq('id', userId)
+          .eq(whereField, whereValue)
           .select()
           .single();
 
@@ -214,19 +240,49 @@ export default async function handler(req, res) {
         result = updatedGuide;
       } else {
         // Create new profile
+        // Try both id and user_id approaches
         guideData.created_at = new Date().toISOString();
-        const { data: newGuide, error: insertError } = await supabase
-          .from('guides')
-          .insert(guideData)
-          .select()
-          .single();
+        
+        // First try with id
+        let newGuide = null;
+        let insertError = null;
+        
+        try {
+          guideData.id = userId;
+          const { data: guideWithId, error: errorWithId } = await supabase
+            .from('guides')
+            .insert(guideData)
+            .select()
+            .single();
+          
+          if (!errorWithId) {
+            newGuide = guideWithId;
+          } else {
+            // If id fails, try with user_id
+            delete guideData.id;
+            guideData.user_id = userId;
+            const { data: guideWithUserId, error: errorWithUserId } = await supabase
+              .from('guides')
+              .insert(guideData)
+              .select()
+              .single();
+            
+            if (!errorWithUserId) {
+              newGuide = guideWithUserId;
+            } else {
+              insertError = errorWithUserId;
+            }
+          }
+        } catch (err) {
+          insertError = err;
+        }
 
-        if (insertError) {
+        if (insertError || !newGuide) {
           console.error('Profile creation error:', insertError);
           return res.status(500).json({
             success: false,
             message: 'Error creating profile',
-            error: insertError.message
+            error: insertError?.message || 'Failed to create profile'
           });
         }
 
