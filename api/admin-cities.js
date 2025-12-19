@@ -29,10 +29,10 @@ export default async function handler(req, res) {
       });
     }
 
-    // Get all cities - simplified query without join (country is a string field in cities table)
+    // Get all cities - simplified query (check if country column exists)
     const { data: cities, error } = await supabase
       .from('cities')
-      .select('id, name, country')
+      .select('id, name')
       .order('name', { ascending: true });
 
     if (error) {
@@ -44,11 +44,11 @@ export default async function handler(req, res) {
       });
     }
 
-    // Format cities for frontend (ensure country is a string or null)
+    // Format cities for frontend
     const formattedCities = (cities || []).map(city => ({
       id: city.id,
       name: city.name,
-      country: city.country || null
+      country: null // Country field doesn't exist in cities table
     }));
 
     return res.status(200).json({

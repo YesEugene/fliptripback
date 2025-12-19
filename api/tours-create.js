@@ -21,11 +21,18 @@ async function getOrCreateCityFallback(cityName, countryName) {
       .limit(1)
       .maybeSingle();
     if (existing) return existing.id;
-    const { data: newCity } = await supabase
+    // Create new city (country field doesn't exist in cities table)
+    const { data: newCity, error: insertError } = await supabase
       .from('cities')
-      .insert({ name: cityName, country: countryName })
+      .insert({ name: cityName })
       .select('id')
       .single();
+    
+    if (insertError) {
+      console.error('❌ Error creating city:', insertError);
+      return null;
+    }
+    
     return newCity?.id || null;
   } catch (err) {
     console.error('Error in fallback getOrCreateCity:', err);

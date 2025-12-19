@@ -30,10 +30,9 @@ export async function getOrCreateCity(cityName, countryName = null) {
       return existingCity.id;
     }
 
-    // If not found, create new city
+    // If not found, create new city (country field doesn't exist in cities table)
     const cityData = {
-      name: cityName,
-      country: countryName || null
+      name: cityName
     };
 
     const { data: newCity, error: insertError } = await supabase
