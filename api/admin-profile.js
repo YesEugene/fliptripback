@@ -1,7 +1,8 @@
 /**
- * Guide Profile API Endpoint
- * Serverless function for managing guide profiles
+ * Admin Profile API Endpoint
+ * Serverless function for managing admin profiles
  * Uses PostgreSQL/Supabase (not Redis)
+ * Similar to guide-profile.js but for admins table
  */
 
 import { supabase } from '../database/db.js';
@@ -63,12 +64,12 @@ export default async function handler(req, res) {
       });
     }
 
-    // Проверка роли (только гиды/creators могут управлять профилем)
+    // Проверка роли (только админы могут управлять профилем)
     const { data: user, error: userError } = await supabase
       .from('users')
       .select('id, email, role')
       .eq('id', userId)
-      .single();
+      .maybeSingle();
 
     if (userError || !user) {
       console.error('User lookup error:', userError);
@@ -78,20 +79,20 @@ export default async function handler(req, res) {
       });
     }
 
-    // Allow both 'guide' and 'creator' roles (they are the same)
-    if (user.role !== 'guide' && user.role !== 'creator') {
+    // Allow only 'admin' role
+    if (user.role !== 'admin') {
       return res.status(403).json({ 
         success: false, 
-        message: 'Only guides/creators can manage profiles' 
+        message: 'Only admins can manage admin profiles' 
       });
     }
 
     // GET - получение профиля
     if (req.method === 'GET') {
-      // Check if guide profile exists
-      // Note: guides.id = users.id (not user_id)
-      const { data: guideProfile, error: profileError } = await supabase
-        .from('guides')
+      // Check if admin profile exists
+      // Note: admins.id = users.id (not user_id)
+      const { data: adminProfile, error: profileError } = await supabase
+        .from('admins')
         .select('*')
         .eq('id', userId)
         .maybeSingle();
@@ -106,35 +107,22 @@ export default async function handler(req, res) {
       }
 
       // If profile doesn't exist, return empty profile
-      if (!guideProfile) {
+      if (!adminProfile) {
         return res.status(200).json({
           success: true,
           profile: {
             avatar: '',
             bio: '',
-            socialLinks: {
-              instagram: '',
-              facebook: '',
-              twitter: '',
-              linkedin: '',
-              website: ''
-            }
+            name: user.name || user.email?.split('@')[0] || 'Admin'
           }
         });
       }
 
       // Format profile data
-      // Note: schema uses instagram, facebook, twitter, linkedin (not _url suffix)
       const profile = {
-        avatar: guideProfile.avatar_url || '',
-        bio: guideProfile.bio || '',
-        socialLinks: {
-          instagram: guideProfile.instagram || '',
-          facebook: guideProfile.facebook || '',
-          twitter: guideProfile.twitter || '',
-          linkedin: guideProfile.linkedin || '',
-          website: guideProfile.website || ''
-        }
+        avatar: adminProfile.avatar_url || '',
+        bio: adminProfile.bio || '',
+        name: adminProfile.name || user.name || user.email?.split('@')[0] || 'Admin'
       };
       
       return res.status(200).json({
@@ -147,33 +135,27 @@ export default async function handler(req, res) {
     if (req.method === 'PUT') {
       const profileData = req.body;
 
-      // Prepare guide data for insert/update
-      // Note: schema uses instagram, facebook, twitter, linkedin (not _url suffix)
-      // Note: guides.id = users.id (not user_id)
-      const guideData = {
+      // Prepare admin data for insert/update
+      // Note: admins.id = users.id (not user_id)
+      const adminData = {
         id: userId, // id совпадает с users.id
-        name: profileData.name || user.email?.split('@')[0] || 'Guide',
+        name: profileData.name || user.name || user.email?.split('@')[0] || 'Admin',
         bio: profileData.bio || null,
         avatar_url: profileData.avatar || null,
-        instagram: profileData.socialLinks?.instagram || null,
-        facebook: profileData.socialLinks?.facebook || null,
-        twitter: profileData.socialLinks?.twitter || null,
-        linkedin: profileData.socialLinks?.linkedin || null,
-        website: profileData.socialLinks?.website || null,
         updated_at: new Date().toISOString()
       };
 
       // Remove null values for optional fields to avoid constraint issues
-      Object.keys(guideData).forEach(key => {
-        if (guideData[key] === null && key !== 'id' && key !== 'name') {
-          delete guideData[key];
+      Object.keys(adminData).forEach(key => {
+        if (adminData[key] === null && key !== 'id' && key !== 'name') {
+          delete adminData[key];
         }
       });
 
-      // Check if guide profile exists
-      // Note: guides.id = users.id (not user_id)
-      const { data: existingGuide, error: checkError } = await supabase
-        .from('guides')
+      // Check if admin profile exists
+      // Note: admins.id = users.id (not user_id)
+      const { data: existingAdmin, error: checkError } = await supabase
+        .from('admins')
         .select('id')
         .eq('id', userId)
         .maybeSingle();
@@ -188,15 +170,15 @@ export default async function handler(req, res) {
       }
 
       let result;
-      if (existingGuide) {
+      if (existingAdmin) {
         // Update existing profile
         // Don't update id on existing records
-        const updateData = { ...guideData };
+        const updateData = { ...adminData };
         delete updateData.id;
         
-        // Note: guides.id = users.id (not user_id)
-        const { data: updatedGuide, error: updateError } = await supabase
-          .from('guides')
+        // Note: admins.id = users.id (not user_id)
+        const { data: updatedAdmin, error: updateError } = await supabase
+          .from('admins')
           .update(updateData)
           .eq('id', userId)
           .select()
@@ -211,13 +193,13 @@ export default async function handler(req, res) {
           });
         }
 
-        result = updatedGuide;
+        result = updatedAdmin;
       } else {
         // Create new profile
-        guideData.created_at = new Date().toISOString();
-        const { data: newGuide, error: insertError } = await supabase
-          .from('guides')
-          .insert(guideData)
+        adminData.created_at = new Date().toISOString();
+        const { data: newAdmin, error: insertError } = await supabase
+          .from('admins')
+          .insert(adminData)
           .select()
           .single();
 
@@ -230,21 +212,14 @@ export default async function handler(req, res) {
           });
         }
 
-        result = newGuide;
+        result = newAdmin;
       }
 
       // Format response
-      // Note: schema uses instagram, facebook, twitter, linkedin (not _url suffix)
       const profile = {
         avatar: result.avatar_url || '',
         bio: result.bio || '',
-        socialLinks: {
-          instagram: result.instagram || '',
-          facebook: result.facebook || '',
-          twitter: result.twitter || '',
-          linkedin: result.linkedin || '',
-          website: result.website || ''
-        }
+        name: result.name || user.name || user.email?.split('@')[0] || 'Admin'
       };
 
       return res.status(200).json({
@@ -258,7 +233,7 @@ export default async function handler(req, res) {
       message: 'Method not allowed' 
     });
   } catch (error) {
-    console.error('Guide profile error:', error);
+    console.error('Admin profile error:', error);
     res.status(500).json({ 
       success: false, 
       message: 'Error processing request',

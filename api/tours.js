@@ -158,10 +158,11 @@ export default async function handler(req, res) {
       // Load guide info separately if guide_id exists
       let guideInfo = null;
       if (tour && tour.guide_id) {
+        // Note: guides.id = users.id (not user_id)
         const { data: guide } = await supabase
           .from('guides')
           .select('id, name, avatar_url')
-          .eq('user_id', tour.guide_id)
+          .eq('id', tour.guide_id)
           .maybeSingle();
         if (guide) {
           guideInfo = guide;
@@ -419,10 +420,11 @@ export default async function handler(req, res) {
       filteredTours.map(async (tour) => {
         let guideInfo = null;
         if (tour.guide_id) {
+          // Note: guides.id = users.id (not user_id)
           const { data: guide } = await supabase
             .from('guides')
             .select('id, name, avatar_url')
-            .eq('user_id', tour.guide_id)
+            .eq('id', tour.guide_id)
             .maybeSingle();
           if (guide) {
             guideInfo = guide;
