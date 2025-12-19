@@ -51,39 +51,81 @@ export default async function handler(req, res) {
     let userId = null;
     try {
       const cleanToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
+      console.log('🔐 Token received, length:', cleanToken.length);
+      
+      // Try to decode as base64 JSON first
       try {
         const payload = JSON.parse(Buffer.from(cleanToken, 'base64').toString());
         userId = payload.userId || payload.id || payload.sub;
+        console.log('✅ Token decoded as base64 JSON, userId:', userId);
       } catch (e) {
+        // If base64 decode fails, try Supabase auth
+        console.log('⚠️ Base64 decode failed, trying Supabase auth...');
         const { data: { user }, error: authError } = await supabase.auth.getUser(cleanToken);
         if (!authError && user) {
           userId = user.id;
+          console.log('✅ User found via Supabase auth, userId:', userId);
+        } else {
+          console.error('❌ Supabase auth error:', authError);
+          // Try to use token as userId directly (if it's a UUID)
+          if (cleanToken.length === 36 && cleanToken.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+            userId = cleanToken;
+            console.log('✅ Using token as userId (UUID format)');
+          }
         }
       }
     } catch (error) {
-      console.error('Token decode error:', error);
+      console.error('❌ Token decode error:', error);
     }
 
     if (!userId) {
+      console.error('❌ No userId extracted from token');
       return res.status(401).json({
         success: false,
-        error: 'Invalid token'
+        error: 'Invalid token',
+        message: 'Could not extract user ID from token'
       });
     }
 
+    console.log('🔍 Checking admin role for userId:', userId);
+
     // Check if user is admin
-    const { data: userData } = await supabase
+    const { data: userData, error: userError } = await supabase
       .from('users')
-      .select('role')
+      .select('id, role, email')
       .eq('id', userId)
       .maybeSingle();
 
-    if (!userData || userData.role !== 'admin') {
-      return res.status(403).json({
+    if (userError) {
+      console.error('❌ Error fetching user:', userError);
+      return res.status(500).json({
         success: false,
-        error: 'Forbidden: Admin access required'
+        error: 'Database error',
+        message: userError.message
       });
     }
+
+    if (!userData) {
+      console.error('❌ User not found in database, userId:', userId);
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden: User not found',
+        message: `User with ID ${userId} not found in database`
+      });
+    }
+
+    console.log('👤 User found:', { id: userData.id, email: userData.email, role: userData.role });
+
+    if (userData.role !== 'admin') {
+      console.error('❌ User is not admin, role:', userData.role);
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden: Admin access required',
+        message: `User role is "${userData.role}", but "admin" is required`
+      });
+    }
+
+    console.log('✅ Admin access granted');
 
     // GET: Get tours pending moderation
     if (req.method === 'GET') {
