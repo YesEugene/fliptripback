@@ -19,7 +19,7 @@ async function getOrCreateCityFallback(cityName, countryName) {
       .select('id')
       .ilike('name', cityName)
       .limit(1)
-      .single();
+      .maybeSingle();
     if (existing) return existing.id;
     const { data: newCity } = await supabase
       .from('cities')

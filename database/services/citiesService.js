@@ -24,7 +24,7 @@ export async function getOrCreateCity(cityName, countryName = null) {
       .select('id')
       .ilike('name', cityName)
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (existingCity && !searchError) {
       return existingCity.id;
