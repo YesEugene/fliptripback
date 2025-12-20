@@ -144,7 +144,12 @@ export default async function handler(req, res) {
                 order_index,
                 duration_minutes,
                 approx_cost,
-                location:locations(*)
+                location:locations(
+                  *,
+                  location_interests(
+                    interest:interests(id, name, category_id)
+                  )
+                )
               )
             )
           ),
