@@ -120,6 +120,16 @@ export default async function handler(req, res) {
 
     // If ID is provided, return single tour from PostgreSQL
     if (id) {
+      // Validate UUID format
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(id)) {
+        console.error(`❌ Invalid tour ID format: ${id}`);
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid tour ID format'
+        });
+      }
+      
       console.log(`🔍 Fetching tour with ID: ${id}`);
       
       const { data: tour, error } = await supabase
