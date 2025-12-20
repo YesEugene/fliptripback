@@ -148,6 +148,11 @@ export default async function handler(req, res) {
                   *,
                   location_interests(
                     interest:interests(id, name, category_id)
+                  ),
+                  location_photos(
+                    id,
+                    url,
+                    thumbnail_url
                   )
                 )
               )
