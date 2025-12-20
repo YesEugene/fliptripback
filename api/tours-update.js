@@ -116,7 +116,7 @@ export default async function handler(req, res) {
         .from('tours')
         .select('*')
         .eq('id', id)
-        .single();
+        .maybeSingle();
 
       if (tourError) {
         console.error(`❌ DELETE: Tour check error:`, tourError);
@@ -249,7 +249,7 @@ export default async function handler(req, res) {
       .from('tours')
       .select('*')
       .eq('id', id)
-      .single();
+      .maybeSingle();
 
     if (tourCheckError) {
       console.error(`❌ Tour check error:`, tourCheckError);
