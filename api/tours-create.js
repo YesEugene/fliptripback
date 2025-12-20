@@ -377,11 +377,19 @@ export default async function handler(req, res) {
     
     // Extract format and pricing from tourData
     // Ensure format is one of the allowed values (self_guided, with_guide)
+    // Frontend sends 'guided' or 'self-guided', backend expects 'with_guide' or 'self_guided'
     const rawFormat = tourData.format || 'self_guided';
-    const format = (rawFormat === 'self_guided' || rawFormat === 'with_guide') 
-      ? rawFormat 
-      : 'self_guided'; // Default to self_guided if invalid
-    console.log(`📋 Tour format: ${format} (from: ${rawFormat})`);
+    let format = 'self_guided'; // Default
+    if (rawFormat === 'with_guide' || rawFormat === 'guided') {
+      format = 'with_guide';
+    } else if (rawFormat === 'self_guided' || rawFormat === 'self-guided') {
+      format = 'self_guided';
+    }
+    // Also check withGuide flag if format is not clear
+    if (tourData.withGuide && format === 'self_guided') {
+      format = 'with_guide';
+    }
+    console.log(`📋 Tour format: ${format} (from: ${rawFormat}, withGuide: ${tourData.withGuide})`);
     const pricePdf = tourData.price?.pdfPrice || 16.00;
     const priceGuided = tourData.price?.guidedPrice || null;
     const previewMediaUrl = tourData.preview || null;
