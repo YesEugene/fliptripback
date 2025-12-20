@@ -536,6 +536,19 @@ function convertTourToDailyPlan(tour) {
     const blocks = (day.tour_blocks || []).map(block => {
       const items = (block.tour_items || []).map(item => {
         const location = item.location;
+        
+        // Debug logging
+        if (!location) {
+          console.log('⚠️ Item has no location:', { itemId: item.id, locationId: item.location_id });
+        } else {
+          console.log('✅ Item has location:', { 
+            itemId: item.id, 
+            locationName: location.name,
+            hasLocationPhotos: !!location.location_photos,
+            locationPhotosCount: location.location_photos?.length || 0
+          });
+        }
+        
         // Extract interest IDs from location_interests
         const interestIds = location?.location_interests?.map(li => 
           li.interest?.id || li.interest_id
