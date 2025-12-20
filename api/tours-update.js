@@ -631,9 +631,11 @@ export default async function handler(req, res) {
           for (let blockIndex = 0; blockIndex < day.blocks.length; blockIndex++) {
             const block = day.blocks[blockIndex];
             
-            const timeMatch = block.time?.match(/(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})/);
-            const startTime = timeMatch ? timeMatch[1] : null;
-            const endTime = timeMatch ? timeMatch[2] : null;
+            // Parse time range (e.g., "09:00 - 12:00" or "9:00 - 12:00" or "09:00:00 - 12:00:00")
+            // Support both HH:MM and H:MM formats, and handle seconds if present
+            const timeMatch = block.time?.match(/(\d{1,2}):(\d{2})(?::\d{2})?\s*-\s*(\d{1,2}):(\d{2})(?::\d{2})?/);
+            const startTime = timeMatch ? `${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}` : null;
+            const endTime = timeMatch ? `${timeMatch[3].padStart(2, '0')}:${timeMatch[4]}` : null;
             
             const { data: tourBlock } = await supabase
               .from('tour_blocks')

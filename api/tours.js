@@ -506,10 +506,25 @@ function convertTourToDailyPlan(tour) {
         };
       });
 
+      // Format time from start_time and end_time
+      let time = null;
+      if (block.start_time && block.end_time) {
+        // Ensure time format is HH:MM (not HH:MM:SS)
+        const formatTime = (timeStr) => {
+          if (!timeStr) return null;
+          // If time is in HH:MM:SS format, convert to HH:MM
+          const match = timeStr.match(/^(\d{1,2}):(\d{2})/);
+          return match ? `${match[1].padStart(2, '0')}:${match[2]}` : timeStr;
+        };
+        const startFormatted = formatTime(block.start_time);
+        const endFormatted = formatTime(block.end_time);
+        if (startFormatted && endFormatted) {
+          time = `${startFormatted} - ${endFormatted}`;
+        }
+      }
+      
       return {
-        time: block.start_time && block.end_time 
-          ? `${block.start_time} - ${block.end_time}`
-          : block.start_time || 'TBD',
+        time: time || '09:00 - 12:00',
         title: block.title || null,
         items: items
       };
