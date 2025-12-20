@@ -195,6 +195,37 @@ export default async function handler(req, res) {
       }
 
       console.log(`✅ Tour found: ${id}, has ${tour.tour_days?.length || 0} days`);
+      
+      // Debug: Check tour_items and locations
+      if (tour.tour_days && Array.isArray(tour.tour_days)) {
+        let totalItems = 0;
+        let itemsWithLocation = 0;
+        let itemsWithoutLocation = 0;
+        
+        for (const day of tour.tour_days) {
+          if (day.tour_blocks && Array.isArray(day.tour_blocks)) {
+            for (const block of day.tour_blocks) {
+              if (block.tour_items && Array.isArray(block.tour_items)) {
+                for (const item of block.tour_items) {
+                  totalItems++;
+                  if (item.location) {
+                    itemsWithLocation++;
+                  } else {
+                    itemsWithoutLocation++;
+                    console.log('⚠️ Item without location:', { 
+                      itemId: item.id, 
+                      locationId: item.location_id,
+                      item: item 
+                    });
+                  }
+                }
+              }
+            }
+          }
+        }
+        
+        console.log(`📊 Tour items analysis: ${totalItems} total, ${itemsWithLocation} with location, ${itemsWithoutLocation} without location`);
+      }
 
       // Load guide info separately if guide_id exists
       let guideInfo = null;
