@@ -45,7 +45,9 @@ export default async function handler(req, res) {
   const origin = req.headers.origin;
   const allowedOrigins = [
     'https://www.flip-trip.com',
+    'https://flip-trip.com',
     'https://fliptripfrontend.vercel.app',
+    'https://fliptrip-clean-frontend.vercel.app',
     'http://localhost:5173',
     'http://localhost:3000'
   ];
@@ -400,7 +402,7 @@ export default async function handler(req, res) {
       preview_media_url: previewMediaUrl,
       preview_media_type: previewMediaType,
       is_published: false,
-      status: 'pending' // New tours go to moderation queue
+      status: 'draft'
       // verified: false - removed, column doesn't exist in schema
     };
 
@@ -544,11 +546,10 @@ export default async function handler(req, res) {
           for (let blockIndex = 0; blockIndex < day.blocks.length; blockIndex++) {
             const block = day.blocks[blockIndex];
             
-            // Parse time range (e.g., "09:00 - 12:00" or "9:00 - 12:00" or "09:00:00 - 12:00:00")
-            // Support both HH:MM and H:MM formats, and handle seconds if present
-            const timeMatch = block.time?.match(/(\d{1,2}):(\d{2})(?::\d{2})?\s*-\s*(\d{1,2}):(\d{2})(?::\d{2})?/);
-            const startTime = timeMatch ? `${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}` : null;
-            const endTime = timeMatch ? `${timeMatch[3].padStart(2, '0')}:${timeMatch[4]}` : null;
+            // Parse time range (e.g., "09:00 - 12:00")
+            const timeMatch = block.time?.match(/(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})/);
+            const startTime = timeMatch ? timeMatch[1] : null;
+            const endTime = timeMatch ? timeMatch[2] : null;
             
             // Create tour_block
             const { data: tourBlock, error: blockError } = await supabase
