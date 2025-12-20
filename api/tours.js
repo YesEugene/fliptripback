@@ -165,7 +165,7 @@ export default async function handler(req, res) {
           )
         `)
         .eq('id', id)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('❌ Error fetching tour:', error);
