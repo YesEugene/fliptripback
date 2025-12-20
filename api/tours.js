@@ -120,6 +120,8 @@ export default async function handler(req, res) {
 
     // If ID is provided, return single tour from PostgreSQL
     if (id) {
+      console.log(`🔍 Fetching tour with ID: ${id}`);
+      
       const { data: tour, error } = await supabase
         .from('tours')
         .select(`
@@ -165,9 +167,29 @@ export default async function handler(req, res) {
         .eq('id', id)
         .single();
 
+      if (error) {
+        console.error('❌ Error fetching tour:', error);
+        console.error('❌ Error details:', JSON.stringify(error, null, 2));
+        return res.status(500).json({ 
+          success: false, 
+          message: 'Database error',
+          error: error.message
+        });
+      }
+
+      if (!tour) {
+        console.log(`⚠️ Tour not found: ${id}`);
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Tour not found' 
+        });
+      }
+
+      console.log(`✅ Tour found: ${id}, has ${tour.tour_days?.length || 0} days`);
+
       // Load guide info separately if guide_id exists
       let guideInfo = null;
-      if (tour && tour.guide_id) {
+      if (tour.guide_id) {
         // Note: guides.id = users.id (not user_id)
         const { data: guide } = await supabase
           .from('guides')
@@ -177,13 +199,6 @@ export default async function handler(req, res) {
         if (guide) {
           guideInfo = guide;
         }
-      }
-
-      if (error || !tour) {
-        return res.status(404).json({ 
-          success: false, 
-          message: 'Tour not found' 
-        });
       }
 
       // Extract data from meta JSONB field if it exists
