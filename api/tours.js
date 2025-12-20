@@ -483,6 +483,11 @@ function convertTourToDailyPlan(tour) {
     const blocks = (day.tour_blocks || []).map(block => {
       const items = (block.tour_items || []).map(item => {
         const location = item.location;
+        // Extract interest IDs from location_interests
+        const interestIds = location?.location_interests?.map(li => 
+          li.interest?.id || li.interest_id
+        ).filter(Boolean) || [];
+        
         return {
           title: item.custom_title || location?.name || '',
           address: location?.address || '',
@@ -491,7 +496,13 @@ function convertTourToDailyPlan(tour) {
           tips: item.custom_recommendations || location?.recommendations || '',
           photos: location?.photos?.map(p => p.url) || [],
           cost: item.approx_cost || 0,
-          duration: item.duration_minutes || null
+          duration: item.duration_minutes || null,
+          price_level: location?.price_level || null,
+          interest_ids: interestIds,
+          // Keep legacy field names for backward compatibility
+          description: item.custom_description || location?.description || '',
+          recommendations: item.custom_recommendations || location?.recommendations || '',
+          approx_cost: item.approx_cost || 0
         };
       });
 
