@@ -523,7 +523,7 @@ function convertTourToDailyPlan(tour) {
           category: location?.category || '',
           why: item.custom_description || location?.description || '',
           tips: item.custom_recommendations || location?.recommendations || '',
-          photos: location?.photos?.map(p => p.url) || [],
+          photos: location?.location_photos?.map(p => ({ url: p.url, thumbnail: p.thumbnail_url || p.url })) || [],
           cost: item.approx_cost || 0,
           duration: item.duration_minutes || null,
           price_level: location?.price_level || null,
