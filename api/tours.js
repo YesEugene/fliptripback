@@ -181,6 +181,13 @@ export default async function handler(req, res) {
         });
       }
 
+      // Extract data from meta JSONB field if it exists
+      const meta = tour.meta || {};
+      const meetingPoint = meta.meeting_point || null;
+      const meetingTime = meta.meeting_time || null;
+      const availableDates = meta.available_dates || null;
+      const additionalOptions = meta.additional_options || null;
+      
       // Convert normalized structure to legacy format for backward compatibility
       const formattedTour = {
         ...tour,
@@ -189,6 +196,23 @@ export default async function handler(req, res) {
         // Map preview_media_url to preview for backward compatibility
         preview: tour.preview_media_url || tour.preview || null,
         previewType: tour.preview_media_type || tour.previewType || 'image',
+        // Map format for backward compatibility
+        format: tour.default_format === 'with_guide' ? 'guided' : (tour.default_format || 'self-guided'),
+        withGuide: tour.default_format === 'with_guide',
+        // Add price structure with With Guide data
+        price: {
+          pdfPrice: tour.price_pdf || 16,
+          guidedPrice: tour.price_guided || null,
+          currency: tour.currency || 'USD',
+          meetingPoint: meetingPoint,
+          meetingTime: meetingTime,
+          availableDates: availableDates
+        },
+        // Add additional options
+        additionalOptions: additionalOptions || {
+          platformOptions: ['insurance', 'accommodation'],
+          creatorOptions: {}
+        },
         daily_plan: convertTourToDailyPlan(tour),
         // Add guide info if available
         guide: guideInfo

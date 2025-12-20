@@ -387,6 +387,14 @@ export default async function handler(req, res) {
     const previewMediaUrl = tourData.preview || null;
     const previewMediaType = tourData.previewType || 'image';
     
+    // Extract With Guide data
+    const meetingPoint = tourData.price?.meetingPoint || null;
+    const meetingTime = tourData.price?.meetingTime || null;
+    const availableDates = Array.isArray(tourData.price?.availableDates) ? tourData.price.availableDates : null;
+    
+    // Extract Additional Options
+    const additionalOptions = tourData.additionalOptions || null;
+    
     // 1. Create main tour record
     const baseTourData = {
       [userColumnName]: userId,
@@ -405,6 +413,16 @@ export default async function handler(req, res) {
       status: 'draft'
       // verified: false - removed, column doesn't exist in schema
     };
+    
+    // Add With Guide data and Additional Options to meta JSONB field (if column exists)
+    if (meetingPoint || meetingTime || availableDates || additionalOptions) {
+      const extraData = {};
+      if (meetingPoint) extraData.meeting_point = meetingPoint;
+      if (meetingTime) extraData.meeting_time = meetingTime;
+      if (availableDates) extraData.available_dates = availableDates;
+      if (additionalOptions) extraData.additional_options = additionalOptions;
+      baseTourData.meta = extraData;
+    }
 
     // Add country if provided (column should exist according to schema)
     // If column doesn't exist, Supabase will return error, but we'll handle it gracefully

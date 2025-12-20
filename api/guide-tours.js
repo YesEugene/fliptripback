@@ -265,6 +265,13 @@ export default async function handler(req, res) {
       
       // Extract tags from tour_tags
       const tags = (tour.tour_tags || []).map(tt => tt.tag?.name).filter(Boolean);
+      
+      // Extract data from meta JSONB field if it exists
+      const meta = tour.meta || {};
+      const meetingPoint = meta.meeting_point || null;
+      const meetingTime = meta.meeting_time || null;
+      const availableDates = meta.available_dates || null;
+      const additionalOptions = meta.additional_options || null;
 
       return {
         id: tour.id,
@@ -273,9 +280,28 @@ export default async function handler(req, res) {
         country: tour.country || null,
         city: tour.city?.name || null,
         city_id: tour.city_id,
+        preview_media_url: tour.preview_media_url || null,
+        preview_media_type: tour.preview_media_type || 'image',
+        // Map format for backward compatibility
+        format: tour.default_format === 'with_guide' ? 'guided' : (tour.default_format || 'self-guided'),
+        withGuide: tour.default_format === 'with_guide',
+        // Add price structure with With Guide data
+        price: {
+          pdfPrice: tour.price_pdf || 16,
+          guidedPrice: tour.price_guided || null,
+          currency: tour.currency || 'USD',
+          meetingPoint: meetingPoint,
+          meetingTime: meetingTime,
+          availableDates: availableDates
+        },
+        // Add additional options
+        additionalOptions: additionalOptions || {
+          platformOptions: ['insurance', 'accommodation'],
+          creatorOptions: {}
+        },
         daily_plan: dailyPlan, // Converted from normalized structure
         tags: tags, // From tour_tags
-        meta: {}, // Can be extended later
+        meta: meta, // Include meta for backward compatibility
         duration: duration,
         verified: tour.verified || false,
         createdAt: tour.created_at,

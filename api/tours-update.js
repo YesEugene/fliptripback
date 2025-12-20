@@ -399,6 +399,14 @@ export default async function handler(req, res) {
     const priceGuided = tourData.price?.guidedPrice || null;
     const previewMediaUrl = tourData.preview || null;
     const previewMediaType = tourData.previewType || 'image';
+    
+    // Extract With Guide data
+    const meetingPoint = tourData.price?.meetingPoint || null;
+    const meetingTime = tourData.price?.meetingTime || null;
+    const availableDates = Array.isArray(tourData.price?.availableDates) ? tourData.price.availableDates : null;
+    
+    // Extract Additional Options
+    const additionalOptions = tourData.additionalOptions || null;
 
     // Update main tour record
     const updateData = {
@@ -414,6 +422,26 @@ export default async function handler(req, res) {
       preview_media_url: previewMediaUrl,
       preview_media_type: previewMediaType
     };
+    
+    // Add With Guide data to JSONB field (if column exists, will be handled gracefully)
+    // Store in a JSONB field for flexible storage
+    if (meetingPoint || meetingTime || availableDates || additionalOptions) {
+      const extraData = {};
+      if (meetingPoint) extraData.meeting_point = meetingPoint;
+      if (meetingTime) extraData.meeting_time = meetingTime;
+      if (availableDates) extraData.available_dates = availableDates;
+      if (additionalOptions) extraData.additional_options = additionalOptions;
+      
+      // Try to get existing meta data before update
+      const { data: existingTour } = await supabase
+        .from('tours')
+        .select('meta')
+        .eq('id', id)
+        .maybeSingle();
+      
+      const existingMeta = existingTour?.meta || {};
+      updateData.meta = { ...existingMeta, ...extraData };
+    }
     
     // Add status if provided (for draft/auto-save functionality)
     if (status && ['draft', 'pending', 'approved', 'rejected'].includes(status)) {
