@@ -522,13 +522,13 @@ export default async function handler(req, res) {
           for (const block of day.blocks) {
             if (block.items && Array.isArray(block.items)) {
               for (const item of block.items) {
-                if (item.title && item.address) {
+                if (item.title) {
                   const { data: existingLocation } = await supabase
                     .from('locations')
                     .select('id')
                     .eq('name', item.title)
                     .eq('city_id', cityId)
-                    .single();
+                    .maybeSingle();
 
                   if (!existingLocation) {
                     const locationData = {
@@ -561,7 +561,7 @@ export default async function handler(req, res) {
 
                     if (newLocation) {
                       locationsToSave.push(newLocation.id);
-                      const key = `${newLocation.name}|${newLocation.address}`;
+                      const key = newLocation.address ? `${newLocation.name}|${newLocation.address}` : newLocation.name;
                       locationIdMap.set(key, newLocation.id);
                       
                       // Save location interests if provided
@@ -580,7 +580,7 @@ export default async function handler(req, res) {
                     }
                   } else {
                     locationsToSave.push(existingLocation.id);
-                    const key = `${item.title}|${item.address}`;
+                    const key = item.address ? `${item.title}|${item.address}` : item.title;
                     locationIdMap.set(key, existingLocation.id);
                     
                     // Update existing location with new data if provided
@@ -689,24 +689,31 @@ export default async function handler(req, res) {
                 const item = block.items[itemIndex];
                 
                 let locationId = null;
-                if (item.title && item.address) {
-                  const key = `${item.title}|${item.address}`;
+                
+                // Try to find location by title and address (if both exist)
+                if (item.title) {
+                  const key = item.address ? `${item.title}|${item.address}` : item.title;
                   locationId = locationIdMap.get(key);
                   
                   if (!locationId) {
+                    // Try to find existing location by name and city
                     const { data: existingLocation } = await supabase
                       .from('locations')
                       .select('id')
                       .eq('name', item.title)
                       .eq('city_id', cityId)
                       .limit(1)
-                      .single();
+                      .maybeSingle();
                     
                     if (existingLocation) {
                       locationId = existingLocation.id;
                       locationIdMap.set(key, locationId);
+                    } else {
+                      console.log(`⚠️ Location not found for item: ${item.title} in city ${cityId}`);
                     }
                   }
+                } else {
+                  console.log('⚠️ Item has no title:', item);
                 }
                 
                 const { data: tourItem } = await supabase
