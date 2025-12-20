@@ -163,8 +163,7 @@ export default async function handler(req, res) {
                   ),
                   location_photos(
                     id,
-                    url,
-                    thumbnail_url
+                    url
                   )
                 )
               )
@@ -548,7 +547,7 @@ function convertTourToDailyPlan(tour) {
           category: location?.category || '',
           why: item.custom_description || location?.description || '',
           tips: item.custom_recommendations || location?.recommendations || '',
-          photos: location?.location_photos?.map(p => ({ url: p.url, thumbnail: p.thumbnail_url || p.url })) || [],
+          photos: location?.location_photos?.map(p => ({ url: p.url, thumbnail: p.url })) || [],
           cost: item.approx_cost || 0,
           duration: item.duration_minutes || null,
           price_level: location?.price_level || null,
