@@ -23,20 +23,52 @@ export default async function handler(req, res) {
 
     const { city, audience, interests, date, budget, email, itineraryId, tourId } = req.body;
 
-    if (!city || !audience || !email) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    if (!city || !email) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Missing required fields',
+        message: 'City and email are required' 
+      });
     }
+    
+    // Use default audience if not provided
+    const finalAudience = audience || 'solo';
 
     // Build success URL with itineraryId and tourId if present
     // Use flip-trip.com domain instead of vercel.app
     const baseUrl = 'https://flip-trip.com';
-    const interestsStr = Array.isArray(interests) ? interests.join(',') : interests;
-    let successUrl = `${baseUrl}/success?itineraryId=${encodeURIComponent(itineraryId || '')}&email=${encodeURIComponent(email)}&city=${encodeURIComponent(city)}&audience=${encodeURIComponent(audience)}&interests=${encodeURIComponent(interestsStr)}&date=${encodeURIComponent(date)}&budget=${encodeURIComponent(budget)}&session_id={CHECKOUT_SESSION_ID}`;
+    const interestsStr = Array.isArray(interests) ? interests.join(',') : interests || '';
+    let successUrl = `${baseUrl}/itinerary?email=${encodeURIComponent(email)}&city=${encodeURIComponent(city)}&date=${encodeURIComponent(date || '')}&budget=${encodeURIComponent(budget || '')}&session_id={CHECKOUT_SESSION_ID}&paid=true`;
     if (tourId) {
-      successUrl += `&tourId=${encodeURIComponent(tourId)}`;
+      successUrl += `&tourId=${encodeURIComponent(tourId)}&previewOnly=true`;
+    } else if (itineraryId) {
+      successUrl += `&itineraryId=${encodeURIComponent(itineraryId)}`;
+    }
+    if (finalAudience) {
+      successUrl += `&audience=${encodeURIComponent(finalAudience)}`;
+    }
+    if (interestsStr) {
+      successUrl += `&interests=${encodeURIComponent(interestsStr)}`;
     }
     
-    const cancelUrl = `${baseUrl}/itinerary?city=${encodeURIComponent(city)}&audience=${encodeURIComponent(audience)}&interests=${encodeURIComponent(interestsStr)}&date=${encodeURIComponent(date)}&budget=${encodeURIComponent(budget)}&previewOnly=true${itineraryId ? `&itineraryId=${encodeURIComponent(itineraryId)}` : ''}`;
+    let cancelUrl = `${baseUrl}/itinerary?city=${encodeURIComponent(city)}&previewOnly=true`;
+    if (tourId) {
+      cancelUrl += `&tourId=${encodeURIComponent(tourId)}`;
+    } else if (itineraryId) {
+      cancelUrl += `&itineraryId=${encodeURIComponent(itineraryId)}`;
+    }
+    if (finalAudience) {
+      cancelUrl += `&audience=${encodeURIComponent(finalAudience)}`;
+    }
+    if (interestsStr) {
+      cancelUrl += `&interests=${encodeURIComponent(interestsStr)}`;
+    }
+    if (date) {
+      cancelUrl += `&date=${encodeURIComponent(date)}`;
+    }
+    if (budget) {
+      cancelUrl += `&budget=${encodeURIComponent(budget)}`;
+    }
 
     // Создаем Stripe checkout session
     const session = await stripe.checkout.sessions.create({
@@ -53,10 +85,10 @@ export default async function handler(req, res) {
       customer_email: email,
       metadata: {
         city,
-        audience,
+        audience: finalAudience,
         interests: interestsStr,
-        date,
-        budget,
+        date: date || '',
+        budget: budget || '',
         email,
         itineraryId: itineraryId || '',
         tourId: tourId || ''
