@@ -248,5 +248,9 @@ SET default_group_size = 10
 WHERE default_format = 'with_guide'
   AND default_group_size IS NULL;
 
-RAISE NOTICE 'Schema for guide availability system created successfully';
+-- Финальное сообщение
+DO $$
+BEGIN
+  RAISE NOTICE 'Schema for guide availability system created successfully';
+END $$;
 
