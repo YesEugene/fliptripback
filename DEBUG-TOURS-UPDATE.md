@@ -75,3 +75,4 @@ export default async function handler(req, res) {
 4. **Любые ошибки из логов Vercel**, связанные с tours-update
 
 
+

@@ -110,3 +110,4 @@ COMMENT ON COLUMN locations.updated_by IS 'ID пользователя, кото
 COMMENT ON COLUMN locations.google_place_id IS 'Внешний ID из Google Places API (для связи с Google)';
 
 
+

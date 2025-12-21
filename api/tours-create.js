@@ -422,6 +422,12 @@ export default async function handler(req, res) {
       // verified: false - removed, column doesn't exist in schema
     };
     
+    // Add default_group_size if provided
+    const defaultGroupSize = tourData.price?.defaultGroupSize || tourData.defaultGroupSize || 10;
+    if (format === 'with_guide') {
+      baseTourData.default_group_size = defaultGroupSize;
+    }
+
     // Add With Guide data and Additional Options to meta JSONB field (if column exists)
     if (meetingPoint || meetingTime || availableDates || additionalOptions) {
       const extraData = {};
@@ -508,6 +514,33 @@ export default async function handler(req, res) {
         success: false,
         error: 'Tour creation failed - no tour object'
       });
+    }
+
+    // 1.5. Create availability slots if tour has guide and availableDates
+    if (format === 'with_guide' && availableDates && Array.isArray(availableDates) && availableDates.length > 0) {
+      try {
+        const slotsToInsert = availableDates.map(date => ({
+          tour_id: tour.id,
+          date: date,
+          max_group_size: defaultGroupSize,
+          is_available: true,
+          is_blocked: false
+        }));
+
+        const { error: slotsError } = await supabase
+          .from('tour_availability_slots')
+          .insert(slotsToInsert);
+
+        if (slotsError) {
+          console.error('⚠️ Error creating availability slots:', slotsError);
+          // Don't fail the tour creation, just log the error
+        } else {
+          console.log(`✅ Created ${slotsToInsert.length} availability slots for tour`);
+        }
+      } catch (err) {
+        console.error('⚠️ Error creating availability slots:', err);
+        // Don't fail the tour creation
+      }
     }
 
     // 2. Save tags if provided

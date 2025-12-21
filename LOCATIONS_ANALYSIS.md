@@ -75,3 +75,4 @@ if (interests && Array.isArray(interests) && interests.length > 0) {
    - Либо использовать только `location_interests` для фильтрации
 
 
+

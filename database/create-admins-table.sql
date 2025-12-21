@@ -19,3 +19,4 @@ CREATE INDEX IF NOT EXISTS idx_admins_id ON admins(id);
 COMMENT ON TABLE admins IS 'Admin profiles - additional data for users with role=admin. id matches users.id';
 
 
+

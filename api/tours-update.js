@@ -430,6 +430,12 @@ export default async function handler(req, res) {
       preview_media_url: previewMediaUrl,
       preview_media_type: previewMediaType
     };
+
+    // Add default_group_size if provided
+    const defaultGroupSize = tourData.price?.defaultGroupSize || tourData.defaultGroupSize || null;
+    if (format === 'with_guide' && defaultGroupSize) {
+      updateData.default_group_size = defaultGroupSize;
+    }
     
     // Add With Guide data to JSONB field (if column exists, will be handled gracefully)
     // Store in a JSONB field for flexible storage

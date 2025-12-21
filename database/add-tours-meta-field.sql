@@ -22,3 +22,4 @@ CREATE INDEX IF NOT EXISTS idx_tours_meta ON tours USING GIN (meta);
 -- Add comment
 COMMENT ON COLUMN tours.meta IS 'Additional tour data: meeting_point, meeting_time, available_dates, additional_options';
 
+

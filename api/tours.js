@@ -248,6 +248,38 @@ export default async function handler(req, res) {
       const availableDates = meta.available_dates || null;
       const additionalOptions = meta.additional_options || null;
       
+      // Get availability information from new system (if tour has guide)
+      let availabilityInfo = null;
+      if (tour.default_format === 'with_guide') {
+        // Get next available date and available spots
+        const { data: nextAvailableSlot } = await supabase
+          .from('tour_availability_slots')
+          .select('date, max_group_size, booked_spots')
+          .eq('tour_id', tour.id)
+          .eq('is_available', true)
+          .eq('is_blocked', false)
+          .gte('date', new Date().toISOString().split('T')[0])
+          .order('date', { ascending: true })
+          .limit(1)
+          .single();
+
+        if (nextAvailableSlot) {
+          const availableSpots = nextAvailableSlot.max_group_size - (nextAvailableSlot.booked_spots || 0);
+          availabilityInfo = {
+            default_group_size: tour.default_group_size || 10,
+            next_available_date: nextAvailableSlot.date,
+            available_spots: availableSpots
+          };
+        } else {
+          // Fallback: use default_group_size if no slots found
+          availabilityInfo = {
+            default_group_size: tour.default_group_size || 10,
+            next_available_date: null,
+            available_spots: 0
+          };
+        }
+      }
+      
       // Convert normalized structure to legacy format for backward compatibility
       const formattedTour = {
         ...tour,
@@ -266,13 +298,15 @@ export default async function handler(req, res) {
           currency: tour.currency || 'USD',
           meetingPoint: meetingPoint,
           meetingTime: meetingTime,
-          availableDates: availableDates
+          availableDates: availableDates // Legacy format, kept for backward compatibility
         },
         // Add additional options
         additionalOptions: additionalOptions || {
           platformOptions: ['insurance', 'accommodation'],
           creatorOptions: {}
         },
+        // Add availability information (new system)
+        availability: availabilityInfo,
         daily_plan: convertTourToDailyPlan(tour),
         // Add guide info if available
         guide: guideInfo

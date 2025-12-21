@@ -12,3 +12,4 @@ CREATE INDEX IF NOT EXISTS idx_location_tags_location_id ON location_tags(locati
 CREATE INDEX IF NOT EXISTS idx_location_tags_tag_id ON location_tags(tag_id);
 
 
+
