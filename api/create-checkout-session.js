@@ -64,7 +64,11 @@ export default async function handler(req, res) {
     });
 
     console.log('✅ PAYMENT: Checkout session created');
-    return res.status(200).json({ url: session.url });
+    return res.status(200).json({ 
+      success: true,
+      sessionUrl: session.url,
+      sessionId: session.id
+    });
 
   } catch (error) {
     console.error('❌ PAYMENT: Error creating checkout session:', error);
