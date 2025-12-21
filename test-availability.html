@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Guide Availability API</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 { color: #333; }
+        h2 { color: #666; margin-top: 0; }
+        input, textarea, select {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px 5px 5px 0;
+        }
+        button:hover { background: #2563eb; }
+        button.danger { background: #ef4444; }
+        button.danger:hover { background: #dc2626; }
+        .result {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 10px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .success { border-color: #10b981; background: #d1fae5; }
+        .error { border-color: #ef4444; background: #fee2e2; }
+        label {
+            display: block;
+            margin-top: 10px;
+            font-weight: bold;
+            color: #374151;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 768px) {
+            .grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Тестирование API системы управления доступностью</h1>
+
+    <div class="container">
+        <h2>Настройки</h2>
+        <label>API Base URL:</label>
+        <input type="text" id="apiUrl" value="https://fliptripbackend.vercel.app" placeholder="https://fliptripbackend.vercel.app">
+        
+        <label>Токен авторизации:</label>
+        <input type="text" id="token" placeholder="Bearer token или полный токен">
+        <small>Получите из localStorage: localStorage.getItem('authToken')</small>
+        
+        <label>Tour ID (ID тура с гидом):</label>
+        <input type="text" id="tourId" placeholder="UUID тура">
+        
+        <label>Guide ID (ID гида, опционально):</label>
+        <input type="text" id="guideId" placeholder="UUID гида">
+    </div>
+
+    <div class="grid">
+        <div class="container">
+            <h2>1. Получить доступность</h2>
+            <button onclick="getAvailability()">GET /api/guide-availability</button>
+            <div id="result1" class="result" style="display:none;"></div>
+        </div>
+
+        <div class="container">
+            <h2>2. Создать слоты</h2>
+            <label>Даты (через запятую):</label>
+            <input type="text" id="dates" placeholder="2025-12-22, 2025-12-23" value="2025-12-22, 2025-12-23">
+            <label>Размер группы:</label>
+            <input type="number" id="groupSize" value="10" min="1">
+            <button onclick="createSlots()">POST /api/guide-availability</button>
+            <div id="result2" class="result" style="display:none;"></div>
+        </div>
+
+        <div class="container">
+            <h2>3. Массовая блокировка</h2>
+            <label>Даты для блокировки:</label>
+            <input type="text" id="blockDates" placeholder="2025-12-25, 2025-12-26">
+            <button onclick="bulkBlock()">POST /api/guide-availability (bulk_block)</button>
+            <div id="result3" class="result" style="display:none;"></div>
+        </div>
+
+        <div class="container">
+            <h2>4. Создать бронирование</h2>
+            <label>Дата тура:</label>
+            <input type="date" id="bookingDate" value="2025-12-22">
+            <label>Размер группы:</label>
+            <input type="number" id="bookingGroupSize" value="2" min="1">
+            <button onclick="createBooking()">POST /api/tour-bookings</button>
+            <div id="result4" class="result" style="display:none;"></div>
+        </div>
+
+        <div class="container">
+            <h2>5. Получить бронирования</h2>
+            <label>Фильтр:</label>
+            <select id="bookingFilter">
+                <option value="guide">По гиду (guide_id)</option>
+                <option value="tour">По туру (tour_id)</option>
+                <option value="user">По пользователю (user_id)</option>
+            </select>
+            <button onclick="getBookings()">GET /api/tour-bookings</button>
+            <div id="result5" class="result" style="display:none;"></div>
+        </div>
+
+        <div class="container">
+            <h2>6. Обновить бронирование</h2>
+            <label>Booking ID:</label>
+            <input type="text" id="updateBookingId" placeholder="UUID бронирования">
+            <label>Статус:</label>
+            <select id="bookingStatus">
+                <option value="pending">pending</option>
+                <option value="confirmed">confirmed</option>
+                <option value="cancelled">cancelled</option>
+                <option value="completed">completed</option>
+            </select>
+            <button onclick="updateBooking()">PUT /api/tour-bookings</button>
+            <div id="result6" class="result" style="display:none;"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = () => document.getElementById('apiUrl').value;
+        const getToken = () => {
+            let token = document.getElementById('token').value;
+            if (token && !token.startsWith('Bearer ')) {
+                token = 'Bearer ' + token;
+            }
+            return token;
+        };
+        const getTourId = () => document.getElementById('tourId').value;
+        const getGuideId = () => document.getElementById('guideId').value;
+
+        function showResult(id, data, isError = false) {
+            const el = document.getElementById(id);
+            el.style.display = 'block';
+            el.className = 'result ' + (isError ? 'error' : 'success');
+            el.textContent = JSON.stringify(data, null, 2);
+        }
+
+        async function getAvailability() {
+            const tourId = getTourId();
+            if (!tourId) {
+                alert('Введите Tour ID');
+                return;
+            }
+            try {
+                const res = await fetch(`${API_BASE_URL()}/api/guide-availability?tour_id=${tourId}`, {
+                    headers: { 'Authorization': getToken(), 'Content-Type': 'application/json' }
+                });
+                const data = await res.json();
+                showResult('result1', data, !res.ok);
+            } catch (error) {
+                showResult('result1', { error: error.message }, true);
+            }
+        }
+
+        async function createSlots() {
+            const tourId = getTourId();
+            const dates = document.getElementById('dates').value.split(',').map(d => d.trim());
+            const groupSize = parseInt(document.getElementById('groupSize').value) || 10;
+            
+            if (!tourId || dates.length === 0) {
+                alert('Введите Tour ID и даты');
+                return;
+            }
+            
+            try {
+                const slots = dates.map(date => ({
+                    date,
+                    max_group_size: groupSize,
+                    is_available: true,
+                    is_blocked: false
+                }));
+                
+                const res = await fetch(`${API_BASE_URL()}/api/guide-availability`, {
+                    method: 'POST',
+                    headers: { 'Authorization': getToken(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tour_id: tourId, slots })
+                });
+                const data = await res.json();
+                showResult('result2', data, !res.ok);
+            } catch (error) {
+                showResult('result2', { error: error.message }, true);
+            }
+        }
+
+        async function bulkBlock() {
+            const tourId = getTourId();
+            const dates = document.getElementById('blockDates').value.split(',').map(d => d.trim());
+            
+            if (!tourId || dates.length === 0) {
+                alert('Введите Tour ID и даты для блокировки');
+                return;
+            }
+            
+            try {
+                const res = await fetch(`${API_BASE_URL()}/api/guide-availability`, {
+                    method: 'POST',
+                    headers: { 'Authorization': getToken(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        tour_id: tourId,
+                        bulk_block: { dates, is_blocked: true }
+                    })
+                });
+                const data = await res.json();
+                showResult('result3', data, !res.ok);
+            } catch (error) {
+                showResult('result3', { error: error.message }, true);
+            }
+        }
+
+        async function createBooking() {
+            const tourId = getTourId();
+            const tourDate = document.getElementById('bookingDate').value;
+            const groupSize = parseInt(document.getElementById('bookingGroupSize').value) || 1;
+            
+            if (!tourId || !tourDate) {
+                alert('Введите Tour ID и дату');
+                return;
+            }
+            
+            try {
+                const res = await fetch(`${API_BASE_URL()}/api/tour-bookings`, {
+                    method: 'POST',
+                    headers: { 'Authorization': getToken(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        tour_id: tourId,
+                        tour_date: tourDate,
+                        group_size: groupSize,
+                        participants: [{ name: 'Test User', email: 'test@example.com' }],
+                        additional_services: { photography: true },
+                        customer_notes: 'Test booking from API tester'
+                    })
+                });
+                const data = await res.json();
+                showResult('result4', data, !res.ok);
+                if (data.success && data.booking) {
+                    document.getElementById('updateBookingId').value = data.booking.id;
+                }
+            } catch (error) {
+                showResult('result4', { error: error.message }, true);
+            }
+        }
+
+        async function getBookings() {
+            const filter = document.getElementById('bookingFilter').value;
+            let url = `${API_BASE_URL()}/api/tour-bookings?`;
+            
+            if (filter === 'guide') {
+                const guideId = getGuideId();
+                if (!guideId) {
+                    alert('Введите Guide ID');
+                    return;
+                }
+                url += `guide_id=${guideId}`;
+            } else if (filter === 'tour') {
+                const tourId = getTourId();
+                if (!tourId) {
+                    alert('Введите Tour ID');
+                    return;
+                }
+                url += `tour_id=${tourId}`;
+            }
+            
+            try {
+                const res = await fetch(url, {
+                    headers: { 'Authorization': getToken(), 'Content-Type': 'application/json' }
+                });
+                const data = await res.json();
+                showResult('result5', data, !res.ok);
+            } catch (error) {
+                showResult('result5', { error: error.message }, true);
+            }
+        }
+
+        async function updateBooking() {
+            const bookingId = document.getElementById('updateBookingId').value;
+            const status = document.getElementById('bookingStatus').value;
+            
+            if (!bookingId) {
+                alert('Введите Booking ID');
+                return;
+            }
+            
+            try {
+                const res = await fetch(`${API_BASE_URL()}/api/tour-bookings?booking_id=${bookingId}`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': getToken(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        status,
+                        guide_notes: `Updated to ${status} via API tester`
+                    })
+                });
+                const data = await res.json();
+                showResult('result6', data, !res.ok);
+            } catch (error) {
+                showResult('result6', { error: error.message }, true);
+            }
+        }
+
+        // Автозаполнение токена из localStorage при загрузке
+        window.addEventListener('load', () => {
+            const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+            if (token) {
+                document.getElementById('token').value = token;
+            }
+        });
+    </script>
+</body>
+</html>
+
