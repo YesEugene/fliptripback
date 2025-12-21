@@ -54,7 +54,8 @@ CREATE INDEX IF NOT EXISTS idx_availability_date ON tour_availability_slots(date
 CREATE INDEX IF NOT EXISTS idx_availability_tour_date ON tour_availability_slots(tour_id, date);
 CREATE INDEX IF NOT EXISTS idx_availability_is_available ON tour_availability_slots(is_available);
 CREATE INDEX IF NOT EXISTS idx_availability_is_blocked ON tour_availability_slots(is_blocked);
-CREATE INDEX IF NOT EXISTS idx_availability_date_range ON tour_availability_slots(tour_id, date) WHERE date >= CURRENT_DATE;
+-- Удаляем индекс с CURRENT_DATE (не IMMUTABLE), используем обычный индекс
+-- CREATE INDEX IF NOT EXISTS idx_availability_date_range ON tour_availability_slots(tour_id, date) WHERE date >= CURRENT_DATE;
 
 -- Комментарии
 COMMENT ON TABLE tour_availability_slots IS 'Управление доступностью конкретных дат для туров с гидом';
