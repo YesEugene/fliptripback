@@ -16,6 +16,262 @@ const openai = new OpenAI({
 const googleMapsClient = new Client({});
 
 // =============================================================================
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+// =============================================================================
+
+/**
+ * Get or create user by email
+ * @param {string} email - User email
+ * @returns {Promise<string|null>} - User ID or null
+ */
+async function getOrCreateUser(email) {
+  if (!email || !email.includes('@')) {
+    return null;
+  }
+
+  try {
+    // Try to find existing user
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .single();
+
+    if (existingUser) {
+      return existingUser.id;
+    }
+
+    // Create new user if doesn't exist
+    const { data: newUser, error: userError } = await supabase
+      .from('users')
+      .insert({
+        email: email,
+        name: email.split('@')[0], // Use email prefix as name
+        role: 'user'
+      })
+      .select('id')
+      .single();
+
+    if (userError) {
+      console.error('❌ Error creating user:', userError);
+      return null;
+    }
+
+    return newUser.id;
+  } catch (error) {
+    console.error('❌ Error in getOrCreateUser:', error);
+    return null;
+  }
+}
+
+/**
+ * Save location from Google Places to database
+ * @param {object} placeData - Location data (name, address, category, etc.)
+ * @param {string} cityId - City ID
+ * @returns {Promise<string|null>} - Location ID or null
+ */
+async function saveGooglePlaceToDatabase(placeData, cityId) {
+  if (!placeData || !placeData.name || !cityId) {
+    return null;
+  }
+
+  try {
+    // Check if location already exists by google_place_id
+    if (placeData.googlePlaceId) {
+      const { data: existing } = await supabase
+        .from('locations')
+        .select('id')
+        .eq('google_place_id', placeData.googlePlaceId)
+        .single();
+
+      if (existing) {
+        return existing.id;
+      }
+    }
+
+    // Create new location
+    const { data: newLocation, error: locationError } = await supabase
+      .from('locations')
+      .insert({
+        name: placeData.name,
+        address: placeData.address || '',
+        city_id: cityId,
+        category: placeData.category || 'attraction',
+        description: placeData.description || null,
+        recommendations: placeData.recommendations || null,
+        price_level: placeData.priceLevel || 2,
+        source: 'google',
+        verified: false, // Google Places locations are not verified by default
+        google_place_id: placeData.googlePlaceId || null
+      })
+      .select('id')
+      .single();
+
+    if (locationError) {
+      console.error('❌ Error saving location:', locationError);
+      return null;
+    }
+
+    // Save photos if available
+    if (placeData.photos && placeData.photos.length > 0 && newLocation.id) {
+      const photoInserts = placeData.photos.map(photoUrl => ({
+        location_id: newLocation.id,
+        url: photoUrl
+      }));
+
+      await supabase
+        .from('location_photos')
+        .insert(photoInserts);
+    }
+
+    return newLocation.id;
+  } catch (error) {
+    console.error('❌ Error in saveGooglePlaceToDatabase:', error);
+    return null;
+  }
+}
+
+/**
+ * Save generated tour to database
+ * @param {object} tourData - Tour data
+ * @param {string} userId - User ID
+ * @param {string} cityId - City ID
+ * @param {array} activities - Activities array
+ * @returns {Promise<string|null>} - Tour ID or null
+ */
+async function saveGeneratedTourToDatabase(tourData, userId, cityId, activities) {
+  if (!tourData || !cityId) {
+    return null;
+  }
+
+  try {
+    // Create tour record
+    const { data: newTour, error: tourError } = await supabase
+      .from('tours')
+      .insert({
+        title: tourData.title || `Tour in ${tourData.city}`,
+        description: tourData.subtitle || null,
+        city_id: cityId,
+        user_id: userId, // Link to user
+        guide_id: null, // No guide for AI-generated tours
+        source: 'user_generated', // Mark as user-generated
+        is_published: false, // Not published on site
+        status: 'draft', // Use draft status (valid in constraint)
+        default_format: 'self_guided',
+        price_pdf: 16.00,
+        currency: 'USD',
+        duration_type: 'days',
+        duration_value: 1
+      })
+      .select('id')
+      .single();
+
+    if (tourError || !newTour) {
+      console.error('❌ Error creating tour:', tourError);
+      return null;
+    }
+
+    const tourId = newTour.id;
+    console.log('✅ Tour created in DB:', tourId);
+
+    // Create tour_day
+    const { data: tourDay, error: dayError } = await supabase
+      .from('tour_days')
+      .insert({
+        tour_id: tourId,
+        day_number: 1,
+        title: `Day 1 in ${tourData.city}`,
+        date_hint: tourData.date ? new Date(tourData.date) : null
+      })
+      .select('id')
+      .single();
+
+    if (dayError || !tourDay) {
+      console.error('❌ Error creating tour_day:', dayError);
+      // Continue anyway - we can still return tourId
+      return tourId;
+    }
+
+    // Group activities by time blocks
+    const timeBlocks = {};
+    activities.forEach(activity => {
+      const timeKey = activity.time || 'TBD';
+      if (!timeBlocks[timeKey]) {
+        timeBlocks[timeKey] = [];
+      }
+      timeBlocks[timeKey].push(activity);
+    });
+
+    // Create tour_blocks and tour_items
+    let blockIndex = 0;
+    for (const [time, blockActivities] of Object.entries(timeBlocks)) {
+      const [startTime, endTime] = time.includes(' - ') 
+        ? time.split(' - ') 
+        : [time, null];
+
+      const { data: tourBlock, error: blockError } = await supabase
+        .from('tour_blocks')
+        .insert({
+          tour_day_id: tourDay.id,
+          start_time: startTime || null,
+          end_time: endTime || null,
+          title: time
+        })
+        .select('id')
+        .single();
+
+      if (blockError || !tourBlock) {
+        console.error('❌ Error creating tour_block:', blockError);
+        continue;
+      }
+
+      // Create tour_items for each activity
+      for (let i = 0; i < blockActivities.length; i++) {
+        const activity = blockActivities[i];
+        let locationId = null;
+
+        // If location is from database, use its ID
+        if (activity.locationId) {
+          locationId = activity.locationId;
+        } 
+        // If location is from Google Places, save it first
+        else if (activity.fromGooglePlace && activity.location) {
+          locationId = await saveGooglePlaceToDatabase({
+            name: activity.name || activity.title,
+            address: activity.location,
+            category: activity.category || 'attraction',
+            googlePlaceId: activity.googlePlaceId,
+            photos: activity.photos || [],
+            priceLevel: activity.priceLevel || 2
+          }, cityId);
+        }
+
+        await supabase
+          .from('tour_items')
+          .insert({
+            tour_block_id: tourBlock.id,
+            location_id: locationId,
+            custom_title: activity.name || activity.title,
+            custom_description: activity.description || null,
+            custom_recommendations: activity.recommendations || null,
+            order_index: i,
+            duration_minutes: activity.duration || 90,
+            approx_cost: activity.price || null
+          });
+      }
+
+      blockIndex++;
+    }
+
+    console.log(`✅ Tour structure saved: ${blockIndex} blocks, ${activities.length} items`);
+    return tourId;
+  } catch (error) {
+    console.error('❌ Error in saveGeneratedTourToDatabase:', error);
+    return null;
+  }
+}
+
+// =============================================================================
 // МОДУЛЬ 0: ГЕНЕРАЦИЯ КОНЦЕПЦИИ ДНЯ
 // =============================================================================
 
@@ -156,7 +412,9 @@ async function findRealLocations(timeSlots, city, interestIds = []) {
               photos: place.photos ? place.photos.slice(0, 3).map(photo => 
                 `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photo.photo_reference}&key=${process.env.GOOGLE_MAPS_KEY}`
               ) : [],
-              fromDatabase: false
+              fromDatabase: false,
+              googlePlaceId: place.place_id || null, // Save Google Place ID for later
+              category: slot.category || 'attraction'
             };
             console.log(`✅ Found in Google Places: ${place.name}`);
           }
@@ -426,7 +684,7 @@ export default async function handler(req, res) {
       });
     }
     
-    const { city, audience, interests, interest_ids, date, date_from, date_to, budget, previewOnly, category_id, subcategory_id } = req.body;
+    const { city, audience, interests, interest_ids, date, date_from, date_to, budget, previewOnly, category_id, subcategory_id, email } = req.body;
     
     // Support both interests (legacy) and interest_ids (new system)
     let interestIds = [];
@@ -622,7 +880,12 @@ export default async function handler(req, res) {
         ],
         recommendations: recommendations,
         priceRange: priceRange,
-        rating: place.rating
+        rating: place.rating,
+        // Metadata for saving to DB
+        locationId: place.locationId || null, // If from DB
+        fromGooglePlace: !place.fromDatabase, // If from Google Places
+        googlePlaceId: place.googlePlaceId || null,
+        priceLevel: place.priceLevel || 2
       };
     }));
 
@@ -678,6 +941,54 @@ export default async function handler(req, res) {
       withinBudget: totalCost <= parseInt(budget),
       previewOnly: previewOnly || false // Сохраняем флаг preview режима
     };
+
+    // If preview mode, save tour to database
+    if (previewOnly) {
+      try {
+        console.log('💾 PREVIEW MODE: Saving tour to database...');
+        
+        // Get or create user by email (if provided)
+        const email = req.body.email || null;
+        let userId = null;
+        if (email) {
+          userId = await getOrCreateUser(email);
+          console.log('👤 User ID:', userId);
+        }
+
+        // Get city ID
+        let cityIdForTour = cityId;
+        if (!cityIdForTour) {
+          cityIdForTour = await getOrCreateCity(city, null);
+        }
+
+        if (cityIdForTour) {
+          // Save tour to database
+          const tourId = await saveGeneratedTourToDatabase(
+            {
+              title: metaInfo.title,
+              subtitle: metaInfo.subtitle,
+              city: city,
+              date: date
+            },
+            userId,
+            cityIdForTour,
+            activities
+          );
+
+          if (tourId) {
+            result.tourId = tourId;
+            console.log('✅ Tour saved to database with ID:', tourId);
+          } else {
+            console.warn('⚠️ Failed to save tour to database, but continuing...');
+          }
+        } else {
+          console.warn('⚠️ City ID not found, skipping tour save');
+        }
+      } catch (saveError) {
+        console.error('❌ Error saving tour to database:', saveError);
+        // Don't fail the request - continue without tourId
+      }
+    }
 
     console.log('✅ FLIPTRIP CLEAN: План успешно создан');
     return res.status(200).json(result);

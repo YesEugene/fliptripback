@@ -62,6 +62,7 @@ export async function searchToursForItinerary(cityId, categories = [], tags = []
       `)
       .eq('city_id', cityId)
       .eq('is_published', true)
+      .or('source.is.null,source.neq.user_generated') // Exclude AI-generated user tours, but include NULL (existing tours)
       .limit(limit);
 
     // Filter by format if provided
