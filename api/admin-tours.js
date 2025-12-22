@@ -137,7 +137,9 @@ export default async function handler(req, res) {
         });
       }
 
-      // Use search, status, city, format from the destructuring above (line 43)
+      // Use search, status, city, format, source from the destructuring above (line 43)
+      const { source } = req.query;
+      
       let query = supabase
         .from('tours')
         .select(`
@@ -148,6 +150,16 @@ export default async function handler(req, res) {
           )
         `)
         .order('created_at', { ascending: false });
+
+      // CRITICAL: Filter by source
+      // If source='user_generated' is explicitly requested (AI Tours tab), show only AI tours
+      // Otherwise (All Tours, Pending, Approved, Rejected), exclude AI tours
+      if (source === 'user_generated') {
+        query = query.eq('source', 'user_generated');
+      } else {
+        // Exclude user_generated tours from main tabs
+        query = query.or('source.is.null,source.neq.user_generated');
+      }
 
       if (search) {
         query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
@@ -197,6 +209,7 @@ export default async function handler(req, res) {
         country: tour.country || null,
         guide: tour.guide_id ? (guideEmailsMap[tour.guide_id] || 'N/A') : 'N/A',
         guideId: tour.guide_id || null,
+        source: tour.source || null, // Include source for frontend filtering
         duration: {
           type: tour.duration_type || 'hours',
           value: tour.duration_value || 6
