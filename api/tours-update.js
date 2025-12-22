@@ -245,9 +245,10 @@ export default async function handler(req, res) {
     // Verify user owns the tour
     console.log(`🔍 Checking tour ownership for tour ID: ${id}, userId: ${userId}`);
     // Use select('*') to get all columns, then check which owner column exists
+    // Also get current status to protect approved tours
     const { data: existingTour, error: tourCheckError } = await supabase
       .from('tours')
-      .select('*')
+      .select('*, status')
       .eq('id', id)
       .maybeSingle();
 
@@ -615,11 +616,22 @@ export default async function handler(req, res) {
     }
     
     // Add status if provided (for manual status changes)
+    // IMPORTANT: Don't change status from 'approved' to 'draft' - this would hide the tour from site
+    // If tour is approved, only allow changing to 'pending' (for moderation) or keep it 'approved'
     if (status && ['draft', 'pending', 'approved', 'rejected'].includes(status) && status !== 'pending') {
-      updateData.status = status;
-      // If status is 'approved', also set is_published = true
-      if (status === 'approved') {
-        updateData.is_published = true;
+      const currentStatus = existingTour?.status;
+      
+      // Protect approved tours: don't allow changing to draft
+      if (currentStatus === 'approved' && status === 'draft') {
+        console.warn('⚠️ Attempted to change approved tour to draft - ignoring status change');
+        // Don't change status - keep it approved
+        // If user wants to save draft, they should use saveAsDraft: true
+      } else {
+        updateData.status = status;
+        // If status is 'approved', also set is_published = true
+        if (status === 'approved') {
+          updateData.is_published = true;
+        }
       }
     }
 
