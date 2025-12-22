@@ -65,24 +65,146 @@ export default async function handler(req, res) {
       .select('*', { count: 'exact', head: true })
       .eq('verified', false);
 
-    // Get tours by status
+    // Get tours by status (approved, pending, draft, rejected)
     const { data: allTours } = await supabase
       .from('tours')
-      .select('verified');
+      .select('status, verified');
     
     const toursByStatus = {
       verified: 0,
-      unverified: 0
+      unverified: 0,
+      approved: 0,
+      pending: 0,
+      draft: 0,
+      rejected: 0
     };
     if (allTours) {
       allTours.forEach(tour => {
+        // Legacy: verified/unverified
         if (tour.verified) {
           toursByStatus.verified++;
         } else {
           toursByStatus.unverified++;
         }
+        // New: status-based
+        const status = tour.status || 'draft';
+        if (toursByStatus.hasOwnProperty(status)) {
+          toursByStatus[status]++;
+        }
       });
     }
+    
+    // Get users breakdown (guides, customers, admins)
+    const { data: allUsers } = await supabase
+      .from('users')
+      .select('role');
+    
+    const usersBreakdown = {
+      guides: 0,
+      customers: 0,
+      admins: 0
+    };
+    if (allUsers) {
+      allUsers.forEach(user => {
+        const role = user.role || 'user';
+        if (role === 'creator' || role === 'guide') {
+          usersBreakdown.guides++;
+        } else if (role === 'admin') {
+          usersBreakdown.admins++;
+        } else {
+          usersBreakdown.customers++;
+        }
+      });
+    }
+    
+    // Get bookings statistics by status
+    const { data: allBookingsForStatus } = await supabase
+      .from('tour_bookings')
+      .select('status, payment_status, created_at');
+    
+    const bookingsByStatus = {
+      total: 0,
+      confirmed: 0,
+      pending: 0,
+      completed: 0,
+      cancelled: 0
+    };
+    
+    // Time-based metrics
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    let bookingsToday = 0;
+    let bookingsThisWeek = 0;
+    let bookingsThisMonth = 0;
+    
+    if (allBookingsForStatus) {
+      allBookingsForStatus.forEach(booking => {
+        bookingsByStatus.total++;
+        const status = booking.status || 'pending';
+        if (bookingsByStatus.hasOwnProperty(status)) {
+          bookingsByStatus[status]++;
+        }
+        
+        // Time-based counts
+        const bookingDate = new Date(booking.created_at);
+        if (bookingDate >= todayStart) bookingsToday++;
+        if (bookingDate >= weekStart) bookingsThisWeek++;
+        if (bookingDate >= monthStart) bookingsThisMonth++;
+      });
+    }
+    
+    // Calculate revenue this month from paid bookings
+    const { data: paidBookingsThisMonth } = await supabase
+      .from('tour_bookings')
+      .select('total_price')
+      .eq('payment_status', 'paid')
+      .gte('created_at', monthStart.toISOString());
+    
+    let revenueThisMonth = 0;
+    if (paidBookingsThisMonth) {
+      revenueThisMonth = paidBookingsThisMonth.reduce((sum, booking) => {
+        return sum + parseFloat(booking.total_price || 0);
+      }, 0);
+    }
+    
+    // Get notifications and messages statistics
+    const { count: totalNotifications } = await supabase
+      .from('notifications')
+      .select('*', { count: 'exact', head: true });
+    
+    const { count: unreadNotifications } = await supabase
+      .from('notifications')
+      .select('*', { count: 'exact', head: true })
+      .eq('is_read', false);
+    
+    const { data: recentMessages } = await supabase
+      .from('messages')
+      .select('created_at')
+      .gte('created_at', weekStart.toISOString());
+    
+    const messagesThisWeek = recentMessages?.length || 0;
+    
+    // Get active conversations (unique booking_ids with messages)
+    const { data: activeConversations } = await supabase
+      .from('messages')
+      .select('booking_id')
+      .gte('created_at', weekStart.toISOString());
+    
+    const uniqueBookings = new Set();
+    if (activeConversations) {
+      activeConversations.forEach(msg => {
+        if (msg.booking_id) uniqueBookings.add(msg.booking_id);
+      });
+    }
+    
+    // Get new users this week
+    const { count: newUsersThisWeek } = await supabase
+      .from('users')
+      .select('*', { count: 'exact', head: true })
+      .gte('created_at', weekStart.toISOString());
 
     // Get bookings statistics (PDF and Guided sales)
     const { data: allBookings } = await supabase
@@ -163,16 +285,50 @@ export default async function handler(req, res) {
           itineraries: generatedToursCount || 0,
           planGenerations: generatedToursCount || 0
         },
+        users: {
+          total: usersCount || 0,
+          guides: usersBreakdown.guides,
+          customers: usersBreakdown.customers,
+          admins: usersBreakdown.admins
+        },
         revenue: {
           total: totalRevenue,
           pdf: totalPDFRevenue,
-          guided: totalGuidedRevenue
+          guided: totalGuidedRevenue,
+          thisMonth: revenueThisMonth
         },
         sales: {
           pdf: totalPDFSales,
           guided: totalGuidedSales
         },
-        toursByStatus: toursByStatus,
+        tours: {
+          total: toursCount || 0,
+          verified: toursByStatus.verified,
+          approved: toursByStatus.approved,
+          pending: toursByStatus.pending,
+          draft: toursByStatus.draft,
+          rejected: toursByStatus.rejected
+        },
+        bookings: {
+          total: bookingsByStatus.total,
+          confirmed: bookingsByStatus.confirmed,
+          pending: bookingsByStatus.pending,
+          completed: bookingsByStatus.completed,
+          cancelled: bookingsByStatus.cancelled,
+          today: bookingsToday,
+          thisWeek: bookingsThisWeek,
+          thisMonth: bookingsThisMonth
+        },
+        activity: {
+          newBookingsToday: bookingsToday,
+          newUsersThisWeek: newUsersThisWeek || 0,
+          revenueThisMonth: revenueThisMonth,
+          unreadNotifications: unreadNotifications || 0,
+          totalNotifications: totalNotifications || 0,
+          messagesThisWeek: messagesThisWeek,
+          activeConversations: uniqueBookings.size
+        },
+        toursByStatus: toursByStatus, // Legacy support
         locationsByVerified: {
           verified: verifiedLocationsCount || 0,
           unverified: unverifiedLocationsCount || 0
