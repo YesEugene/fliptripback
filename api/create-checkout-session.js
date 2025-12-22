@@ -128,9 +128,11 @@ export default async function handler(req, res) {
     // Use flip-trip.com domain instead of vercel.app
     const baseUrl = 'https://flip-trip.com';
     const interestsStr = Array.isArray(interests) ? interests.join(',') : interests || '';
+    // After payment, show full tour (no previewOnly)
     let successUrl = `${baseUrl}/itinerary?email=${encodeURIComponent(email)}&city=${encodeURIComponent(city)}&date=${encodeURIComponent(date || '')}&budget=${encodeURIComponent(budget || '')}&session_id={CHECKOUT_SESSION_ID}&paid=true`;
     if (tourId) {
-      successUrl += `&tourId=${encodeURIComponent(tourId)}&previewOnly=true`;
+      // CRITICAL: Don't add previewOnly=true after payment - user paid for full tour
+      successUrl += `&tourId=${encodeURIComponent(tourId)}`;
     } else if (itineraryId) {
       successUrl += `&itineraryId=${encodeURIComponent(itineraryId)}`;
     }

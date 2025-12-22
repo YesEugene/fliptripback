@@ -252,12 +252,34 @@ export default async function handler(req, res) {
         tourTitle = tour?.title || metadata.city || 'Self-guided Tour';
       }
 
-      // For self-guided tours, if tour was not found in DB, skip booking creation
-      if (isSelfGuidedTour && !tour) {
+      // For self-guided tours, check if tour exists in DB
+      // If tourId is provided but tour not found, try to check source anyway
+      let isUserGeneratedTour = false;
+      if (tourId && !tour) {
+        // Tour not found, but tourId was provided - check if it's user_generated
+        const { data: tourWithSource } = await supabase
+          .from('tours')
+          .select('source, guide_id')
+          .eq('id', tourId)
+          .single();
+        
+        if (tourWithSource) {
+          isUserGeneratedTour = tourWithSource.source === 'user_generated';
+          // Use guide_id from tour if available
+          if (!guideId && tourWithSource.guide_id) {
+            guideId = tourWithSource.guide_id;
+          }
+          console.log('🔍 Tour found on second attempt:', { tourId, source: tourWithSource.source, isUserGeneratedTour, guideId });
+        }
+      }
+      
+      // For self-guided tours, if tour was not found in DB and not user_generated, skip booking creation
+      if (isSelfGuidedTour && !tour && !isUserGeneratedTour) {
         console.log('ℹ️ Self-guided tour not found in database, skipping booking creation');
         console.log('  - Customer:', email);
         console.log('  - Amount:', totalPrice, currency);
         console.log('  - City:', metadata.city);
+        console.log('  - tourId:', tourId);
         
         // Return success - purchase is recorded in Stripe
         return res.status(200).json({ 
@@ -265,6 +287,12 @@ export default async function handler(req, res) {
           type: 'self-guided',
           message: 'Purchase recorded (tour not in database)'
         });
+      }
+      
+      // If tour was not found but is user_generated, we can still create booking
+      if (isSelfGuidedTour && !tour && isUserGeneratedTour) {
+        console.log('ℹ️ User-generated tour not fully loaded, but will create booking with tourId');
+        // Continue to create booking with tourId even if tour object is null
       }
 
       // Create tour booking
@@ -278,7 +306,7 @@ export default async function handler(req, res) {
       console.log('  - tour_type:', isGuidedTour ? 'guided' : 'self-guided');
       
       const bookingData = {
-        tour_id: tourId,
+        tour_id: tourId, // CRITICAL: Must be set if tourId exists (even if tour object is null)
         user_id: userId,
         tour_date: tourDate,
         group_size: finalQuantity,
@@ -295,11 +323,25 @@ export default async function handler(req, res) {
           purchased_as: isGuidedTour ? 'with-guide' : 'self-guided'
         }
       };
+      
+      // CRITICAL: Ensure tour_id is set if tourId exists (even if tour object is null)
+      if (tourId && !bookingData.tour_id) {
+        bookingData.tour_id = tourId;
+        console.log('🔧 Setting tour_id in booking data:', tourId);
+      }
+      
+      if (!tourId) {
+        console.error('❌ CRITICAL: tourId is missing - cannot create booking without tour_id');
+        return res.status(400).json({ 
+          error: 'Missing tourId',
+          message: 'Cannot create booking without tour_id' 
+        });
+      }
 
       // For self-guided tours, guide_id can be null for user_generated tours
       // Check if tour is user_generated (source='user_generated')
-      let isUserGeneratedTour = false;
-      if (tour) {
+      // Note: isUserGeneratedTour may already be set above if tour was not found initially
+      if (tour && !isUserGeneratedTour) {
         const { data: tourWithSource } = await supabase
           .from('tours')
           .select('source')
