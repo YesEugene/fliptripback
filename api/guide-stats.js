@@ -124,15 +124,31 @@ export default async function handler(req, res) {
     const pendingBookings = allBookings.filter(b => b.status === 'pending');
     const completedBookings = allBookings.filter(b => b.status === 'completed');
 
+    // Helper function to safely parse additional_services (may be string or object)
+    const parseAdditionalServices = (additionalServices) => {
+      if (!additionalServices) return null;
+      if (typeof additionalServices === 'object') return additionalServices;
+      if (typeof additionalServices === 'string') {
+        try {
+          return JSON.parse(additionalServices);
+        } catch (e) {
+          console.warn('⚠️ Failed to parse additional_services as JSON:', e);
+          return null;
+        }
+      }
+      return null;
+    };
+
     // Separate guided and self-guided bookings
     // Use additional_services.tour_type if available, otherwise use tour.default_format
     const guidedBookings = allBookings.filter(b => {
+      const additionalServices = parseAdditionalServices(b.additional_services);
       // Check additional_services first (from webhook)
-      if (b.additional_services && typeof b.additional_services === 'object') {
-        if (b.additional_services.tour_type === 'guided' || b.additional_services.purchased_as === 'with-guide') {
+      if (additionalServices) {
+        if (additionalServices.tour_type === 'guided' || additionalServices.purchased_as === 'with-guide') {
           return true;
         }
-        if (b.additional_services.tour_type === 'self-guided' || b.additional_services.purchased_as === 'self-guided') {
+        if (additionalServices.tour_type === 'self-guided' || additionalServices.purchased_as === 'self-guided') {
           return false;
         }
       }
@@ -142,12 +158,13 @@ export default async function handler(req, res) {
     });
     
     const selfGuidedBookings = allBookings.filter(b => {
+      const additionalServices = parseAdditionalServices(b.additional_services);
       // Check additional_services first (from webhook)
-      if (b.additional_services && typeof b.additional_services === 'object') {
-        if (b.additional_services.tour_type === 'self-guided' || b.additional_services.purchased_as === 'self-guided') {
+      if (additionalServices) {
+        if (additionalServices.tour_type === 'self-guided' || additionalServices.purchased_as === 'self-guided') {
           return true;
         }
-        if (b.additional_services.tour_type === 'guided' || b.additional_services.purchased_as === 'with-guide') {
+        if (additionalServices.tour_type === 'guided' || additionalServices.purchased_as === 'with-guide') {
           return false;
         }
       }
@@ -155,6 +172,16 @@ export default async function handler(req, res) {
       const tourFormat = b.tour?.default_format;
       return tourFormat === 'self_guided' || tourFormat === 'self-guided' || !tourFormat;
     });
+
+    // Debug logging
+    console.log('📊 Booking statistics:');
+    console.log('  - Total bookings:', allBookings.length);
+    console.log('  - Guided bookings:', guidedBookings.length);
+    console.log('  - Self-guided bookings:', selfGuidedBookings.length);
+    if (allBookings.length > 0) {
+      console.log('  - Sample booking additional_services:', JSON.stringify(allBookings[0].additional_services));
+      console.log('  - Sample booking tour.default_format:', allBookings[0].tour?.default_format);
+    }
 
     // Calculate confirmed by type
     const confirmedGuided = guidedBookings.filter(b => b.status === 'confirmed').length;
@@ -167,8 +194,20 @@ export default async function handler(req, res) {
     }, 0);
 
     // Calculate revenue by type
+    // Use the same logic as booking filtering: check additional_services first, then tour.default_format
     const guidedRevenue = paidBookings
       .filter(b => {
+        const additionalServices = parseAdditionalServices(b.additional_services);
+        // Check additional_services first (from webhook)
+        if (additionalServices) {
+          if (additionalServices.tour_type === 'guided' || additionalServices.purchased_as === 'with-guide') {
+            return true;
+          }
+          if (additionalServices.tour_type === 'self-guided' || additionalServices.purchased_as === 'self-guided') {
+            return false;
+          }
+        }
+        // Fallback to tour.default_format
         const tourFormat = b.tour?.default_format;
         return tourFormat === 'with_guide' || tourFormat === 'guided';
       })
@@ -176,10 +215,26 @@ export default async function handler(req, res) {
     
     const selfGuidedRevenue = paidBookings
       .filter(b => {
+        const additionalServices = parseAdditionalServices(b.additional_services);
+        // Check additional_services first (from webhook)
+        if (additionalServices) {
+          if (additionalServices.tour_type === 'self-guided' || additionalServices.purchased_as === 'self-guided') {
+            return true;
+          }
+          if (additionalServices.tour_type === 'guided' || additionalServices.purchased_as === 'with-guide') {
+            return false;
+          }
+        }
+        // Fallback to tour.default_format
         const tourFormat = b.tour?.default_format;
         return tourFormat === 'self_guided' || tourFormat === 'self-guided' || !tourFormat;
       })
       .reduce((sum, booking) => sum + parseFloat(booking.total_price || 0), 0);
+
+    console.log('💰 Revenue statistics:');
+    console.log('  - Total revenue:', totalRevenue);
+    console.log('  - Guided revenue:', guidedRevenue);
+    console.log('  - Self-guided revenue:', selfGuidedRevenue);
 
     // Calculate revenue by currency
     const revenueByCurrency = {};
@@ -196,12 +251,13 @@ export default async function handler(req, res) {
       // Determine tour type: first check additional_services (from webhook), then tour.default_format
       let tourType = 'self-guided';
       
-      if (booking.additional_services && typeof booking.additional_services === 'object') {
+      const additionalServices = parseAdditionalServices(booking.additional_services);
+      if (additionalServices) {
         // Check if tour_type is stored in additional_services
-        if (booking.additional_services.tour_type) {
-          tourType = booking.additional_services.tour_type;
-        } else if (booking.additional_services.purchased_as) {
-          tourType = booking.additional_services.purchased_as === 'with-guide' ? 'guided' : 'self-guided';
+        if (additionalServices.tour_type) {
+          tourType = additionalServices.tour_type;
+        } else if (additionalServices.purchased_as) {
+          tourType = additionalServices.purchased_as === 'with-guide' ? 'guided' : 'self-guided';
         }
       }
       
