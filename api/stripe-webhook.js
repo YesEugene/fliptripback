@@ -125,44 +125,77 @@ export default async function handler(req, res) {
       console.log('  - quantity:', quantity);
       console.log('  - email:', email);
 
-      // Only process guided tours (with-guide)
-      if (tourType !== 'with-guide') {
-        console.log('ℹ️ Skipping: Not a guided tour (tourType:', tourType, ')');
-        return res.status(200).json({ received: true, skipped: 'not_guided_tour' });
-      }
-
-      if (!tourId) {
-        console.error('❌ Missing tourId in metadata');
-        return res.status(200).json({ received: true, skipped: 'missing_tourId' });
-      }
-
-      if (!selectedDate) {
-        console.error('❌ Missing selectedDate in metadata');
-        return res.status(200).json({ received: true, skipped: 'missing_selectedDate' });
-      }
-
       if (!email) {
         console.error('❌ Missing email in metadata and session');
         return res.status(200).json({ received: true, skipped: 'missing_email' });
       }
 
-      const finalQuantity = parseInt(quantity || '1', 10);
+      // Process both guided and self-guided tours
+      const isGuidedTour = tourType === 'with-guide';
+      const isSelfGuidedTour = tourType === 'self-guided' || !tourType;
 
-      // Get tour information
-      const { data: tour, error: tourError } = await supabase
-        .from('tours')
-        .select('id, guide_id, price_guided, currency, default_group_size, title')
-        .eq('id', tourId)
-        .single();
-
-      if (tourError || !tour) {
-        console.error('❌ Tour not found:', tourId);
-        return res.status(400).json({ error: 'Tour not found' });
+      if (!isGuidedTour && !isSelfGuidedTour) {
+        console.log('ℹ️ Skipping: Unknown tour type (tourType:', tourType, ')');
+        return res.status(200).json({ received: true, skipped: 'unknown_tour_type' });
       }
 
-      if (!tour.guide_id) {
-        console.error('❌ Tour has no guide_id:', tourId);
-        return res.status(400).json({ error: 'Tour has no guide' });
+      // For guided tours, tourId and selectedDate are required
+      if (isGuidedTour) {
+        if (!tourId) {
+          console.error('❌ Missing tourId in metadata for guided tour');
+          return res.status(200).json({ received: true, skipped: 'missing_tourId' });
+        }
+
+        if (!selectedDate) {
+          console.error('❌ Missing selectedDate in metadata for guided tour');
+          return res.status(200).json({ received: true, skipped: 'missing_selectedDate' });
+        }
+      }
+
+      // For self-guided tours, tourId is optional (can be AI-generated itinerary)
+      // If tourId is provided, we'll try to get tour info, otherwise we'll use metadata
+      let tour = null;
+      if (tourId) {
+        const { data: tourData, error: tourError } = await supabase
+          .from('tours')
+          .select('id, guide_id, price_guided, price_pdf, currency, default_group_size, title')
+          .eq('id', tourId)
+          .single();
+
+        if (tourError || !tourData) {
+          console.warn('⚠️ Tour not found:', tourId);
+          // For self-guided tours, we can continue without tour data
+          // For guided tours, this is an error
+          if (isGuidedTour) {
+            console.error('❌ Guided tour not found:', tourId);
+            return res.status(400).json({ error: 'Guided tour not found' });
+          }
+          // For self-guided, we'll use metadata and skip booking creation
+          console.log('ℹ️ Self-guided tour not found in DB, will log purchase only');
+        } else {
+          tour = tourData;
+        }
+      }
+
+      // For guided tours, guide_id is required
+      if (isGuidedTour && (!tour || !tour.guide_id)) {
+        console.error('❌ Guided tour has no guide_id:', tourId);
+        return res.status(400).json({ error: 'Guided tour has no guide' });
+      }
+
+      // For self-guided tours without tourId, skip booking creation
+      if (isSelfGuidedTour && !tourId) {
+        console.log('ℹ️ Self-guided purchase without tourId (AI-generated itinerary)');
+        console.log('  - Customer:', email);
+        console.log('  - Amount:', session.amount_total / 100, session.currency);
+        console.log('  - City:', metadata.city);
+        
+        // Return success - purchase is recorded in Stripe
+        return res.status(200).json({ 
+          received: true, 
+          type: 'self-guided',
+          message: 'Purchase recorded (AI-generated itinerary)'
+        });
       }
 
       // Get or create user by email
@@ -195,36 +228,88 @@ export default async function handler(req, res) {
         userId = newUser.id;
       }
 
-      // Calculate price
-      const basePrice = parseFloat(tour.price_guided || 0);
-      const totalPrice = basePrice * finalQuantity;
-      const currency = tour.currency || 'USD';
+      // Calculate price and other details based on tour type
+      let basePrice, totalPrice, currency, finalQuantity, tourDate, guideId, tourTitle;
+
+      if (isGuidedTour) {
+        // Guided tour
+        finalQuantity = parseInt(quantity || '1', 10);
+        basePrice = parseFloat(tour.price_guided || 0);
+        totalPrice = basePrice * finalQuantity;
+        currency = tour.currency || 'USD';
+        tourDate = selectedDate;
+        guideId = tour.guide_id;
+        tourTitle = tour.title;
+      } else {
+        // Self-guided tour
+        finalQuantity = 1; // Always 1 for self-guided
+        basePrice = parseFloat(tour?.price_pdf || session.amount_total / 100 || 16);
+        totalPrice = basePrice; // Single purchase
+        currency = tour?.currency || 'USD';
+        // Use date from metadata or current date for self-guided
+        tourDate = metadata.date || new Date().toISOString().split('T')[0];
+        guideId = tour?.guide_id || null; // May be null for AI-generated tours
+        tourTitle = tour?.title || metadata.city || 'Self-guided Tour';
+      }
+
+      // For self-guided tours, if tour was not found in DB, skip booking creation
+      if (isSelfGuidedTour && !tour) {
+        console.log('ℹ️ Self-guided tour not found in database, skipping booking creation');
+        console.log('  - Customer:', email);
+        console.log('  - Amount:', totalPrice, currency);
+        console.log('  - City:', metadata.city);
+        
+        // Return success - purchase is recorded in Stripe
+        return res.status(200).json({ 
+          received: true, 
+          type: 'self-guided',
+          message: 'Purchase recorded (tour not in database)'
+        });
+      }
 
       // Create tour booking
       console.log('💾 Creating booking in database...');
       console.log('  - tour_id:', tourId);
       console.log('  - user_id:', userId);
-      console.log('  - guide_id:', tour.guide_id);
-      console.log('  - tour_date:', selectedDate);
+      console.log('  - guide_id:', guideId);
+      console.log('  - tour_date:', tourDate);
       console.log('  - group_size:', finalQuantity);
       console.log('  - total_price:', totalPrice, currency);
+      console.log('  - tour_type:', isGuidedTour ? 'guided' : 'self-guided');
+      
+      const bookingData = {
+        tour_id: tourId,
+        user_id: userId,
+        tour_date: tourDate,
+        group_size: finalQuantity,
+        base_price: basePrice,
+        total_price: totalPrice,
+        currency: currency,
+        status: 'confirmed',
+        payment_status: 'paid',
+        checkout_session_id: session.id,
+        payment_intent_id: session.payment_intent
+      };
+
+      // For self-guided tours, guide_id should exist if tour is from database
+      // If guide_id is null, it means it's an AI-generated itinerary without tourId
+      // In that case, we already returned earlier
+      if (!guideId && isSelfGuidedTour) {
+        console.warn('⚠️ Self-guided tour without guide_id - cannot create booking in tour_bookings');
+        // This shouldn't happen if tourId exists, but handle it gracefully
+        return res.status(200).json({ 
+          received: true, 
+          type: 'self-guided',
+          message: 'Purchase recorded (self-guided tour without guide)'
+        });
+      }
+
+      // Add guide_id to booking data
+      bookingData.guide_id = guideId;
       
       const { data: booking, error: bookingError } = await supabase
         .from('tour_bookings')
-        .insert({
-          tour_id: tourId,
-          user_id: userId,
-          guide_id: tour.guide_id,
-          tour_date: selectedDate,
-          group_size: finalQuantity,
-          base_price: basePrice,
-          total_price: totalPrice,
-          currency: currency,
-          status: 'confirmed',
-          payment_status: 'paid',
-          checkout_session_id: session.id, // Fixed: was stripe_session_id
-          payment_intent_id: session.payment_intent // Fixed: was stripe_payment_intent_id
-        })
+        .insert(bookingData)
         .select('id')
         .single();
 
@@ -239,70 +324,91 @@ export default async function handler(req, res) {
 
       console.log('✅ Booking created successfully:', booking.id);
       
-      // Update booked_spots in tour_availability_slots
-      // Note: This should be handled by database trigger, but we'll verify
-      console.log('🔄 Updating availability slots (should be automatic via trigger)...');
-
-      // Create notification for guide
-      console.log('📬 Creating notification for guide:', tour.guide_id);
-      const { error: notificationError } = await supabase
-        .from('notifications')
-        .insert({
-          user_id: tour.guide_id,
-          type: 'booking',
-          title: 'New Booking',
-          message: `${finalQuantity} spot(s) booked for ${tour.title} on ${selectedDate}`,
-          related_id: booking.id,
-          related_type: 'booking',
-          is_read: false
-        });
-
-      if (notificationError) {
-        console.error('⚠️ Error creating notification:', notificationError);
-        // Don't fail the webhook if notification fails
-      } else {
-        console.log('✅ Notification created for guide');
+      // Update booked_spots in tour_availability_slots (only for guided tours)
+      if (isGuidedTour) {
+        console.log('🔄 Updating availability slots (should be automatic via trigger)...');
       }
 
-      // Send email notification to guide
-      try {
-        const { data: guide } = await supabase
-          .from('users')
-          .select('email, name')
-          .eq('id', tour.guide_id)
-          .single();
-
-        if (guide && guide.email && resend) {
-          const emailSubject = `New Booking: ${tour.title}`;
-          const emailHtml = `
-            <h2>You have a new booking!</h2>
-            <p><strong>Tour:</strong> ${tour.title}</p>
-            <p><strong>Date:</strong> ${selectedDate}</p>
-            <p><strong>Spots:</strong> ${finalQuantity}</p>
-            <p><strong>Total:</strong> ${currency} ${totalPrice}</p>
-            <p><strong>Customer:</strong> ${email}</p>
-            <p><strong>Booking ID:</strong> ${booking.id}</p>
-            <p>Please check your dashboard for more details.</p>
-          `;
-
-          await resend.emails.send({
-            from: 'FlipTrip <noreply@flip-trip.com>',
-            to: guide.email,
-            subject: emailSubject,
-            html: emailHtml
+      // Create notification for guide (only if guide exists)
+      if (guideId) {
+        console.log('📬 Creating notification for guide:', guideId);
+        const notificationMessage = isGuidedTour
+          ? `${finalQuantity} spot(s) booked for ${tourTitle} on ${tourDate}`
+          : `Self-guided tour "${tourTitle}" purchased for ${totalPrice} ${currency}`;
+        
+        const { error: notificationError } = await supabase
+          .from('notifications')
+          .insert({
+            user_id: guideId,
+            type: 'booking',
+            title: isGuidedTour ? 'New Guided Tour Booking' : 'New Self-guided Tour Purchase',
+            message: notificationMessage,
+            related_id: booking.id,
+            related_type: 'booking',
+            is_read: false
           });
 
-          console.log('✅ Email sent to guide:', guide.email);
+        if (notificationError) {
+          console.error('⚠️ Error creating notification:', notificationError);
+          // Don't fail the webhook if notification fails
+        } else {
+          console.log('✅ Notification created for guide');
         }
-      } catch (emailError) {
-        console.error('⚠️ Error sending email:', emailError);
-        // Don't fail the webhook if email fails
+
+        // Send email notification to guide
+        try {
+          const { data: guide } = await supabase
+            .from('users')
+            .select('email, name')
+            .eq('id', guideId)
+            .single();
+
+          if (guide && guide.email && resend) {
+            const emailSubject = isGuidedTour 
+              ? `New Booking: ${tourTitle}`
+              : `New Purchase: ${tourTitle}`;
+            
+            const emailHtml = isGuidedTour
+              ? `
+                <h2>You have a new booking!</h2>
+                <p><strong>Tour:</strong> ${tourTitle}</p>
+                <p><strong>Date:</strong> ${tourDate}</p>
+                <p><strong>Spots:</strong> ${finalQuantity}</p>
+                <p><strong>Total:</strong> ${currency} ${totalPrice}</p>
+                <p><strong>Customer:</strong> ${email}</p>
+                <p><strong>Booking ID:</strong> ${booking.id}</p>
+                <p>Please check your dashboard for more details.</p>
+              `
+              : `
+                <h2>You have a new purchase!</h2>
+                <p><strong>Tour:</strong> ${tourTitle}</p>
+                <p><strong>Type:</strong> Self-guided</p>
+                <p><strong>Total:</strong> ${currency} ${totalPrice}</p>
+                <p><strong>Customer:</strong> ${email}</p>
+                <p><strong>Booking ID:</strong> ${booking.id}</p>
+                <p>Please check your dashboard for more details.</p>
+              `;
+
+            await resend.emails.send({
+              from: 'FlipTrip <noreply@flip-trip.com>',
+              to: guide.email,
+              subject: emailSubject,
+              html: emailHtml
+            });
+
+            console.log('✅ Email sent to guide:', guide.email);
+          }
+        } catch (emailError) {
+          console.error('⚠️ Error sending email:', emailError);
+          // Don't fail the webhook if email fails
+        }
       }
 
       console.log('✅ WEBHOOK: Successfully processed booking');
       return res.status(200).json({ 
         received: true, 
         bookingId: booking.id,
+        type: isGuidedTour ? 'guided' : 'self-guided',
         signatureVerified: signatureVerified
       });
 
