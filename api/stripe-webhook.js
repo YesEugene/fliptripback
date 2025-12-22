@@ -288,7 +288,12 @@ export default async function handler(req, res) {
         status: 'confirmed',
         payment_status: 'paid',
         checkout_session_id: session.id,
-        payment_intent_id: session.payment_intent
+        payment_intent_id: session.payment_intent,
+        // Store tour type in additional_services JSONB for reference
+        additional_services: {
+          tour_type: isGuidedTour ? 'guided' : 'self-guided',
+          purchased_as: isGuidedTour ? 'with-guide' : 'self-guided'
+        }
       };
 
       // For self-guided tours, guide_id should exist if tour is from database

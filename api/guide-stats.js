@@ -125,11 +125,33 @@ export default async function handler(req, res) {
     const completedBookings = allBookings.filter(b => b.status === 'completed');
 
     // Separate guided and self-guided bookings
+    // Use additional_services.tour_type if available, otherwise use tour.default_format
     const guidedBookings = allBookings.filter(b => {
+      // Check additional_services first (from webhook)
+      if (b.additional_services && typeof b.additional_services === 'object') {
+        if (b.additional_services.tour_type === 'guided' || b.additional_services.purchased_as === 'with-guide') {
+          return true;
+        }
+        if (b.additional_services.tour_type === 'self-guided' || b.additional_services.purchased_as === 'self-guided') {
+          return false;
+        }
+      }
+      // Fallback to tour.default_format
       const tourFormat = b.tour?.default_format;
       return tourFormat === 'with_guide' || tourFormat === 'guided';
     });
+    
     const selfGuidedBookings = allBookings.filter(b => {
+      // Check additional_services first (from webhook)
+      if (b.additional_services && typeof b.additional_services === 'object') {
+        if (b.additional_services.tour_type === 'self-guided' || b.additional_services.purchased_as === 'self-guided') {
+          return true;
+        }
+        if (b.additional_services.tour_type === 'guided' || b.additional_services.purchased_as === 'with-guide') {
+          return false;
+        }
+      }
+      // Fallback to tour.default_format
       const tourFormat = b.tour?.default_format;
       return tourFormat === 'self_guided' || tourFormat === 'self-guided' || !tourFormat;
     });
@@ -171,8 +193,25 @@ export default async function handler(req, res) {
 
     // Get recent bookings (last 10)
     const recentBookings = allBookings.slice(0, 10).map(booking => {
-      const tourFormat = booking.tour?.default_format;
-      const isGuided = tourFormat === 'with_guide' || tourFormat === 'guided';
+      // Determine tour type: first check additional_services (from webhook), then tour.default_format
+      let tourType = 'self-guided';
+      
+      if (booking.additional_services && typeof booking.additional_services === 'object') {
+        // Check if tour_type is stored in additional_services
+        if (booking.additional_services.tour_type) {
+          tourType = booking.additional_services.tour_type;
+        } else if (booking.additional_services.purchased_as) {
+          tourType = booking.additional_services.purchased_as === 'with-guide' ? 'guided' : 'self-guided';
+        }
+      }
+      
+      // Fallback: use tour.default_format if not in additional_services
+      if (tourType === 'self-guided') {
+        const tourFormat = booking.tour?.default_format;
+        if (tourFormat === 'with_guide' || tourFormat === 'guided') {
+          tourType = 'guided';
+        }
+      }
       
       return {
         id: booking.id,
@@ -185,7 +224,7 @@ export default async function handler(req, res) {
         currency: booking.currency,
         status: booking.status,
         payment_status: booking.payment_status,
-        tour_type: isGuided ? 'guided' : 'self-guided',
+        tour_type: tourType,
         created_at: booking.created_at
       };
     });
