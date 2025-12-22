@@ -134,6 +134,10 @@ export default async function handler(req, res) {
       return tourFormat === 'self_guided' || tourFormat === 'self-guided' || !tourFormat;
     });
 
+    // Calculate confirmed by type
+    const confirmedGuided = guidedBookings.filter(b => b.status === 'confirmed').length;
+    const confirmedSelfGuided = selfGuidedBookings.filter(b => b.status === 'confirmed').length;
+
     // Calculate revenue (only from paid bookings)
     const paidBookings = allBookings.filter(b => b.payment_status === 'paid');
     const totalRevenue = paidBookings.reduce((sum, booking) => {
@@ -197,6 +201,8 @@ export default async function handler(req, res) {
           guided: guidedBookings.length,
           selfGuided: selfGuidedBookings.length,
           confirmed: confirmedBookings.length,
+          confirmedGuided: confirmedGuided,
+          confirmedSelfGuided: confirmedSelfGuided,
           pending: pendingBookings.length,
           cancelled: cancelledBookings.length,
           completed: completedBookings.length
