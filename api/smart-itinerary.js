@@ -230,27 +230,25 @@ async function saveGeneratedTourToDatabase(tourData, userId, cityId, activities)
         const activity = blockActivities[i];
         let locationId = null;
 
-        // If location is from database, use its ID
+        // CRITICAL: Only use location_id if location is from database (created by guide)
+        // Do NOT save Google Places locations to database to avoid cluttering locations table
+        // All location data will be stored in tour_items.custom_* fields
         if (activity.locationId) {
+          // Location is from database (created by guide) - use its ID
           locationId = activity.locationId;
-        } 
-        // If location is from Google Places, save it first
-        else if (activity.fromGooglePlace && activity.location) {
-          locationId = await saveGooglePlaceToDatabase({
-            name: activity.name || activity.title,
-            address: activity.location,
-            category: activity.category || 'attraction',
-            googlePlaceId: activity.googlePlaceId,
-            photos: activity.photos || [],
-            priceLevel: activity.priceLevel || 2
-          }, cityId);
+          console.log(`✅ Using existing location from DB: ${locationId}`);
+        } else if (activity.fromGooglePlace) {
+          // Location is from Google Places - do NOT save to database
+          // Store all data in tour_items.custom_* fields instead
+          locationId = null; // Explicitly set to null
+          console.log(`ℹ️ Google Places location - storing in tour_items only (not saving to locations table)`);
         }
 
         await supabase
           .from('tour_items')
           .insert({
             tour_block_id: tourBlock.id,
-            location_id: locationId,
+            location_id: locationId, // null for Google Places locations
             custom_title: activity.name || activity.title,
             custom_description: activity.description || null,
             custom_recommendations: activity.recommendations || null,

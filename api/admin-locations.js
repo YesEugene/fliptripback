@@ -50,6 +50,14 @@ export default async function handler(req, res) {
         `)
         .order('name');
 
+      // CRITICAL: By default, exclude AI-generated locations (source='google' with verified=false)
+      // Only show locations created by admins or guides, or verified locations
+      // This prevents cluttered admin dashboard with auto-generated locations
+      if (source === undefined && verified === undefined) {
+        // Default filter: show only verified locations OR locations created by admin/guide
+        query = query.or('verified.eq.true,source.eq.admin,source.eq.guide');
+      }
+
       // Search filter
       if (search) {
         query = query.or(`name.ilike.%${search}%,address.ilike.%${search}%,description.ilike.%${search}%`);
@@ -60,12 +68,12 @@ export default async function handler(req, res) {
         query = query.eq('category', category);
       }
 
-      // Source filter
+      // Source filter (if explicitly provided, override default filter)
       if (source) {
         query = query.eq('source', source);
       }
 
-      // Verified filter
+      // Verified filter (if explicitly provided, override default filter)
       if (verified !== undefined) {
         query = query.eq('verified', verified === 'true');
       }
