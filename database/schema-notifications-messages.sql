@@ -100,11 +100,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_update_notification_read_at ON notifications;
 CREATE TRIGGER trigger_update_notification_read_at
   BEFORE UPDATE ON notifications
   FOR EACH ROW
   WHEN (OLD.is_read IS DISTINCT FROM NEW.is_read)
-  EXECUTE FUNCTION update_notification_read_at;
+  EXECUTE FUNCTION update_notification_read_at();
 
 -- Триггер для автоматического обновления read_at при прочтении сообщения
 CREATE OR REPLACE FUNCTION update_message_read_at()
@@ -117,11 +118,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_update_message_read_at ON messages;
 CREATE TRIGGER trigger_update_message_read_at
   BEFORE UPDATE ON messages
   FOR EACH ROW
   WHEN (OLD.is_read IS DISTINCT FROM NEW.is_read)
-  EXECUTE FUNCTION update_message_read_at;
+  EXECUTE FUNCTION update_message_read_at();
 
 -- Функция для создания уведомления о новом сообщении
 CREATE OR REPLACE FUNCTION notify_new_message()
@@ -144,6 +146,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Триггер для автоматического создания уведомления при новом сообщении
+DROP TRIGGER IF EXISTS trigger_notify_new_message ON messages;
 CREATE TRIGGER trigger_notify_new_message
   AFTER INSERT ON messages
   FOR EACH ROW
