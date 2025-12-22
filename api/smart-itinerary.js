@@ -978,8 +978,10 @@ export default async function handler(req, res) {
           if (tourId) {
             result.tourId = tourId;
             console.log('✅ Tour saved to database with ID:', tourId);
+            console.log('📋 Returning tourId in response:', tourId);
           } else {
             console.warn('⚠️ Failed to save tour to database, but continuing...');
+            console.warn('⚠️ Response will NOT include tourId');
           }
         } else {
           console.warn('⚠️ City ID not found, skipping tour save');
