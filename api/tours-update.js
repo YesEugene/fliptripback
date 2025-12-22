@@ -301,10 +301,11 @@ export default async function handler(req, res) {
     }
 
     const tourData = req.body;
-    const { country, city, title, description, daily_plan, tags, meta, status } = tourData;
+    let { country, city, title, description, daily_plan, tags, meta, status, saveAsDraft } = tourData;
     // status can be: 'draft', 'pending', 'approved', 'rejected'
     // If not provided, keep existing status or default to 'draft'
     // country is optional - can be empty or undefined
+    // saveAsDraft: if true, save to draft_data without changing main fields or status
 
     if (!city || !title) {
       return res.status(400).json({
@@ -457,8 +458,164 @@ export default async function handler(req, res) {
       updateData.meta = { ...existingMeta, ...extraData };
     }
     
-    // Add status if provided (for draft/auto-save functionality)
-    if (status && ['draft', 'pending', 'approved', 'rejected'].includes(status)) {
+    // Handle draft auto-save: save to draft_data without changing main fields or status
+    if (saveAsDraft === true) {
+      console.log('💾 Auto-saving to draft_data (not changing main fields or status)');
+      
+      // Prepare draft data (all tour data except status)
+      const draftData = {
+        country,
+        city,
+        title,
+        description,
+        daily_plan,
+        tags,
+        meta,
+        format,
+        price: {
+          pdfPrice: pricePdf,
+          guidedPrice: priceGuided,
+          currency: tourData.price?.currency || 'USD',
+          meetingPoint,
+          meetingTime,
+          availableDates,
+          defaultGroupSize
+        },
+        preview: previewMediaUrl,
+        previewType: previewMediaType,
+        additionalOptions,
+        updated_at: new Date().toISOString()
+      };
+      
+      // Update only draft_data, keep everything else unchanged
+      const { data: tour, error: tourError } = await supabase
+        .from('tours')
+        .update({ draft_data: draftData })
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (tourError) {
+        console.error('❌ Error saving draft:', tourError);
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to save draft',
+          details: tourError.message
+        });
+      }
+      
+      console.log('✅ Draft saved successfully');
+      return res.status(200).json({
+        success: true,
+        tour: tour,
+        message: 'Draft saved successfully',
+        isDraft: true
+      });
+    }
+    
+    // Handle Submit for Moderation: copy draft_data to main fields and set status to pending
+    if (status === 'pending') {
+      console.log('📤 Submitting for moderation: copying draft_data to main fields');
+      
+      // Get current draft_data if exists
+      const { data: currentTour } = await supabase
+        .from('tours')
+        .select('draft_data, status')
+        .eq('id', id)
+        .single();
+      
+      // If draft_data exists, use it to populate main fields
+      if (currentTour?.draft_data) {
+        const draft = currentTour.draft_data;
+        console.log('📋 Found draft_data, using it for submission');
+        
+        // Override updateData with draft_data values
+        if (draft.city) {
+          // Get or create city from draft
+          try {
+            const citiesModule = await import('../database/services/citiesService.js');
+            if (citiesModule.getOrCreateCity) {
+              cityId = await citiesModule.getOrCreateCity(draft.city, draft.country);
+            } else {
+              cityId = await getOrCreateCityFallback(draft.city, draft.country);
+            }
+          } catch (e) {
+            cityId = await getOrCreateCityFallback(draft.city, draft.country);
+          }
+          updateData.city_id = cityId;
+        }
+        if (draft.title) updateData.title = draft.title;
+        if (draft.description !== undefined) updateData.description = draft.description;
+        if (draft.format) {
+          const draftFormat = draft.format === 'with_guide' || draft.format === 'guided' ? 'with_guide' : 'self_guided';
+          updateData.default_format = draftFormat;
+        }
+        if (draft.price) {
+          if (draft.price.pdfPrice !== undefined) updateData.price_pdf = draft.price.pdfPrice;
+          if (draft.price.guidedPrice !== undefined) updateData.price_guided = draft.price.guidedPrice;
+          if (draft.price.currency) updateData.currency = draft.price.currency;
+          if (draft.price.defaultGroupSize && updateData.default_format === 'with_guide') {
+            updateData.default_group_size = draft.price.defaultGroupSize;
+          }
+        }
+        if (draft.preview) updateData.preview_media_url = draft.preview;
+        if (draft.previewType) updateData.preview_media_type = draft.previewType;
+        
+        // Recalculate duration from draft daily_plan
+        if (draft.daily_plan && Array.isArray(draft.daily_plan)) {
+          const totalDays = draft.daily_plan.length;
+          if (totalDays > 1) {
+            updateData.duration_type = 'days';
+            updateData.duration_value = totalDays;
+          } else if (totalDays === 1 && draft.daily_plan[0]?.blocks) {
+            // Calculate hours from first day
+            const firstDay = draft.daily_plan[0];
+            const blocks = firstDay.blocks || [];
+            if (blocks.length > 0) {
+              let earliestStart = null;
+              let latestEnd = null;
+              blocks.forEach(block => {
+                if (block.time) {
+                  const timeMatch = block.time.match(/(\d{1,2}):(\d{2})(?::\d{2})?\s*-\s*(\d{1,2}):(\d{2})(?::\d{2})?/);
+                  if (timeMatch) {
+                    const startTime = parseInt(timeMatch[1]) * 60 + parseInt(timeMatch[2]);
+                    const endTime = parseInt(timeMatch[3]) * 60 + parseInt(timeMatch[4]);
+                    if (earliestStart === null || startTime < earliestStart) earliestStart = startTime;
+                    if (latestEnd === null || endTime > latestEnd) latestEnd = endTime;
+                  }
+                }
+              });
+              if (earliestStart !== null && latestEnd !== null) {
+                const durationHours = Math.ceil((latestEnd - earliestStart) / 60);
+                updateData.duration_value = Math.max(1, durationHours);
+              }
+            }
+          }
+        }
+        
+        // Update meta with draft data
+        if (draft.price) {
+          const extraData = {};
+          if (draft.price.meetingPoint) extraData.meeting_point = draft.price.meetingPoint;
+          if (draft.price.meetingTime) extraData.meeting_time = draft.price.meetingTime;
+          if (draft.price.availableDates) extraData.available_dates = draft.price.availableDates;
+          if (draft.additionalOptions) extraData.additional_options = draft.additionalOptions;
+          
+          const existingMeta = currentTour?.meta || {};
+          updateData.meta = { ...existingMeta, ...extraData };
+        }
+        
+        // Use draft daily_plan for updating tour_days
+        daily_plan = draft.daily_plan;
+      }
+      
+      // Set status to pending and clear draft_data
+      updateData.status = 'pending';
+      updateData.draft_data = null; // Clear draft after submission
+    }
+    
+    // Add status if provided (for manual status changes)
+    if (status && ['draft', 'pending', 'approved', 'rejected'].includes(status) && status !== 'pending') {
       updateData.status = status;
       // If status is 'approved', also set is_published = true
       if (status === 'approved') {
