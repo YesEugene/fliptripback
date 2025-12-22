@@ -296,12 +296,24 @@ export default async function handler(req, res) {
         }
       };
 
-      // For self-guided tours, guide_id should exist if tour is from database
-      // If guide_id is null, it means it's an AI-generated itinerary without tourId
-      // In that case, we already returned earlier
-      if (!guideId && isSelfGuidedTour) {
-        console.warn('⚠️ Self-guided tour without guide_id - cannot create booking in tour_bookings');
-        // This shouldn't happen if tourId exists, but handle it gracefully
+      // For self-guided tours, guide_id can be null for user_generated tours
+      // Check if tour is user_generated (source='user_generated')
+      let isUserGeneratedTour = false;
+      if (tour) {
+        const { data: tourWithSource } = await supabase
+          .from('tours')
+          .select('source')
+          .eq('id', tourId)
+          .single();
+        
+        isUserGeneratedTour = tourWithSource?.source === 'user_generated';
+        console.log('🔍 Tour source check:', { tourId, source: tourWithSource?.source, isUserGeneratedTour });
+      }
+
+      // For user_generated tours, guide_id can be null
+      // For regular tours, guide_id should exist
+      if (!guideId && isSelfGuidedTour && !isUserGeneratedTour) {
+        console.warn('⚠️ Self-guided tour without guide_id and not user_generated - cannot create booking');
         return res.status(200).json({ 
           received: true, 
           type: 'self-guided',
@@ -309,7 +321,7 @@ export default async function handler(req, res) {
         });
       }
 
-      // Add guide_id to booking data
+      // Add guide_id to booking data (can be null for user_generated tours)
       bookingData.guide_id = guideId;
       
       const { data: booking, error: bookingError } = await supabase
