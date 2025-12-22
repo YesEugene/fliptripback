@@ -274,6 +274,33 @@ export default async function handler(req, res) {
 
     const totalRevenue = totalPDFRevenue + totalGuidedRevenue;
 
+    // Calculate Funnel metrics
+    // Note: Visitors and Tour preview are approximate until analytics table is implemented
+    // For now:
+    // - Visitors: approximate as unique users who generated tours (can be improved with analytics)
+    // - Tour preview: all generated_tours (as they are generated when viewing preview)
+    // - Itineraries generated: count from generated_tours table
+    // - Full tour opened: confirmed bookings (paid tours)
+    
+    // Get unique users who generated tours (approximate visitors)
+    const { data: uniqueUsersGenerated } = await supabase
+      .from('generated_tours')
+      .select('user_id')
+      .not('user_id', 'is', null);
+    
+    const uniqueVisitorCount = uniqueUsersGenerated 
+      ? new Set(uniqueUsersGenerated.map(t => t.user_id)).size 
+      : 0;
+    
+    // Tour preview = all generated_tours (they are created when user views preview)
+    const tourPreviewCount = generatedToursCount || 0;
+    
+    // Itineraries generated = same as tour preview for now
+    const itinerariesGeneratedCount = generatedToursCount || 0;
+    
+    // Full tour opened = confirmed/paid bookings
+    const fullTourOpenedCount = bookingsByStatus.confirmed || 0;
+
     return res.status(200).json({
       success: true,
       stats: {
@@ -318,6 +345,12 @@ export default async function handler(req, res) {
           today: bookingsToday,
           thisWeek: bookingsThisWeek,
           thisMonth: bookingsThisMonth
+        },
+        funnel: {
+          visitors: uniqueVisitorCount,
+          tourPreview: tourPreviewCount,
+          itinerariesGenerated: itinerariesGeneratedCount,
+          fullTourOpened: fullTourOpenedCount
         },
         activity: {
           newBookingsToday: bookingsToday,
