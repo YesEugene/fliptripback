@@ -22,7 +22,7 @@ export default async function handler(req, res) {
     console.log('💳 PAYMENT: Creating checkout session...');
     console.log('📝 Form data received:', req.body);
 
-    const { city, audience, interests, date, budget, email, itineraryId, tourId, tourType, selectedDate } = req.body;
+    const { city, audience, interests, date, budget, email, itineraryId, tourId, tourType, selectedDate, quantity } = req.body;
 
     if (!city || !email) {
       return res.status(400).json({ 
@@ -173,8 +173,9 @@ export default async function handler(req, res) {
       ];
     } else {
       // Create dynamic price for guided tours or if no price_id is set
+      const finalQuantity = finalTourType === 'with-guide' ? (parseInt(quantity) || 1) : 1;
       const price = await stripe.prices.create({
-        unit_amount: Math.round(tourPrice * 100), // Convert to cents
+        unit_amount: Math.round(tourPrice * 100), // Convert to cents (price per person)
         currency: currency.toLowerCase(),
         product_data: {
           name: finalTourType === 'with-guide' 
@@ -186,7 +187,7 @@ export default async function handler(req, res) {
       lineItems = [
         {
           price: price.id,
-          quantity: 1,
+          quantity: finalQuantity, // Number of spots
         },
       ];
     }
@@ -209,7 +210,8 @@ export default async function handler(req, res) {
         itineraryId: itineraryId || '',
         tourId: tourId || '',
         tourType: finalTourType,
-        selectedDate: selectedDate || ''
+        selectedDate: selectedDate || '',
+        quantity: finalTourType === 'with-guide' ? (quantity || 1).toString() : '1'
       }
     });
 
