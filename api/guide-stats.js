@@ -96,6 +96,7 @@ export default async function handler(req, res) {
     }
 
     // Get notifications for this guide
+    console.log('📬 Fetching notifications for guide:', userId);
     const { data: notifications, error: notificationsError } = await supabase
       .from('notifications')
       .select('*')
@@ -104,7 +105,9 @@ export default async function handler(req, res) {
       .limit(20);
 
     if (notificationsError) {
-      console.error('Error fetching notifications:', notificationsError);
+      console.error('❌ Error fetching notifications:', notificationsError);
+    } else {
+      console.log('✅ Found notifications:', notifications?.length || 0);
     }
 
     // Get unread notifications count
