@@ -81,7 +81,7 @@ export default async function handler(req, res) {
       .from('tour_bookings')
       .select(`
         *,
-        tour:tours(id, title, city_id, cities(name)),
+        tour:tours(id, title, city_id, default_format, cities(name)),
         customer:users!tour_bookings_user_id_fkey(id, name, email)
       `)
       .eq('guide_id', userId)
@@ -124,11 +124,36 @@ export default async function handler(req, res) {
     const pendingBookings = allBookings.filter(b => b.status === 'pending');
     const completedBookings = allBookings.filter(b => b.status === 'completed');
 
+    // Separate guided and self-guided bookings
+    const guidedBookings = allBookings.filter(b => {
+      const tourFormat = b.tour?.default_format;
+      return tourFormat === 'with_guide' || tourFormat === 'guided';
+    });
+    const selfGuidedBookings = allBookings.filter(b => {
+      const tourFormat = b.tour?.default_format;
+      return tourFormat === 'self_guided' || tourFormat === 'self-guided' || !tourFormat;
+    });
+
     // Calculate revenue (only from paid bookings)
     const paidBookings = allBookings.filter(b => b.payment_status === 'paid');
     const totalRevenue = paidBookings.reduce((sum, booking) => {
       return sum + parseFloat(booking.total_price || 0);
     }, 0);
+
+    // Calculate revenue by type
+    const guidedRevenue = paidBookings
+      .filter(b => {
+        const tourFormat = b.tour?.default_format;
+        return tourFormat === 'with_guide' || tourFormat === 'guided';
+      })
+      .reduce((sum, booking) => sum + parseFloat(booking.total_price || 0), 0);
+    
+    const selfGuidedRevenue = paidBookings
+      .filter(b => {
+        const tourFormat = b.tour?.default_format;
+        return tourFormat === 'self_guided' || tourFormat === 'self-guided' || !tourFormat;
+      })
+      .reduce((sum, booking) => sum + parseFloat(booking.total_price || 0), 0);
 
     // Calculate revenue by currency
     const revenueByCurrency = {};
@@ -141,19 +166,25 @@ export default async function handler(req, res) {
     });
 
     // Get recent bookings (last 10)
-    const recentBookings = allBookings.slice(0, 10).map(booking => ({
-      id: booking.id,
-      tour_title: booking.tour?.title || 'Unknown Tour',
-      customer_name: booking.customer?.name || booking.customer?.email || 'Unknown',
-      customer_email: booking.customer?.email || null,
-      tour_date: booking.tour_date,
-      group_size: booking.group_size,
-      total_price: booking.total_price,
-      currency: booking.currency,
-      status: booking.status,
-      payment_status: booking.payment_status,
-      created_at: booking.created_at
-    }));
+    const recentBookings = allBookings.slice(0, 10).map(booking => {
+      const tourFormat = booking.tour?.default_format;
+      const isGuided = tourFormat === 'with_guide' || tourFormat === 'guided';
+      
+      return {
+        id: booking.id,
+        tour_title: booking.tour?.title || 'Unknown Tour',
+        customer_name: booking.customer?.name || booking.customer?.email || 'Unknown',
+        customer_email: booking.customer?.email || null,
+        tour_date: booking.tour_date,
+        group_size: booking.group_size,
+        total_price: booking.total_price,
+        currency: booking.currency,
+        status: booking.status,
+        payment_status: booking.payment_status,
+        tour_type: isGuided ? 'guided' : 'self-guided',
+        created_at: booking.created_at
+      };
+    });
 
     // Get booking notifications (type = 'booking')
     const bookingNotifications = (notifications || []).filter(n => n.type === 'booking');
@@ -163,6 +194,8 @@ export default async function handler(req, res) {
       stats: {
         bookings: {
           total: allBookings.length,
+          guided: guidedBookings.length,
+          selfGuided: selfGuidedBookings.length,
           confirmed: confirmedBookings.length,
           pending: pendingBookings.length,
           cancelled: cancelledBookings.length,
@@ -170,6 +203,8 @@ export default async function handler(req, res) {
         },
         revenue: {
           total: totalRevenue,
+          guided: guidedRevenue,
+          selfGuided: selfGuidedRevenue,
           byCurrency: revenueByCurrency
         },
         notifications: {
