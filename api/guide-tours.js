@@ -92,7 +92,9 @@ export default async function handler(req, res) {
 
     // Get tours created by this user
     // First, try to detect which column name is used for user/creator
-    const testColumns = ['creator_id', 'user_id', 'created_by', 'owner_id', 'guide_id'];
+    // CRITICAL: Use same order as tours-create.js to ensure consistency
+    // Order: guide_id → creator_id → user_id → created_by
+    const testColumns = ['guide_id', 'creator_id', 'user_id', 'created_by', 'owner_id'];
     let userColumnName = null;
     
     // Try each column to see which one exists
@@ -106,7 +108,7 @@ export default async function handler(req, res) {
       // If query succeeds (even with 0 results), column exists
       if (!testResult.error || (testResult.error && testResult.error.code !== '42703')) {
         userColumnName = colName;
-        console.log(`✅ Using column '${colName}' for filtering tours`);
+        console.log(`✅ Using column '${colName}' for filtering tours (same order as tours-create.js)`);
         break;
       }
     }
@@ -116,6 +118,8 @@ export default async function handler(req, res) {
     
     if (userColumnName) {
       // Query with the correct column name, including normalized structure
+      // CRITICAL: Exclude user_generated tours (AI-generated for users, not guides)
+      // Only show tours created by guides/creators
       const result = await supabase
         .from('tours')
         .select(`
@@ -157,6 +161,8 @@ export default async function handler(req, res) {
           )
         `)
         .eq(userColumnName, userId)
+        // Exclude user_generated tours - only show tours created by guides/creators
+        .or('source.is.null,source.neq.user_generated')
         .order('created_at', { ascending: false });
       
       tours = result.data || [];
@@ -176,13 +182,20 @@ export default async function handler(req, res) {
         toursError = allToursResult.error;
       } else {
         // Filter by checking all possible column names
+        // CRITICAL: Exclude user_generated tours (AI-generated for users, not guides)
         const allTours = allToursResult.data || [];
         for (const tour of allTours) {
-          if (String(tour.creator_id) === String(userId) || 
+          // Skip user_generated tours - only show tours created by guides/creators
+          if (tour.source === 'user_generated') {
+            continue;
+          }
+          
+          // Check all possible user/creator columns (same order as above)
+          if (String(tour.guide_id) === String(userId) || 
+              String(tour.creator_id) === String(userId) || 
               String(tour.user_id) === String(userId) || 
               String(tour.created_by) === String(userId) ||
-              String(tour.owner_id) === String(userId) ||
-              String(tour.guide_id) === String(userId)) {
+              String(tour.owner_id) === String(userId)) {
             tours.push(tour);
           }
         }
