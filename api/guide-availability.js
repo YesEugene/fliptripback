@@ -39,37 +39,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // Get user from token
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-      return res.status(401).json({
-        success: false,
-        error: 'Unauthorized'
-      });
-    }
-
-    let userId = null;
-    try {
-      const cleanToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
-      try {
-        const payload = JSON.parse(Buffer.from(cleanToken, 'base64').toString());
-        userId = payload.userId || payload.id || null;
-      } catch (e) {
-        const { data: { user }, error: authError } = await supabase.auth.getUser(cleanToken);
-        if (user) userId = user.id;
-      }
-    } catch (err) {
-      console.error('Auth error:', err);
-    }
-
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: 'Invalid token'
-      });
-    }
-
-    // GET - Get availability slots for a tour
+    // GET - Get availability slots for a tour (PUBLIC ACCESS - no auth required)
     if (req.method === 'GET') {
       const { tour_id, date_from, date_to } = req.query;
 
@@ -137,8 +107,39 @@ export default async function handler(req, res) {
       });
     }
 
-    // POST - Create or update multiple availability slots
+    // Helper function to get authenticated user (for POST/PUT/DELETE)
+    const getAuthenticatedUser = async () => {
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return null;
+      }
+
+      let userId = null;
+      try {
+        const cleanToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
+        try {
+          const payload = JSON.parse(Buffer.from(cleanToken, 'base64').toString());
+          userId = payload.userId || payload.id || null;
+        } catch (e) {
+          const { data: { user }, error: authError } = await supabase.auth.getUser(cleanToken);
+          if (user) userId = user.id;
+        }
+      } catch (err) {
+        console.error('Auth error:', err);
+      }
+
+      return userId;
+    };
+
+    // POST - Create or update multiple availability slots (REQUIRES AUTH)
     if (req.method === 'POST') {
+      const userId = await getAuthenticatedUser();
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          error: 'Unauthorized - authentication required'
+        });
+      }
       const { tour_id, slots, bulk_block } = req.body;
 
       if (!tour_id) {
@@ -252,8 +253,16 @@ export default async function handler(req, res) {
       });
     }
 
-    // PUT - Update a specific availability slot
+    // PUT - Update a specific availability slot (REQUIRES AUTH)
     if (req.method === 'PUT') {
+      const userId = await getAuthenticatedUser();
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          error: 'Unauthorized - authentication required'
+        });
+      }
+
       const { slot_id } = req.query;
       const { max_group_size, is_available, is_blocked, custom_price, notes } = req.body;
 
@@ -313,8 +322,16 @@ export default async function handler(req, res) {
       });
     }
 
-    // DELETE - Delete (block) an availability slot
+    // DELETE - Delete (block) an availability slot (REQUIRES AUTH)
     if (req.method === 'DELETE') {
+      const userId = await getAuthenticatedUser();
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          error: 'Unauthorized - authentication required'
+        });
+      }
+
       const { slot_id } = req.query;
 
       if (!slot_id) {
