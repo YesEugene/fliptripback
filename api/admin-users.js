@@ -58,15 +58,107 @@ export default async function handler(req, res) {
         throw error;
       }
 
-      // Format users for display (exclude password_hash)
-      const formattedUsers = (users || []).map(user => ({
-        id: user.id,
-        email: user.email,
-        name: user.name || 'N/A',
-        role: user.role || 'user',
-        createdAt: user.created_at,
-        updatedAt: user.updated_at
-      }));
+      // Helper function to safely parse additional_services
+      const parseAdditionalServices = (additionalServices) => {
+        if (!additionalServices) return null;
+        if (typeof additionalServices === 'object') return additionalServices;
+        if (typeof additionalServices === 'string') {
+          try {
+            return JSON.parse(additionalServices);
+          } catch (e) {
+            return null;
+          }
+        }
+        return null;
+      };
+
+      // Get bookings for all guides to calculate sales statistics
+      const { data: allBookings } = await supabase
+        .from('tour_bookings')
+        .select(`
+          guide_id,
+          total_price,
+          payment_status,
+          additional_services,
+          tour:tours(id, default_format)
+        `)
+        .eq('payment_status', 'paid');
+
+      // Group bookings by guide_id
+      const bookingsByGuide = {};
+      if (allBookings) {
+        allBookings.forEach(booking => {
+          if (!booking.guide_id) return;
+          
+          if (!bookingsByGuide[booking.guide_id]) {
+            bookingsByGuide[booking.guide_id] = {
+              pdfSales: 0,
+              guidedSales: 0,
+              pdfRevenue: 0,
+              guidedRevenue: 0
+            };
+          }
+
+          const additionalServices = parseAdditionalServices(booking.additional_services);
+          let isGuided = false;
+          let isSelfGuided = false;
+
+          // Check additional_services first (from webhook)
+          if (additionalServices) {
+            if (additionalServices.tour_type === 'guided' || additionalServices.purchased_as === 'with-guide') {
+              isGuided = true;
+            } else if (additionalServices.tour_type === 'self-guided' || additionalServices.purchased_as === 'self-guided') {
+              isSelfGuided = true;
+            }
+          }
+
+          // Fallback to tour.default_format
+          if (!isGuided && !isSelfGuided) {
+            const tourFormat = booking.tour?.default_format;
+            if (tourFormat === 'with_guide' || tourFormat === 'guided') {
+              isGuided = true;
+            } else {
+              isSelfGuided = true;
+            }
+          }
+
+          const price = parseFloat(booking.total_price || 0);
+
+          if (isGuided) {
+            bookingsByGuide[booking.guide_id].guidedSales++;
+            bookingsByGuide[booking.guide_id].guidedRevenue += price;
+          } else if (isSelfGuided) {
+            bookingsByGuide[booking.guide_id].pdfSales++;
+            bookingsByGuide[booking.guide_id].pdfRevenue += price;
+          }
+        });
+      }
+
+      // Format users for display (exclude password_hash) and add sales stats
+      const formattedUsers = (users || []).map(user => {
+        const salesStats = bookingsByGuide[user.id] || {
+          pdfSales: 0,
+          guidedSales: 0,
+          pdfRevenue: 0,
+          guidedRevenue: 0
+        };
+
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name || 'N/A',
+          role: user.role || 'user',
+          is_active: user.is_active !== false, // Default to true if not set
+          createdAt: user.created_at,
+          updatedAt: user.updated_at,
+          sales: {
+            pdf: salesStats.pdfSales,
+            guided: salesStats.guidedSales,
+            pdfRevenue: salesStats.pdfRevenue,
+            guidedRevenue: salesStats.guidedRevenue
+          }
+        };
+      });
 
       return res.status(200).json({
         success: true,

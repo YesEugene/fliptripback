@@ -84,6 +84,74 @@ export default async function handler(req, res) {
       });
     }
 
+    // Get bookings statistics (PDF and Guided sales)
+    const { data: allBookings } = await supabase
+      .from('tour_bookings')
+      .select(`
+        *,
+        tour:tours(id, default_format)
+      `)
+      .eq('payment_status', 'paid');
+
+    // Helper function to safely parse additional_services
+    const parseAdditionalServices = (additionalServices) => {
+      if (!additionalServices) return null;
+      if (typeof additionalServices === 'object') return additionalServices;
+      if (typeof additionalServices === 'string') {
+        try {
+          return JSON.parse(additionalServices);
+        } catch (e) {
+          return null;
+        }
+      }
+      return null;
+    };
+
+    // Calculate sales statistics
+    let totalPDFSales = 0;
+    let totalGuidedSales = 0;
+    let totalPDFRevenue = 0;
+    let totalGuidedRevenue = 0;
+
+    if (allBookings) {
+      allBookings.forEach(booking => {
+        const additionalServices = parseAdditionalServices(booking.additional_services);
+        let isGuided = false;
+        let isSelfGuided = false;
+
+        // Check additional_services first (from webhook)
+        if (additionalServices) {
+          if (additionalServices.tour_type === 'guided' || additionalServices.purchased_as === 'with-guide') {
+            isGuided = true;
+          } else if (additionalServices.tour_type === 'self-guided' || additionalServices.purchased_as === 'self-guided') {
+            isSelfGuided = true;
+          }
+        }
+
+        // Fallback to tour.default_format
+        if (!isGuided && !isSelfGuided) {
+          const tourFormat = booking.tour?.default_format;
+          if (tourFormat === 'with_guide' || tourFormat === 'guided') {
+            isGuided = true;
+          } else {
+            isSelfGuided = true;
+          }
+        }
+
+        const price = parseFloat(booking.total_price || 0);
+
+        if (isGuided) {
+          totalGuidedSales++;
+          totalGuidedRevenue += price;
+        } else if (isSelfGuided) {
+          totalPDFSales++;
+          totalPDFRevenue += price;
+        }
+      });
+    }
+
+    const totalRevenue = totalPDFRevenue + totalGuidedRevenue;
+
     return res.status(200).json({
       success: true,
       stats: {
@@ -96,7 +164,13 @@ export default async function handler(req, res) {
           planGenerations: generatedToursCount || 0
         },
         revenue: {
-          total: 0 // TODO: Calculate from payments
+          total: totalRevenue,
+          pdf: totalPDFRevenue,
+          guided: totalGuidedRevenue
+        },
+        sales: {
+          pdf: totalPDFSales,
+          guided: totalGuidedSales
         },
         toursByStatus: toursByStatus,
         locationsByVerified: {
@@ -121,7 +195,13 @@ export default async function handler(req, res) {
           planGenerations: 0
         },
         revenue: {
-          total: 0
+          total: 0,
+          pdf: 0,
+          guided: 0
+        },
+        sales: {
+          pdf: 0,
+          guided: 0
         },
         toursByStatus: {
           verified: 0,
