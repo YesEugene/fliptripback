@@ -409,6 +409,70 @@ export default async function handler(req, res) {
         }
       }
 
+      // Send email to customer with itinerary link
+      if (email && tourId) {
+        try {
+          // Build itinerary URL
+          const baseUrl = process.env.FRONTEND_URL || 'https://www.flip-trip.com';
+          const itineraryUrl = `${baseUrl}/itinerary?email=${encodeURIComponent(email)}&tourId=${tourId}`;
+          
+          // Get city name from tour or metadata
+          const city = metadata.city || tour?.city?.name || 'your destination';
+          const date = metadata.date || tourDate || new Date().toISOString().slice(0, 10);
+          
+          const customerEmailHtml = `
+            <!DOCTYPE html>
+            <html>
+              <head>
+                <meta charset="utf-8">
+                <style>
+                  body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                  .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                  .header { background: linear-gradient(135deg, #e11d48 0%, #3E85FC 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+                  .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+                  .button { display: inline-block; background: #3E85FC; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: bold; }
+                  .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
+                </style>
+              </head>
+              <body>
+                <div class="container">
+                  <div class="header">
+                    <h1>🎉 Your ${city} Itinerary is Ready!</h1>
+                  </div>
+                  <div class="content">
+                    <p>Hi there!</p>
+                    <p>Thank you for your purchase! Your ${isGuidedTour ? 'guided tour' : 'self-guided tour'} for <strong>${city}</strong> on <strong>${date}</strong> is confirmed.</p>
+                    <p>${isGuidedTour ? `Your guide will meet you on ${tourDate}.` : 'You can now access your full itinerary and download the PDF guide.'}</p>
+                    <div style="text-align: center;">
+                      <a href="${itineraryUrl}" class="button">🚀 View Your Itinerary</a>
+                    </div>
+                    <p>Or copy this link:</p>
+                    <p style="word-break: break-all; color: #3E85FC;">${itineraryUrl}</p>
+                    <p>Enjoy your trip! 🌍</p>
+                  </div>
+                  <div class="footer">
+                    <p>Best regards,<br>The FlipTrip Team</p>
+                    <p>If you have any questions, feel free to reach out to us.</p>
+                  </div>
+                </div>
+              </body>
+            </html>
+          `;
+
+          await resend.emails.send({
+            from: 'FlipTrip <noreply@flip-trip.com>',
+            to: email,
+            subject: `Your ${city} Itinerary is Ready! 🎉`,
+            html: customerEmailHtml
+          });
+
+          console.log('✅ Email sent to customer:', email);
+        } catch (customerEmailError) {
+          console.error('⚠️ Error sending email to customer:', customerEmailError);
+          // Don't fail the webhook if customer email fails
+        }
+      }
+
       console.log('✅ WEBHOOK: Successfully processed booking');
       return res.status(200).json({ 
         received: true, 
