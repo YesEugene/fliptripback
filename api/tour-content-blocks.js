@@ -90,7 +90,13 @@ export default async function handler(req, res) {
 
       if (error) {
         console.error('❌ Error creating content block:', error);
-        return res.status(500).json({ error: 'Failed to create content block' });
+        console.error('❌ Error details:', JSON.stringify(error, null, 2));
+        console.error('❌ Request body:', JSON.stringify({ tourId, blockType, content, orderIndex: newOrderIndex }, null, 2));
+        return res.status(500).json({ 
+          error: 'Failed to create content block',
+          details: error.message,
+          code: error.code
+        });
       }
 
       return res.status(201).json({ success: true, block });
