@@ -72,19 +72,72 @@ export default async function handler(req, res) {
         return null;
       };
 
-      // Get bookings for all guides to calculate sales statistics
-      const { data: allBookings } = await supabase
-        .from('tour_bookings')
-        .select(`
-          guide_id,
-          total_price,
-          payment_status,
-          additional_services,
-          tour:tours(id, default_format)
-        `)
-        .eq('payment_status', 'paid');
+      // Get all user IDs for statistics queries
+      const userIds = (users || []).map(u => u.id);
+      const guideIds = (users || []).filter(u => u.role === 'guide' || u.role === 'creator').map(u => u.id);
 
-      // Group bookings by guide_id
+      // Parallel queries for all statistics
+      const [
+        bookingsResult,
+        toursCreatedResult,
+        toursGeneratedResult,
+        toursPurchasedResult
+      ] = await Promise.all([
+        // Get bookings for sales statistics
+        supabase
+          .from('tour_bookings')
+          .select(`
+            guide_id,
+            total_price,
+            payment_status,
+            additional_services,
+            tour:tours(id, default_format)
+          `)
+          .eq('payment_status', 'paid'),
+        
+        // Get tours created by guides (exclude user_generated)
+        guideIds.length > 0 ? supabase
+          .from('tours')
+          .select('guide_id')
+          .in('guide_id', guideIds)
+          .or('source.is.null,source.in.(guide,admin)')
+          : Promise.resolve({ data: [], error: null }),
+        
+        // Get generated tours (user_generated) for all users
+        userIds.length > 0 ? (async () => {
+          // Query for user_id matches
+          const userMatches = await supabase
+            .from('tours')
+            .select('user_id, guide_id')
+            .eq('source', 'user_generated')
+            .in('user_id', userIds);
+          
+          // Query for guide_id matches
+          const guideMatches = await supabase
+            .from('tours')
+            .select('user_id, guide_id')
+            .eq('source', 'user_generated')
+            .in('guide_id', userIds);
+          
+          // Combine results, removing duplicates
+          const combined = [...(userMatches.data || []), ...(guideMatches.data || [])];
+          const unique = Array.from(new Map(combined.map(t => [t.user_id || t.guide_id, t])).values());
+          
+          return { data: unique, error: userMatches.error || guideMatches.error };
+        })() : Promise.resolve({ data: [], error: null }),
+        
+        // Get purchased tours (unique tour_id per user)
+        userIds.length > 0 ? supabase
+          .from('tour_bookings')
+          .select('user_id, tour_id')
+          .in('user_id', userIds)
+          .eq('payment_status', 'paid')
+          : Promise.resolve({ data: [], error: null })
+      ]);
+
+      const allBookings = bookingsResult.data || [];
+
+      // Group bookings by guide_id for sales statistics
       const bookingsByGuide = {};
       if (allBookings) {
         allBookings.forEach(booking => {
@@ -134,7 +187,47 @@ export default async function handler(req, res) {
         });
       }
 
-      // Format users for display (exclude password_hash) and add sales stats
+      // Count tours created by guides
+      const toursCreatedByGuide = {};
+      if (toursCreatedResult.data) {
+        toursCreatedResult.data.forEach(tour => {
+          if (tour.guide_id) {
+            toursCreatedByGuide[tour.guide_id] = (toursCreatedByGuide[tour.guide_id] || 0) + 1;
+          }
+        });
+      }
+
+      // Count generated tours (user_generated) per user
+      const toursGeneratedByUser = {};
+      if (toursGeneratedResult.data) {
+        toursGeneratedResult.data.forEach(tour => {
+          // Use user_id if available, otherwise guide_id
+          const userId = tour.user_id || tour.guide_id;
+          if (userId) {
+            toursGeneratedByUser[userId] = (toursGeneratedByUser[userId] || 0) + 1;
+          }
+        });
+      }
+
+      // Count purchased tours (unique tour_id) per user
+      const toursPurchasedByUser = {};
+      if (toursPurchasedResult.data) {
+        const userToursMap = {};
+        toursPurchasedResult.data.forEach(booking => {
+          if (booking.user_id && booking.tour_id) {
+            if (!userToursMap[booking.user_id]) {
+              userToursMap[booking.user_id] = new Set();
+            }
+            userToursMap[booking.user_id].add(booking.tour_id);
+          }
+        });
+        // Convert Sets to counts
+        Object.keys(userToursMap).forEach(userId => {
+          toursPurchasedByUser[userId] = userToursMap[userId].size;
+        });
+      }
+
+      // Format users for display (exclude password_hash) and add all stats
       const formattedUsers = (users || []).map(user => {
         const salesStats = bookingsByGuide[user.id] || {
           pdfSales: 0,
@@ -156,7 +249,11 @@ export default async function handler(req, res) {
             guided: salesStats.guidedSales,
             pdfRevenue: salesStats.pdfRevenue,
             guidedRevenue: salesStats.guidedRevenue
-          }
+          },
+          // New statistics fields
+          toursCreated: toursCreatedByGuide[user.id] || 0, // Tours created by guide (only for guides)
+          toursGenerated: toursGeneratedByUser[user.id] || 0, // AI-generated tours (for all users)
+          toursPurchased: toursPurchasedByUser[user.id] || 0 // Purchased tours (unique tour_id, for all users)
         };
       });
 
