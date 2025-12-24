@@ -67,6 +67,17 @@ export default async function handler(req, res) {
 
     if (response.data.status !== 'OK') {
       console.error('Google Places Details error:', response.data.status, response.data.error_message);
+      
+      // Check for billing/payment related errors
+      if (response.data.status === 'REQUEST_DENIED' || response.data.error_message?.includes('billing') || response.data.error_message?.includes('payment')) {
+        return res.status(402).json({ 
+          error: 'Google Places API billing error',
+          status: response.data.status,
+          message: response.data.error_message || 'Google Places API requires billing to be enabled. Please check your Google Cloud Console billing settings.',
+          requiresBilling: true
+        });
+      }
+      
       return res.status(500).json({ 
         error: 'Google Places API error',
         status: response.data.status,
