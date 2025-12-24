@@ -1,10 +1,7 @@
 // Google Places Autocomplete API endpoint
 // Returns list of places matching the search query
 
-import { Client } from '@googlemaps/google-maps-services-js';
 import cors from 'cors';
-
-const googleMapsClient = new Client({});
 
 // Enable CORS for all routes
 const corsHandler = cors({
@@ -32,47 +29,68 @@ export default async function handler(req, res) {
   try {
     const { query, location, radius } = req.body;
 
+    console.log('🔍 Google Places Autocomplete request:', { query, location, radius });
+
     if (!query || typeof query !== 'string' || query.trim().length === 0) {
       return res.status(400).json({ error: 'Query parameter is required' });
     }
 
     if (!process.env.GOOGLE_MAPS_KEY) {
+      console.error('❌ GOOGLE_MAPS_KEY not configured');
       return res.status(500).json({ error: 'Google Maps API key not configured' });
     }
 
-    // Call Google Places Autocomplete API
-    const response = await googleMapsClient.placeAutocomplete({
-      params: {
-        input: query,
-        key: process.env.GOOGLE_MAPS_KEY,
-        language: 'en',
-        ...(location && { location: location }), // Optional: bias results to location
-        ...(radius && { radius: radius }) // Optional: search radius in meters
-      }
+    console.log('✅ GOOGLE_MAPS_KEY configured, length:', process.env.GOOGLE_MAPS_KEY?.length);
+
+    // Call Google Places Autocomplete API directly via HTTP
+    // The @googlemaps/google-maps-services-js library doesn't have placeAutocomplete method
+    const autocompleteUrl = 'https://maps.googleapis.com/maps/api/place/autocomplete/json';
+    const params = new URLSearchParams({
+      input: query.trim(),
+      key: process.env.GOOGLE_MAPS_KEY,
+      language: 'en'
     });
 
-    if (response.data.status !== 'OK' && response.data.status !== 'ZERO_RESULTS') {
-      console.error('Google Places Autocomplete error:', response.data.status, response.data.error_message);
+    // Add optional location bias if provided
+    if (location && typeof location === 'string') {
+      params.append('location', location);
+    }
+    if (radius && typeof radius === 'number') {
+      params.append('radius', radius.toString());
+    }
+
+    console.log('🌐 Calling Google Places Autocomplete API...');
+    const apiResponse = await fetch(`${autocompleteUrl}?${params.toString()}`);
+    
+    if (!apiResponse.ok) {
+      throw new Error(`Google Places API returned status ${apiResponse.status}`);
+    }
+
+    const response = await apiResponse.json();
+    console.log('✅ Google Places API response status:', response.status);
+
+    if (response.status !== 'OK' && response.status !== 'ZERO_RESULTS') {
+      console.error('Google Places Autocomplete error:', response.status, response.error_message);
       
       // Check for billing/payment related errors
-      if (response.data.status === 'REQUEST_DENIED' || response.data.error_message?.includes('billing') || response.data.error_message?.includes('payment')) {
+      if (response.status === 'REQUEST_DENIED' || response.error_message?.includes('billing') || response.error_message?.includes('payment')) {
         return res.status(402).json({ 
           error: 'Google Places API billing error',
-          status: response.data.status,
-          message: response.data.error_message || 'Google Places API requires billing to be enabled. Please check your Google Cloud Console billing settings.',
+          status: response.status,
+          message: response.error_message || 'Google Places API requires billing to be enabled. Please check your Google Cloud Console billing settings.',
           requiresBilling: true
         });
       }
       
       return res.status(500).json({ 
         error: 'Google Places API error',
-        status: response.data.status,
-        message: response.data.error_message || 'Unknown error'
+        status: response.status,
+        message: response.error_message || 'Unknown error'
       });
     }
 
     // Format predictions for frontend
-    const predictions = (response.data.predictions || []).map(prediction => ({
+    const predictions = (response.predictions || []).map(prediction => ({
       place_id: prediction.place_id,
       description: prediction.description,
       main_text: prediction.structured_formatting?.main_text || prediction.description,
