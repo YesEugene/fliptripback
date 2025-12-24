@@ -128,7 +128,18 @@ export default async function handler(req, res) {
 
       if (error) {
         console.error('❌ Error updating content block:', error);
-        return res.status(500).json({ error: 'Failed to update content block' });
+        // If table doesn't exist, return helpful error message
+        if (error.message && error.message.includes('does not exist')) {
+          return res.status(500).json({ 
+            error: 'Failed to update content block',
+            details: error.message,
+            hint: 'Please run the migration: add-tour-content-blocks.sql in Supabase SQL Editor'
+          });
+        }
+        return res.status(500).json({ 
+          error: 'Failed to update content block',
+          details: error.message
+        });
       }
 
       return res.status(200).json({ success: true, block });
@@ -149,7 +160,18 @@ export default async function handler(req, res) {
 
       if (error) {
         console.error('❌ Error deleting content block:', error);
-        return res.status(500).json({ error: 'Failed to delete content block' });
+        // If table doesn't exist, return helpful error message
+        if (error.message && error.message.includes('does not exist')) {
+          return res.status(500).json({ 
+            error: 'Failed to delete content block',
+            details: error.message,
+            hint: 'Please run the migration: add-tour-content-blocks.sql in Supabase SQL Editor'
+          });
+        }
+        return res.status(500).json({ 
+          error: 'Failed to delete content block',
+          details: error.message
+        });
       }
 
       return res.status(200).json({ success: true });
