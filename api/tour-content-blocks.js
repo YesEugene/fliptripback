@@ -97,6 +97,17 @@ export default async function handler(req, res) {
         console.error('❌ Error creating content block:', error);
         console.error('❌ Error details:', JSON.stringify(error, null, 2));
         console.error('❌ Request body:', JSON.stringify({ tourId, blockType, content, orderIndex: newOrderIndex }, null, 2));
+        
+        // If table doesn't exist, return helpful error message
+        if (error.message && (error.message.includes('does not exist') || error.code === 'PGRST205')) {
+          return res.status(500).json({ 
+            error: 'Failed to create content block',
+            details: error.message,
+            code: error.code,
+            hint: 'Please run the migration: add-tour-content-blocks.sql in Supabase SQL Editor'
+          });
+        }
+        
         return res.status(500).json({ 
           error: 'Failed to create content block',
           details: error.message,
