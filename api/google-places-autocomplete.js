@@ -13,9 +13,15 @@ const corsHandler = cors({
 });
 
 export default async function handler(req, res) {
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return corsHandler(req, res, () => {});
+    return res.status(200).end();
   }
 
   // Only allow POST requests
@@ -63,11 +69,9 @@ export default async function handler(req, res) {
       types: prediction.types || []
     }));
 
-    return corsHandler(req, res, () => {
-      res.status(200).json({
-        success: true,
-        predictions: predictions
-      });
+    return res.status(200).json({
+      success: true,
+      predictions: predictions
     });
 
   } catch (error) {
