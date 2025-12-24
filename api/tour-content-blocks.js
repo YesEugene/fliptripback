@@ -44,6 +44,11 @@ export default async function handler(req, res) {
         .order('order_index', { ascending: true });
 
       if (error) {
+        // If table doesn't exist, return empty array instead of error
+        if (error.message && error.message.includes('does not exist')) {
+          console.log('⚠️ tour_content_blocks table does not exist yet. Returning empty array.');
+          return res.status(200).json({ success: true, blocks: [] });
+        }
         console.error('❌ Error fetching content blocks:', error);
         return res.status(500).json({ error: 'Failed to fetch content blocks' });
       }
