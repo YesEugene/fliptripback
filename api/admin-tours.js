@@ -205,8 +205,28 @@ export default async function handler(req, res) {
         }
       }
 
+      // Additional filter: Remove tours without format (including those with format only in draft_data)
+      // SQL filter above handles default_format, but we also need to check draft_data.tourSettings
+      const toursWithFormat = (tours || []).filter(tour => {
+        // Check default_format
+        if (tour.default_format === 'self_guided' || tour.default_format === 'with_guide') {
+          return true;
+        }
+        
+        // Check draft_data.tourSettings for tours created in Visualizer
+        if (tour.draft_data && tour.draft_data.tourSettings) {
+          const settings = tour.draft_data.tourSettings;
+          if (settings.selfGuided === true || settings.withGuide === true) {
+            return true;
+          }
+        }
+        
+        // Tour has no format - exclude from admin panel
+        return false;
+      });
+
       // Format tours for display
-      const formattedTours = (tours || []).map(tour => ({
+      const formattedTours = toursWithFormat.map(tour => ({
         id: tour.id,
         title: tour.title,
         description: tour.description,
