@@ -166,12 +166,18 @@ export default async function handler(req, res) {
       // This prevents showing incomplete drafts that are still being worked on
       query = query.or('default_format.eq.self_guided,default_format.eq.with_guide');
 
-      if (search) {
-        query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
-      }
-
+      // CRITICAL: Exclude draft tours from admin panel
+      // Draft tours are works in progress and should not be visible to admins
+      // Only show tours that have been submitted for moderation (pending, approved, rejected)
       if (status) {
         query = query.eq('status', status);
+      } else {
+        // If no specific status filter, exclude drafts by default
+        query = query.neq('status', 'draft');
+      }
+
+      if (search) {
+        query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
       }
 
       if (city) {
