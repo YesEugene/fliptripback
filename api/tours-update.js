@@ -610,9 +610,34 @@ export default async function handler(req, res) {
         daily_plan = draft.daily_plan;
       }
       
-      // Set status to pending and clear draft_data
+      // Set status to pending
       updateData.status = 'pending';
-      updateData.draft_data = null; // Clear draft after submission
+      
+      // Preserve tourSettings in draft_data for future editing, even after submission
+      // This allows guides to see their settings when reopening the tour
+      const preservedDraftData = {
+        tourSettings: {
+          selfGuided: tourData.selfGuided || (format === 'self_guided'),
+          withGuide: tourData.withGuide || (format === 'with_guide' || format === 'guided'),
+          price: {
+            pdfPrice: pricePdf,
+            guidedPrice: priceGuided,
+            currency: tourData.price?.currency || 'USD',
+            availableDates: availableDates || [],
+            meetingPoint: meetingPoint || '',
+            meetingTime: meetingTime || ''
+          },
+          additionalOptions: additionalOptions || {
+            platformOptions: ['insurance', 'accommodation'],
+            creatorOptions: {}
+          },
+          tags: tags || []
+        }
+      };
+      
+      // Only clear draft_data if it doesn't contain important settings
+      // Otherwise, preserve tourSettings for future editing
+      updateData.draft_data = preservedDraftData;
     }
     
     // Add status if provided (for manual status changes)
