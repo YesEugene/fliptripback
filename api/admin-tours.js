@@ -161,6 +161,11 @@ export default async function handler(req, res) {
         query = query.or('source.is.null,source.neq.user_generated');
       }
 
+      // CRITICAL: Exclude tours without format selected
+      // Tours must have default_format set to 'self_guided' or 'with_guide' to appear in admin panel
+      // This prevents showing incomplete drafts that are still being worked on
+      query = query.or('default_format.eq.self_guided,default_format.eq.with_guide');
+
       if (search) {
         query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
       }
