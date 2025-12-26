@@ -997,47 +997,81 @@ export default async function handler(req, res) {
     console.log(`✅ Tour ${id} updated successfully`);
     console.log(`📊 Saved ${totalItemsSaved} items from daily_plan`);
 
-    // Reload tour with tour_tags to return updated data
-    const { data: updatedTour, error: reloadError } = await supabase
-      .from('tours')
-      .select('*, city:cities(name), tour_tags(tag_id, interest_id, tag:tags(id, name), interest:interests(id, name, category_id))')
-      .eq('id', id)
-      .maybeSingle();
-    
-    if (reloadError) {
-      console.warn('⚠️ Could not reload tour with tags:', reloadError);
-      // Return tour without tags if reload fails
-      return res.status(200).json({
-        success: true,
-        tour: tour,
-        message: 'Tour updated successfully',
-        itemsSaved: totalItemsSaved
-      });
-    }
-    
-    // If we got tour_tags, fetch interests separately if needed
-    if (updatedTour && updatedTour.tour_tags) {
-      try {
-        const interestIds = updatedTour.tour_tags.filter(tt => tt.interest_id && !tt.interest).map(tt => tt.interest_id);
-        if (interestIds.length > 0) {
-          const { data: interestsData } = await supabase
-            .from('interests')
-            .select('id, name, category_id')
-            .in('id', interestIds);
+    // Reload tour with tour_tags to return updated data (use same approach as tours.js)
+    let updatedTour = tour;
+    try {
+      const { data: reloadedTour } = await supabase
+        .from('tours')
+        .select('*, city:cities(name)')
+        .eq('id', id)
+        .maybeSingle();
+      
+      if (reloadedTour) {
+        updatedTour = reloadedTour;
+        
+        // Fetch tour_tags separately (same as in tours.js)
+        try {
+          const { data: tourTags } = await supabase
+            .from('tour_tags')
+            .select('tag_id, interest_id')
+            .eq('tour_id', id);
           
-          if (interestsData) {
-            updatedTour.tour_tags = updatedTour.tour_tags.map(tt => {
-              if (tt.interest_id && !tt.interest) {
-                const interest = interestsData.find(i => String(i.id) === String(tt.interest_id));
+          console.log('📋 Reloaded tour_tags from DB:', tourTags);
+          
+          if (tourTags && tourTags.length > 0) {
+            const tagIds = tourTags.filter(tt => tt.tag_id).map(tt => tt.tag_id);
+            const interestIds = tourTags.filter(tt => tt.interest_id).map(tt => tt.interest_id);
+            
+            let tags = [];
+            let interests = [];
+            
+            if (tagIds.length > 0) {
+              const { data: tagsData } = await supabase
+                .from('tags')
+                .select('id, name')
+                .in('id', tagIds);
+              tags = tagsData || [];
+            }
+            
+            if (interestIds.length > 0) {
+              const { data: interestsData } = await supabase
+                .from('interests')
+                .select('id, name, category_id')
+                .in('id', interestIds);
+              interests = interestsData || [];
+            }
+            
+            updatedTour.tour_tags = tourTags.map(tt => {
+              if (tt.tag_id) {
+                const tag = tags.find(t => t.id === tt.tag_id);
+                return { ...tt, tag };
+              } else if (tt.interest_id) {
+                const interest = interests.find(i => {
+                  const interestId = String(i.id);
+                  const ttInterestId = String(tt.interest_id);
+                  return interestId === ttInterestId;
+                });
                 return { ...tt, interest };
               }
               return tt;
             });
+            console.log('✅ Reloaded tour.tour_tags:', updatedTour.tour_tags.map(tt => ({
+              tag_id: tt.tag_id,
+              interest_id: tt.interest_id,
+              hasTag: !!tt.tag,
+              hasInterest: !!tt.interest
+            })));
+          } else {
+            updatedTour.tour_tags = [];
           }
+        } catch (tagsError) {
+          console.warn('⚠️ Could not fetch tour_tags separately:', tagsError);
+          updatedTour.tour_tags = [];
         }
-      } catch (tagsError) {
-        console.warn('⚠️ Could not fetch interests for tour_tags:', tagsError);
       }
+    } catch (reloadError) {
+      console.warn('⚠️ Could not reload tour:', reloadError);
+      // Continue with original tour object
     }
 
     return res.status(200).json({
