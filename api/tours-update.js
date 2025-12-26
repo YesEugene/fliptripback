@@ -942,89 +942,65 @@ export default async function handler(req, res) {
       }
     }
 
-    // Update tags/interests
-    // Support both: array of interest IDs (new system) or array of tag names (legacy)
+    // Update interests (interests are stored in tour_tags table with interest_id)
+    // tags parameter contains array of interest IDs (UUIDs)
     if (tags !== undefined && Array.isArray(tags)) {
-      console.log('📋 Processing tags update:', { tags, tagsLength: tags.length, tourId: id });
-      const { error: deleteError } = await supabase.from('tour_tags').delete().eq('tour_id', id);
+      console.log('📋 Processing interests update:', { interests: tags, count: tags.length, tourId: id });
+      
+      // Delete existing tour_tags for this tour (only those with interest_id, keep tag_id for legacy if needed)
+      const { error: deleteError } = await supabase
+        .from('tour_tags')
+        .delete()
+        .eq('tour_id', id)
+        .not('interest_id', 'is', null); // Only delete rows with interest_id (interests)
+      
       if (deleteError) {
         console.error('❌ Error deleting existing tour_tags:', deleteError);
         // Don't throw - continue with insert
       } else {
-        console.log('✅ Deleted existing tour_tags for tour:', id);
+        console.log('✅ Deleted existing interests for tour:', id);
       }
       
       if (tags.length > 0) {
-        // Check if tags are IDs (numbers or UUIDs) or names (strings)
-        // IDs can be: numbers, UUID strings, or numeric strings
-        const isIds = tags.every(tag => {
-          if (typeof tag === 'number') return true;
-          if (typeof tag === 'string') {
-            // Check if it's a UUID (with or without dashes)
-            if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tag)) return true;
-            // Check if it's a numeric string (for integer IDs)
-            if (/^\d+$/.test(tag)) return true;
-            // Check if it's a hex string (UUID without dashes)
-            if (/^[0-9a-f]{32}$/i.test(tag)) return true;
-          }
-          return false;
-        });
+        // All tags are interest IDs (UUIDs or numbers)
+        // Convert numeric strings to integers if needed
+        const tourTagInserts = tags.map(interestId => ({
+          tour_id: id,
+          interest_id: typeof interestId === 'string' && /^\d+$/.test(interestId) ? parseInt(interestId, 10) : interestId
+        }));
         
-        console.log('🔍 Tags check:', { 
-          tags, 
-          isIds, 
-          tagTypes: tags.map(t => typeof t),
-          tagSamples: tags.slice(0, 3).map(t => ({ value: t, type: typeof t, isUUID: typeof t === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t), isNumeric: typeof t === 'string' && /^\d+$/.test(t) }))
-        });
+        console.log('💾 Saving interests to tour_tags:', tourTagInserts);
+        const { data: insertedTags, error: insertError } = await supabase
+          .from('tour_tags')
+          .insert(tourTagInserts)
+          .select();
         
-        if (isIds) {
-          // New system: tags are interest IDs
-          const tourTagInserts = tags.map(interestId => ({
-            tour_id: id,
-            interest_id: typeof interestId === 'string' && /^\d+$/.test(interestId) ? parseInt(interestId, 10) : interestId
-          }));
-          console.log('💾 Saving tour_tags:', tourTagInserts);
-          const { data: insertedTags, error: insertError } = await supabase.from('tour_tags').insert(tourTagInserts).select();
-          if (insertError) {
-            console.error('❌ Error inserting tour_tags:', insertError);
-            console.error('❌ Insert error details:', JSON.stringify(insertError, null, 2));
-            // Check if error is due to missing interest_id column
-            if (insertError.message && insertError.message.includes('interest_id')) {
-              console.error('❌ ERROR: interest_id column does not exist in tour_tags table!');
-              console.error('❌ Please run the migration: database/add-interest-id-to-tour-tags.sql');
-              console.error('❌ This migration adds the interest_id column to support interests.');
-            }
-            throw insertError;
+        if (insertError) {
+          console.error('❌ Error inserting interests:', insertError);
+          console.error('❌ Insert error details:', JSON.stringify(insertError, null, 2));
+          // Check if error is due to missing interest_id column
+          if (insertError.message && insertError.message.includes('interest_id')) {
+            console.error('❌ ERROR: interest_id column does not exist in tour_tags table!');
+            console.error('❌ Please run the migration: database/add-interest-id-to-tour-tags.sql');
+            console.error('❌ This migration adds the interest_id column to support interests.');
           }
-          console.log(`✅ Linked ${tourTagInserts.length} interests to tour:`, insertedTags);
-          
-          // Verify tags were saved by querying them back
-          const { data: verifyTags, error: verifyError } = await supabase
-            .from('tour_tags')
-            .select('tag_id, interest_id')
-            .eq('tour_id', id);
-          
-          if (verifyError) {
-            console.warn('⚠️ Could not verify tour_tags:', verifyError);
-          } else {
-            console.log('🔍 Verified tour_tags in DB:', verifyTags);
-            console.log('🔍 Verified count:', verifyTags?.length || 0, 'expected:', tourTagInserts.length);
-          }
+          throw insertError;
+        }
+        
+        console.log(`✅ Linked ${insertedTags.length} interests to tour:`, insertedTags);
+        
+        // Verify interests were saved by querying them back
+        const { data: verifyTags, error: verifyError } = await supabase
+          .from('tour_tags')
+          .select('interest_id')
+          .eq('tour_id', id)
+          .not('interest_id', 'is', null);
+        
+        if (verifyError) {
+          console.warn('⚠️ Could not verify interests:', verifyError);
         } else {
-          // Legacy system: tags are tag names
-          const { data: tagsData } = await supabase
-            .from('tags')
-            .select('id, name')
-            .in('name', tags);
-          
-          if (tagsData && tagsData.length > 0) {
-            const tourTagInserts = tagsData.map(tag => ({
-              tour_id: id,
-              tag_id: tag.id
-            }));
-            await supabase.from('tour_tags').insert(tourTagInserts);
-            console.log(`✅ Linked ${tourTagInserts.length} tags to tour`);
-          }
+          console.log('🔍 Verified interests in DB:', verifyTags);
+          console.log('🔍 Verified count:', verifyTags?.length || 0, 'expected:', tourTagInserts.length);
         }
       }
     }

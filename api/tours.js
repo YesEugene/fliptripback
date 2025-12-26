@@ -203,74 +203,66 @@ export default async function handler(req, res) {
           tour.tour_days = [];
         }
         
-        // Fetch tags and interests separately
+        // Fetch interests (stored in tour_tags table with interest_id)
         try {
           const { data: tourTags } = await supabase
             .from('tour_tags')
-            .select('tag_id, interest_id')
-            .eq('tour_id', id);
+            .select('interest_id')
+            .eq('tour_id', id)
+            .not('interest_id', 'is', null); // Only get rows with interest_id (interests)
           
-          console.log('📋 Raw tour_tags from DB:', tourTags);
+          console.log('📋 Raw tour_tags (interests) from DB:', tourTags);
           
           if (tourTags && tourTags.length > 0) {
-            const tagIds = tourTags.filter(tt => tt.tag_id).map(tt => tt.tag_id);
-            const interestIds = tourTags.filter(tt => tt.interest_id).map(tt => tt.interest_id);
+            const interestIds = tourTags.map(tt => tt.interest_id).filter(Boolean);
             
-            console.log('📋 Extracted IDs:', { tagIds, interestIds });
+            console.log('📋 Extracted interest IDs:', interestIds);
             
-            let tags = [];
-            let interests = [];
+            // Load interests from interests table
+            const { data: interestsData, error: interestsError } = await supabase
+              .from('interests')
+              .select('id, name, category_id')
+              .in('id', interestIds);
             
-            if (tagIds.length > 0) {
-              const { data: tagsData } = await supabase
-                .from('tags')
-                .select('id, name')
-                .in('id', tagIds);
-              tags = tagsData || [];
-            }
-            
-            if (interestIds.length > 0) {
-              const { data: interestsData } = await supabase
-                .from('interests')
-                .select('id, name, category_id')
-                .in('id', interestIds);
-              interests = interestsData || [];
-            }
-            
-            tour.tour_tags = tourTags.map(tt => {
-              if (tt.tag_id) {
-                const tag = tags.find(t => t.id === tt.tag_id);
-                return { ...tt, tag };
-              } else if (tt.interest_id) {
-                const interest = interests.find(i => {
+            if (interestsError) {
+              console.warn('⚠️ Could not fetch interests:', interestsError);
+              tour.tour_tags = [];
+            } else {
+              // Map tour_tags to include full interest objects
+              tour.tour_tags = tourTags.map(tt => {
+                const interest = interestsData?.find(i => {
                   // Handle both string and number IDs
                   const interestId = String(i.id);
                   const ttInterestId = String(tt.interest_id);
                   return interestId === ttInterestId;
                 });
-                console.log('🔍 Matching interest:', { 
-                  interest_id: tt.interest_id, 
-                  interestType: typeof tt.interest_id,
-                  foundInterest: interest,
-                  allInterests: interests.map(i => ({ id: i.id, type: typeof i.id }))
-                });
-                return { ...tt, interest };
-              }
-              return tt;
-            });
-            console.log('✅ Final tour.tour_tags:', tour.tour_tags.map(tt => ({
-              tag_id: tt.tag_id,
-              interest_id: tt.interest_id,
-              hasTag: !!tt.tag,
-              hasInterest: !!tt.interest,
-              tagId: tt.tag?.id,
-              interestId: tt.interest?.id
-            })));
+                
+                if (interest) {
+                  return {
+                    interest_id: tt.interest_id,
+                    interest: interest
+                  };
+                }
+                
+                // If interest not found, still return the structure
+                return {
+                  interest_id: tt.interest_id,
+                  interest: null
+                };
+              });
+              
+              console.log('✅ Loaded interests for tour:', tour.tour_tags.map(tt => ({
+                interest_id: tt.interest_id,
+                interest_name: tt.interest?.name,
+                hasInterest: !!tt.interest
+              })));
+            }
           } else {
             tour.tour_tags = [];
+            console.log('📋 No interests found for tour');
           }
         } catch (tagsError) {
-          console.warn('⚠️ Could not fetch tags separately:', tagsError);
+          console.warn('⚠️ Could not fetch interests:', tagsError);
           tour.tour_tags = [];
         }
         
