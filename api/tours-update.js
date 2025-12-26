@@ -990,50 +990,30 @@ export default async function handler(req, res) {
           .map(tt => tt.id);
         
         if (interestTagIds.length > 0) {
-          const { error: delError } = await supabase
+          console.log('🗑️ Deleting', interestTagIds.length, 'existing interests with IDs:', interestTagIds);
+          const { error: delError, data: deletedData } = await supabase
             .from('tour_tags')
             .delete()
-            .in('id', interestTagIds);
+            .in('id', interestTagIds)
+            .select();
           
           deleteError = delError;
+          if (delError) {
+            console.error('❌ Error deleting existing tour_tags:', delError);
+            console.error('❌ Delete error details:', JSON.stringify(delError, null, 2));
+          } else {
+            console.log('✅ Deleted existing interests:', deletedData?.length || 0, 'rows');
+          }
+        } else {
+          console.log('📋 No existing interests to delete');
         }
+      } else {
+        console.log('📋 No existing tour_tags found to delete');
       }
       
       if (deleteError) {
-        console.error('❌ Error deleting existing tour_tags:', deleteError);
-        console.error('❌ Delete error details:', JSON.stringify(deleteError, null, 2));
-        // Try alternative delete method if first one fails
-        try {
-          // Get all tour_tags first, then delete only those with interest_id
-          const { data: existingTags } = await supabase
-            .from('tour_tags')
-            .select('id, interest_id')
-            .eq('tour_id', id);
-          
-          if (existingTags && existingTags.length > 0) {
-            const interestTagIds = existingTags
-              .filter(tt => tt.interest_id !== null && tt.interest_id !== undefined)
-              .map(tt => tt.id);
-            
-            if (interestTagIds.length > 0) {
-              const { error: altDeleteError } = await supabase
-                .from('tour_tags')
-                .delete()
-                .in('id', interestTagIds);
-              
-              if (altDeleteError) {
-                console.error('❌ Alternative delete also failed:', altDeleteError);
-              } else {
-                console.log('✅ Deleted existing interests using alternative method');
-              }
-            }
-          }
-        } catch (altError) {
-          console.error('❌ Alternative delete method failed:', altError);
-        }
+        console.warn('⚠️ Delete had errors, but continuing with insert...');
         // Don't throw - continue with insert
-      } else {
-        console.log('✅ Deleted existing interests for tour:', id);
       }
       
       if (tags.length > 0) {
