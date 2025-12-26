@@ -322,15 +322,23 @@ export default async function handler(req, res) {
           tour.tour_tags = [];
         }
         
-        // Final check - log what we're returning
+        // CRITICAL: Final check - log what we're returning
         console.log('📤 Final tour.tour_tags being returned:', {
           count: tour.tour_tags?.length || 0,
+          isArray: Array.isArray(tour.tour_tags),
           tags: tour.tour_tags?.map(tt => ({
             interest_id: tt.interest_id,
             hasInterest: !!tt.interest,
-            interest_name: tt.interest?.name
+            interest_name: tt.interest?.name,
+            interest_id_type: typeof tt.interest_id
           })) || []
         });
+        
+        // Ensure tour_tags is always an array
+        if (!Array.isArray(tour.tour_tags)) {
+          console.warn('⚠️ tour.tour_tags is not an array, setting to empty array');
+          tour.tour_tags = [];
+        }
         
       } catch (fetchError) {
         console.error('❌ Error in tour fetch process:', fetchError);
