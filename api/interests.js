@@ -12,6 +12,70 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
+  // Handle POST - Create new interest
+  if (req.method === 'POST') {
+    try {
+      const { name, category_id } = req.body;
+
+      if (!name || !category_id) {
+        return res.status(400).json({
+          success: false,
+          error: 'Name and category_id are required'
+        });
+      }
+
+      if (!supabase) {
+        return res.status(500).json({
+          success: false,
+          error: 'Database not configured'
+        });
+      }
+
+      // Check if interest with same name already exists
+      const { data: existingInterest } = await supabase
+        .from('interests')
+        .select('id, name, category_id')
+        .ilike('name', name)
+        .limit(1);
+
+      if (existingInterest && existingInterest.length > 0) {
+        return res.status(200).json({
+          success: true,
+          interest: existingInterest[0],
+          message: 'Interest already exists'
+        });
+      }
+
+      // Create new interest
+      const { data: newInterest, error: createError } = await supabase
+        .from('interests')
+        .insert({
+          name: name.trim(),
+          category_id: category_id,
+          subcategory_id: null
+        })
+        .select()
+        .single();
+
+      if (createError) {
+        console.error('❌ Error creating interest:', createError);
+        throw createError;
+      }
+
+      return res.status(201).json({
+        success: true,
+        interest: newInterest
+      });
+    } catch (error) {
+      console.error('❌ Error creating interest:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to create interest',
+        message: error.message || 'Unknown error'
+      });
+    }
+  }
+
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
