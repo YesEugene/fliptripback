@@ -1041,7 +1041,7 @@ export default async function handler(req, res) {
         const { data: insertedTags, error: insertError } = await supabase
           .from('tour_tags')
           .insert(tourTagInserts)
-          .select('tour_id, interest_id, id');
+          .select('tour_id, interest_id');
         
         if (insertError) {
           console.error('❌ CRITICAL: Error inserting interests:', insertError);
@@ -1092,7 +1092,7 @@ export default async function handler(req, res) {
         
         const { data: allVerifyTags, error: verifyError } = await supabase
           .from('tour_tags')
-          .select('id, tour_id, interest_id')
+          .select('tour_id, interest_id')
           .eq('tour_id', id);
         
         if (verifyError) {
@@ -1147,7 +1147,7 @@ export default async function handler(req, res) {
           console.log('🔍 Reloading interests for tour:', id);
           const { data: allTourTags, error: reloadTagsError } = await supabase
             .from('tour_tags')
-            .select('id, interest_id, tag_id, tour_id')
+            .select('interest_id, tag_id, tour_id')
             .eq('tour_id', id);
           
           if (reloadTagsError) {
