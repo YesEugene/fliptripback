@@ -1149,9 +1149,21 @@ export default async function handler(req, res) {
       // Continue with original tour object
     }
 
+    // Log what we're returning
+    const finalTour = updatedTour || tour;
+    console.log('📤 Returning tour with tour_tags:', {
+      hasTour: !!finalTour,
+      hasTourTags: !!finalTour?.tour_tags,
+      tourTagsCount: finalTour?.tour_tags?.length || 0,
+      tourTags: finalTour?.tour_tags?.map(tt => ({
+        interest_id: tt.interest_id,
+        hasInterest: !!tt.interest
+      })) || []
+    });
+    
     return res.status(200).json({
       success: true,
-      tour: updatedTour || tour,
+      tour: finalTour,
       message: 'Tour updated successfully',
       itemsSaved: totalItemsSaved
     });
