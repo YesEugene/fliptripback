@@ -550,6 +550,7 @@ export default async function handler(req, res) {
       // Convert numeric strings to integers if needed
       const tourTagInserts = tags.map(interestId => ({
         tour_id: tour.id,
+        tag_id: null, // CRITICAL: Must be null for interests (not-null constraint requires explicit null)
         interest_id: typeof interestId === 'string' && /^\d+$/.test(interestId) ? parseInt(interestId, 10) : interestId
       }));
       
