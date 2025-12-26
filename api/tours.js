@@ -256,10 +256,14 @@ export default async function handler(req, res) {
                 interest_name: tt.interest?.name,
                 hasInterest: !!tt.interest
               })));
+              console.log('✅ Total interests loaded:', tour.tour_tags.length);
+            } else {
+              console.warn('⚠️ No interests data returned from query, but tourTags exist');
+              tour.tour_tags = [];
             }
           } else {
             tour.tour_tags = [];
-            console.log('📋 No interests found for tour');
+            console.log('📋 No interests found in tour_tags table for tour:', id);
           }
         } catch (tagsError) {
           console.warn('⚠️ Could not fetch interests:', tagsError);
