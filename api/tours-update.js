@@ -952,15 +952,22 @@ export default async function handler(req, res) {
         const isIds = tags.every(tag => {
           if (typeof tag === 'number') return true;
           if (typeof tag === 'string') {
-            // Check if it's a UUID
+            // Check if it's a UUID (with or without dashes)
             if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tag)) return true;
             // Check if it's a numeric string (for integer IDs)
             if (/^\d+$/.test(tag)) return true;
+            // Check if it's a hex string (UUID without dashes)
+            if (/^[0-9a-f]{32}$/i.test(tag)) return true;
           }
           return false;
         });
         
-        console.log('🔍 Tags check:', { tags, isIds, tagTypes: tags.map(t => typeof t) });
+        console.log('🔍 Tags check:', { 
+          tags, 
+          isIds, 
+          tagTypes: tags.map(t => typeof t),
+          tagSamples: tags.slice(0, 3).map(t => ({ value: t, type: typeof t, isUUID: typeof t === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t), isNumeric: typeof t === 'string' && /^\d+$/.test(t) }))
+        });
         
         if (isIds) {
           // New system: tags are interest IDs
