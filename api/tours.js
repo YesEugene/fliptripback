@@ -677,8 +677,13 @@ export default async function handler(req, res) {
       offset: parseInt(offset)
     });
   } catch (error) {
-    console.error('Tours error:', error);
-    res.status(500).json({ 
+    console.error('❌ Tours error:', error);
+    console.error('❌ Error stack:', error.stack);
+    // Ensure CORS headers are set even on error
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    return res.status(500).json({ 
       success: false, 
       message: 'Error getting tours',
       error: error.message 
