@@ -944,8 +944,16 @@ export default async function handler(req, res) {
 
     // Update tags/interests
     // Support both: array of interest IDs (new system) or array of tag names (legacy)
-    if (tags && Array.isArray(tags)) {
-      await supabase.from('tour_tags').delete().eq('tour_id', id);
+    if (tags !== undefined && Array.isArray(tags)) {
+      console.log('📋 Processing tags update:', { tags, tagsLength: tags.length, tourId: id });
+      const { error: deleteError } = await supabase.from('tour_tags').delete().eq('tour_id', id);
+      if (deleteError) {
+        console.error('❌ Error deleting existing tour_tags:', deleteError);
+        // Don't throw - continue with insert
+      } else {
+        console.log('✅ Deleted existing tour_tags for tour:', id);
+      }
+      
       if (tags.length > 0) {
         // Check if tags are IDs (numbers or UUIDs) or names (strings)
         // IDs can be: numbers, UUID strings, or numeric strings
