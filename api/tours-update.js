@@ -973,42 +973,20 @@ export default async function handler(req, res) {
       console.log('📋 Processing interests update:', { interests: tags, count: tags.length, tourId: id });
       
       // Delete existing tour_tags for this tour (only those with interest_id)
-      // First, get all tour_tags with interest_id, then delete them by ID
-      const { data: existingTags, error: fetchError } = await supabase
+      // tour_tags table doesn't have 'id' column, so delete by tour_id and interest_id
+      console.log('🗑️ Deleting existing interests for tour:', id);
+      const { error: delError, data: deletedData } = await supabase
         .from('tour_tags')
-        .select('id, interest_id')
-        .eq('tour_id', id);
+        .delete()
+        .eq('tour_id', id)
+        .not('interest_id', 'is', null);
       
-      let deleteError = null;
-      if (fetchError) {
-        console.error('❌ Error fetching existing tour_tags:', fetchError);
-        deleteError = fetchError;
-      } else if (existingTags && existingTags.length > 0) {
-        // Filter to get only those with interest_id
-        const interestTagIds = existingTags
-          .filter(tt => tt.interest_id !== null && tt.interest_id !== undefined)
-          .map(tt => tt.id);
-        
-        if (interestTagIds.length > 0) {
-          console.log('🗑️ Deleting', interestTagIds.length, 'existing interests with IDs:', interestTagIds);
-          const { error: delError, data: deletedData } = await supabase
-            .from('tour_tags')
-            .delete()
-            .in('id', interestTagIds)
-            .select();
-          
-          deleteError = delError;
-          if (delError) {
-            console.error('❌ Error deleting existing tour_tags:', delError);
-            console.error('❌ Delete error details:', JSON.stringify(delError, null, 2));
-          } else {
-            console.log('✅ Deleted existing interests:', deletedData?.length || 0, 'rows');
-          }
-        } else {
-          console.log('📋 No existing interests to delete');
-        }
+      let deleteError = delError;
+      if (delError) {
+        console.error('❌ Error deleting existing tour_tags:', delError);
+        console.error('❌ Delete error details:', JSON.stringify(delError, null, 2));
       } else {
-        console.log('📋 No existing tour_tags found to delete');
+        console.log('✅ Deleted existing interests:', deletedData?.length || 0, 'rows');
       }
       
       if (deleteError) {
