@@ -211,7 +211,7 @@ export default async function handler(req, res) {
           // CRITICAL: Get all tour_tags and filter for those with interest_id
           const { data: allTourTags, error: tourTagsError } = await supabase
             .from('tour_tags')
-            .select('id, interest_id, tag_id, tour_id')
+            .select('interest_id, tag_id, tour_id')
             .eq('tour_id', id);
           
           if (tourTagsError) {
@@ -225,7 +225,6 @@ export default async function handler(req, res) {
             
             if (allTourTags && allTourTags.length > 0) {
               console.log('📋 tour_tags structure:', allTourTags.map(tt => ({
-                id: tt.id,
                 tour_id: tt.tour_id,
                 tag_id: tt.tag_id,
                 interest_id: tt.interest_id,
@@ -306,7 +305,6 @@ export default async function handler(req, res) {
             if (allTourTags && allTourTags.length > 0) {
               console.log('⚠️ WARNING: Found tour_tags but none have interest_id!');
               console.log('⚠️ tour_tags structure:', allTourTags.map(tt => ({
-                id: tt.id,
                 tour_id: tt.tour_id,
                 tag_id: tt.tag_id,
                 interest_id: tt.interest_id,
