@@ -1049,17 +1049,18 @@ export default async function handler(req, res) {
         console.log(`✅ Linked ${insertedTags.length} interests to tour:`, insertedTags);
         
         // Verify interests were saved by querying them back
-        const { data: verifyTags, error: verifyError } = await supabase
+        const { data: allVerifyTags, error: verifyError } = await supabase
           .from('tour_tags')
           .select('interest_id')
-          .eq('tour_id', id)
-          .not('interest_id', 'is', null);
+          .eq('tour_id', id);
         
         if (verifyError) {
           console.warn('⚠️ Could not verify interests:', verifyError);
         } else {
+          // Filter to get only those with interest_id
+          const verifyTags = allVerifyTags?.filter(tt => tt.interest_id !== null && tt.interest_id !== undefined) || [];
           console.log('🔍 Verified interests in DB:', verifyTags);
-          console.log('🔍 Verified count:', verifyTags?.length || 0, 'expected:', tourTagInserts.length);
+          console.log('🔍 Verified count:', verifyTags.length, 'expected:', tourTagInserts.length);
         }
       }
     }
