@@ -230,10 +230,13 @@ export default async function handler(req, res) {
             if (interestsError) {
               console.warn('⚠️ Could not fetch interests:', interestsError);
               tour.tour_tags = [];
+            } else if (!interestsData || interestsData.length === 0) {
+              console.warn('⚠️ No interests data returned from query, but tourTags exist');
+              tour.tour_tags = [];
             } else {
               // Map tour_tags to include full interest objects
               tour.tour_tags = tourTags.map(tt => {
-                const interest = interestsData?.find(i => {
+                const interest = interestsData.find(i => {
                   // Handle both string and number IDs
                   const interestId = String(i.id);
                   const ttInterestId = String(tt.interest_id);
@@ -260,9 +263,6 @@ export default async function handler(req, res) {
                 hasInterest: !!tt.interest
               })));
               console.log('✅ Total interests loaded:', tour.tour_tags.length);
-            } else {
-              console.warn('⚠️ No interests data returned from query, but tourTags exist');
-              tour.tour_tags = [];
             }
           } else {
             tour.tour_tags = [];
