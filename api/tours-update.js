@@ -1045,6 +1045,9 @@ export default async function handler(req, res) {
         }));
         
         console.log('💾 Saving interests to tour_tags:', tourTagInserts);
+        console.log('💾 Tour ID:', id);
+        console.log('💾 Interest IDs to save:', tourTagInserts.map(tt => tt.interest_id));
+        
         const { data: insertedTags, error: insertError } = await supabase
           .from('tour_tags')
           .insert(tourTagInserts)
@@ -1053,6 +1056,8 @@ export default async function handler(req, res) {
         if (insertError) {
           console.error('❌ Error inserting interests:', insertError);
           console.error('❌ Insert error details:', JSON.stringify(insertError, null, 2));
+          console.error('❌ Insert error code:', insertError.code);
+          console.error('❌ Insert error hint:', insertError.hint);
           // Check if error is due to missing interest_id column
           if (insertError.message && insertError.message.includes('interest_id')) {
             console.error('❌ ERROR: interest_id column does not exist in tour_tags table!');
@@ -1072,6 +1077,11 @@ export default async function handler(req, res) {
         }
         
         console.log(`✅ Linked ${insertedTags.length} interests to tour:`, insertedTags);
+        console.log('✅ Inserted tags details:', insertedTags.map(it => ({
+          tour_id: it.tour_id,
+          interest_id: it.interest_id,
+          tag_id: it.tag_id
+        })));
         
         // Verify interests were saved by querying them back immediately
         // Wait a bit to ensure DB transaction is committed
