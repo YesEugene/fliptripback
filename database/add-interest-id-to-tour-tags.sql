@@ -19,17 +19,29 @@ CHECK (
   (tag_id IS NULL AND interest_id IS NOT NULL)
 );
 
--- Update primary key to include interest_id for uniqueness
--- Note: We need to drop the existing primary key first if it exists
+-- Update primary key to work with both tag_id and interest_id
+-- Since we can't use COALESCE in PRIMARY KEY, we'll use a unique constraint
+-- First, drop the existing primary key if it exists
 ALTER TABLE tour_tags
 DROP CONSTRAINT IF EXISTS tour_tags_pkey;
 
--- Create new composite primary key that works with both tag_id and interest_id
--- We'll use a unique constraint instead since we can't have a single PK for both cases
-ALTER TABLE tour_tags
-ADD CONSTRAINT tour_tags_pkey PRIMARY KEY (tour_id, COALESCE(tag_id, interest_id));
+-- Add a unique constraint that ensures uniqueness for both tag_id and interest_id cases
+-- We'll create a unique index that handles both cases
+CREATE UNIQUE INDEX IF NOT EXISTS tour_tags_unique_tag 
+ON tour_tags(tour_id, tag_id) 
+WHERE tag_id IS NOT NULL;
 
--- Alternative: Use a unique constraint if the above doesn't work
+CREATE UNIQUE INDEX IF NOT EXISTS tour_tags_unique_interest 
+ON tour_tags(tour_id, interest_id) 
+WHERE interest_id IS NOT NULL;
+
+-- Add a simple primary key on tour_id (we rely on unique indexes for uniqueness)
+-- Or we can add an id column and use that as primary key
+-- For now, let's add an id column to make it easier
+ALTER TABLE tour_tags
+ADD COLUMN IF NOT EXISTS id UUID PRIMARY KEY DEFAULT gen_random_uuid();
+
+-- If id column already exists, just ensure it's the primary key
 -- ALTER TABLE tour_tags
--- ADD CONSTRAINT tour_tags_unique UNIQUE (tour_id, COALESCE(tag_id, interest_id));
+-- ADD CONSTRAINT tour_tags_pkey PRIMARY KEY (id);
 
