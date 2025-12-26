@@ -282,6 +282,17 @@ export default async function handler(req, res) {
             tour.tour_tags = [];
             console.log('📋 No interests found in tour_tags table for tour:', id);
             console.log('📋 All tour_tags were:', allTourTags);
+            if (allTourTags && allTourTags.length > 0) {
+              console.log('⚠️ WARNING: Found tour_tags but none have interest_id!');
+              console.log('⚠️ tour_tags structure:', allTourTags.map(tt => ({
+                id: tt.id,
+                tour_id: tt.tour_id,
+                tag_id: tt.tag_id,
+                interest_id: tt.interest_id,
+                hasTagId: tt.tag_id !== null,
+                hasInterestId: tt.interest_id !== null
+              })));
+            }
           }
           }
         } catch (tagsError) {
@@ -289,6 +300,16 @@ export default async function handler(req, res) {
           console.error('❌ Tags error details:', JSON.stringify(tagsError, null, 2));
           tour.tour_tags = [];
         }
+        
+        // Final check - log what we're returning
+        console.log('📤 Final tour.tour_tags being returned:', {
+          count: tour.tour_tags?.length || 0,
+          tags: tour.tour_tags?.map(tt => ({
+            interest_id: tt.interest_id,
+            hasInterest: !!tt.interest,
+            interest_name: tt.interest?.name
+          })) || []
+        });
         
       } catch (fetchError) {
         console.error('❌ Error in tour fetch process:', fetchError);
