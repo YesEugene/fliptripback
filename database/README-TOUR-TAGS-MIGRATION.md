@@ -1,10 +1,15 @@
 # Миграция для поддержки интересов в tour_tags
 
 ## Проблема
-Таблица `tour_tags` изначально была создана только с полями `tour_id` и `tag_id`, но для поддержки интересов (interests) нужно добавить поле `interest_id`.
+Таблица `tour_tags` изначально была создана с `PRIMARY KEY (tour_id, tag_id)`, что означает, что `tag_id` не может быть NULL. Но для поддержки интересов (interests) нужно, чтобы `tag_id` мог быть NULL, когда используется `interest_id`.
 
 ## Решение
-Примените миграцию `add-interest-id-to-tour-tags.sql` в Supabase.
+Примените миграцию `fix-tour-tags-nullable.sql` в Supabase. Эта миграция:
+1. Убирает PRIMARY KEY constraint с `(tour_id, tag_id)`
+2. Делает `tag_id` nullable
+3. Добавляет колонку `interest_id`
+4. Добавляет check constraint для обеспечения, что либо `tag_id`, либо `interest_id` установлен
+5. Создает уникальные индексы для обоих случаев
 
 ## Шаги
 
@@ -16,35 +21,16 @@
    - В левом меню нажмите "SQL Editor"
    - Нажмите "New query"
 
-3. **Скопируйте и выполните SQL из файла `add-interest-id-to-tour-tags.sql`**
-   ```sql
-   -- Add interest_id column if it doesn't exist
-   ALTER TABLE tour_tags 
-   ADD COLUMN IF NOT EXISTS interest_id UUID REFERENCES interests(id) ON DELETE CASCADE;
-
-   -- Create index for interest_id
-   CREATE INDEX IF NOT EXISTS idx_tour_tags_interest_id ON tour_tags(interest_id);
-
-   -- Add check constraint to ensure either tag_id or interest_id is set (but not both)
-   ALTER TABLE tour_tags
-   DROP CONSTRAINT IF EXISTS tour_tags_tag_or_interest_check;
-
-   ALTER TABLE tour_tags
-   ADD CONSTRAINT tour_tags_tag_or_interest_check 
-   CHECK (
-     (tag_id IS NOT NULL AND interest_id IS NULL) OR 
-     (tag_id IS NULL AND interest_id IS NOT NULL)
-   );
-
-   -- Add unique indexes to ensure uniqueness for both tag_id and interest_id cases
-   CREATE UNIQUE INDEX IF NOT EXISTS tour_tags_unique_tag 
-   ON tour_tags(tour_id, tag_id) 
-   WHERE tag_id IS NOT NULL;
-
-   CREATE UNIQUE INDEX IF NOT EXISTS tour_tags_unique_interest 
-   ON tour_tags(tour_id, interest_id) 
-   WHERE interest_id IS NOT NULL;
-   ```
+3. **Скопируйте и выполните SQL из файла `fix-tour-tags-nullable.sql`**
+   
+   **ВАЖНО:** Эта миграция удаляет PRIMARY KEY constraint, поэтому убедитесь, что у вас есть резервная копия данных!
+   
+   Миграция выполняет следующие шаги:
+   - Удаляет PRIMARY KEY constraint с `(tour_id, tag_id)`
+   - Делает `tag_id` nullable
+   - Добавляет колонку `interest_id`
+   - Создает check constraint для обеспечения целостности данных
+   - Создает уникальные индексы для обоих случаев (tag_id и interest_id)
 
 4. **Проверьте результат**
    - Убедитесь, что миграция выполнилась без ошибок
