@@ -487,6 +487,14 @@ export default async function handler(req, res) {
         })) || []
       });
 
+      // FINAL VERIFICATION: Ensure tour_tags are in response
+      if (!formattedTour.tour_tags) {
+        console.error('❌ CRITICAL: tour_tags missing in formattedTour!');
+        formattedTour.tour_tags = [];
+      }
+      
+      console.log('✅ Returning tour with tour_tags count:', formattedTour.tour_tags?.length || 0);
+      
       return res.status(200).json({
         success: true,
         tour: formattedTour
