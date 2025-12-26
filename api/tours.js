@@ -170,7 +170,8 @@ export default async function handler(req, res) {
             )
           ),
           tour_tags(
-            tag:tags(id, name)
+            tag:tags(id, name),
+            interest:interests(id, name, category_id)
           )
         `)
         .eq('id', id)

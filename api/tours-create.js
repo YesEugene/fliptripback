@@ -543,21 +543,35 @@ export default async function handler(req, res) {
       }
     }
 
-    // 2. Save tags if provided
+    // 2. Save tags/interests if provided
+    // Support both: array of interest IDs (new system) or array of tag names (legacy)
     if (tags && Array.isArray(tags) && tags.length > 0) {
-      // Get tag IDs by names
-      const { data: tagsData } = await supabase
-        .from('tags')
-        .select('id, name')
-        .in('name', tags);
+      // Check if tags are IDs (numbers or UUIDs) or names (strings)
+      const isIds = tags.every(tag => typeof tag === 'number' || (typeof tag === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tag)));
       
-      if (tagsData && tagsData.length > 0) {
-        const tourTagInserts = tagsData.map(tag => ({
+      if (isIds) {
+        // New system: tags are interest IDs
+        const tourTagInserts = tags.map(interestId => ({
           tour_id: tour.id,
-          tag_id: tag.id
+          interest_id: interestId
         }));
         await supabase.from('tour_tags').insert(tourTagInserts);
-        console.log(`✅ Linked ${tourTagInserts.length} tags to tour`);
+        console.log(`✅ Linked ${tourTagInserts.length} interests to tour`);
+      } else {
+        // Legacy system: tags are tag names
+        const { data: tagsData } = await supabase
+          .from('tags')
+          .select('id, name')
+          .in('name', tags);
+        
+        if (tagsData && tagsData.length > 0) {
+          const tourTagInserts = tagsData.map(tag => ({
+            tour_id: tour.id,
+            tag_id: tag.id
+          }));
+          await supabase.from('tour_tags').insert(tourTagInserts);
+          console.log(`✅ Linked ${tourTagInserts.length} tags to tour`);
+        }
       }
     }
 
