@@ -75,3 +75,4 @@ COMMENT ON COLUMN tours.source IS 'Источник тура: guide (созда�
 COMMENT ON COLUMN tours.user_id IS 'ID пользователя, для которого создан тур (для user_generated туров)';
 
 
+
