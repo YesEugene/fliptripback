@@ -947,15 +947,46 @@ export default async function handler(req, res) {
     if (tags !== undefined && Array.isArray(tags)) {
       console.log('📋 Processing interests update:', { interests: tags, count: tags.length, tourId: id });
       
-      // Delete existing tour_tags for this tour (only those with interest_id, keep tag_id for legacy if needed)
+      // Delete existing tour_tags for this tour (only those with interest_id)
+      // Use isNotNull filter instead of .not() for better compatibility
       const { error: deleteError } = await supabase
         .from('tour_tags')
         .delete()
         .eq('tour_id', id)
-        .not('interest_id', 'is', null); // Only delete rows with interest_id (interests)
+        .not('interest_id', 'is', null);
       
       if (deleteError) {
         console.error('❌ Error deleting existing tour_tags:', deleteError);
+        console.error('❌ Delete error details:', JSON.stringify(deleteError, null, 2));
+        // Try alternative delete method if first one fails
+        try {
+          // Get all tour_tags first, then delete only those with interest_id
+          const { data: existingTags } = await supabase
+            .from('tour_tags')
+            .select('id, interest_id')
+            .eq('tour_id', id);
+          
+          if (existingTags && existingTags.length > 0) {
+            const interestTagIds = existingTags
+              .filter(tt => tt.interest_id !== null && tt.interest_id !== undefined)
+              .map(tt => tt.id);
+            
+            if (interestTagIds.length > 0) {
+              const { error: altDeleteError } = await supabase
+                .from('tour_tags')
+                .delete()
+                .in('id', interestTagIds);
+              
+              if (altDeleteError) {
+                console.error('❌ Alternative delete also failed:', altDeleteError);
+              } else {
+                console.log('✅ Deleted existing interests using alternative method');
+              }
+            }
+          }
+        } catch (altError) {
+          console.error('❌ Alternative delete method failed:', altError);
+        }
         // Don't throw - continue with insert
       } else {
         console.log('✅ Deleted existing interests for tour:', id);
@@ -984,7 +1015,16 @@ export default async function handler(req, res) {
             console.error('❌ Please run the migration: database/add-interest-id-to-tour-tags.sql');
             console.error('❌ This migration adds the interest_id column to support interests.');
           }
-          throw insertError;
+          // Don't throw - return error response with CORS headers
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to save interests',
+            message: insertError.message || 'Database error',
+            details: insertError
+          });
         }
         
         console.log(`✅ Linked ${insertedTags.length} interests to tour:`, insertedTags);
