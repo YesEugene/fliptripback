@@ -210,9 +210,13 @@ export default async function handler(req, res) {
             .select('tag_id, interest_id')
             .eq('tour_id', id);
           
+          console.log('📋 Raw tour_tags from DB:', tourTags);
+          
           if (tourTags && tourTags.length > 0) {
             const tagIds = tourTags.filter(tt => tt.tag_id).map(tt => tt.tag_id);
             const interestIds = tourTags.filter(tt => tt.interest_id).map(tt => tt.interest_id);
+            
+            console.log('📋 Extracted IDs:', { tagIds, interestIds });
             
             let tags = [];
             let interests = [];
