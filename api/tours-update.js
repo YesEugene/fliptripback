@@ -308,6 +308,31 @@ export default async function handler(req, res) {
     // country is optional - can be empty or undefined
     // saveAsDraft: if true, save to draft_data without changing main fields or status
 
+    // Allow partial updates (e.g., just tags) - get existing city and title if not provided
+    if (!city || !title) {
+      const { data: existingTourData } = await supabase
+        .from('tours')
+        .select('city_id, title')
+        .eq('id', id)
+        .maybeSingle();
+      
+      if (existingTourData) {
+        // Use existing city and title if not provided
+        if (!city && existingTourData.city_id) {
+          const { data: cityData } = await supabase
+            .from('cities')
+            .select('name')
+            .eq('id', existingTourData.city_id)
+            .maybeSingle();
+          city = cityData?.name;
+        }
+        if (!title) {
+          title = existingTourData.title;
+        }
+      }
+    }
+
+    // Validate required fields only if we still don't have them
     if (!city || !title) {
       return res.status(400).json({
         success: false,
