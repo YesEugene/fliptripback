@@ -132,63 +132,85 @@ export default async function handler(req, res) {
       
       console.log(`🔍 Fetching tour with ID: ${id}`);
       
-      // Get tour with basic relations (without tour_tags joins to avoid errors)
-      const { data: tour, error } = await supabase
-        .from('tours')
-        .select(`
-          *,
-          city:cities(name),
-          tour_days(
-            id,
-            day_number,
-            title,
-            date_hint,
-            tour_blocks(
+      let tour, error;
+      
+      try {
+        // First, get basic tour info without complex joins
+        const basicResult = await supabase
+          .from('tours')
+          .select('*, city:cities(name)')
+          .eq('id', id)
+          .maybeSingle();
+        
+        tour = basicResult.data;
+        error = basicResult.error;
+        
+        if (error) {
+          console.error('❌ Error fetching basic tour:', error);
+          throw error;
+        }
+        
+        if (!tour) {
+          console.log(`⚠️ Tour not found: ${id}`);
+          return res.status(404).json({ 
+            success: false, 
+            message: 'Tour not found' 
+          });
+        }
+        
+        // Fetch tour_days separately to avoid complex join issues
+        try {
+          const { data: tourDays } = await supabase
+            .from('tour_days')
+            .select(`
               id,
-              start_time,
-              end_time,
+              day_number,
               title,
-              tour_items(
+              date_hint,
+              tour_blocks(
                 id,
-                location_id,
-                custom_title,
-                custom_description,
-                custom_recommendations,
-                order_index,
-                duration_minutes,
-                approx_cost,
-                location:locations(
-                  *,
-                  location_interests(
-                    interest:interests(id, name, category_id)
-                  ),
-                  location_photos(
-                    id,
-                    url
+                start_time,
+                end_time,
+                title,
+                tour_items(
+                  id,
+                  location_id,
+                  custom_title,
+                  custom_description,
+                  custom_recommendations,
+                  order_index,
+                  duration_minutes,
+                  approx_cost,
+                  location:locations(
+                    *,
+                    location_interests(
+                      interest:interests(id, name, category_id)
+                    ),
+                    location_photos(
+                      id,
+                      url
+                    )
                   )
                 )
               )
-            )
-          ),
-          tour_tags(
-            tag_id,
-            interest_id
-          )
-        `)
-        .eq('id', id)
-        .maybeSingle();
-      
-      // Fetch tags and interests separately to avoid join conflicts
-      if (tour && !error) {
+            `)
+            .eq('tour_id', id)
+            .order('day_number', { ascending: true });
+          
+          tour.tour_days = tourDays || [];
+        } catch (daysError) {
+          console.warn('⚠️ Could not fetch tour_days:', daysError);
+          tour.tour_days = [];
+        }
+        
+        // Fetch tags and interests separately
         try {
-          // Get tour_tags with basic info
           const { data: tourTags } = await supabase
             .from('tour_tags')
             .select('tag_id, interest_id')
             .eq('tour_id', id);
           
           if (tourTags && tourTags.length > 0) {
-            // Fetch tags and interests separately
             const tagIds = tourTags.filter(tt => tt.tag_id).map(tt => tt.tag_id);
             const interestIds = tourTags.filter(tt => tt.interest_id).map(tt => tt.interest_id);
             
@@ -211,7 +233,6 @@ export default async function handler(req, res) {
               interests = interestsData || [];
             }
             
-            // Combine tags and interests into tour_tags format
             tour.tour_tags = tourTags.map(tt => {
               if (tt.tag_id) {
                 const tag = tags.find(t => t.id === tt.tag_id);
@@ -227,28 +248,17 @@ export default async function handler(req, res) {
           }
         } catch (tagsError) {
           console.warn('⚠️ Could not fetch tags separately:', tagsError);
-          // Continue without tags
-          tour.tour_tags = tour.tour_tags || [];
+          tour.tour_tags = [];
         }
-      }
-
-      if (error) {
-        console.error('❌ Error fetching tour:', error);
-        console.error('❌ Error details:', JSON.stringify(error, null, 2));
+        
+      } catch (fetchError) {
+        console.error('❌ Error in tour fetch process:', fetchError);
         return res.status(500).json({ 
           success: false, 
           message: 'Database error',
-          error: error.message,
-          code: error.code,
-          details: error.details
-        });
-      }
-
-      if (!tour) {
-        console.log(`⚠️ Tour not found: ${id}`);
-        return res.status(404).json({ 
-          success: false, 
-          message: 'Tour not found' 
+          error: fetchError.message || 'Unknown error',
+          code: fetchError.code,
+          details: fetchError.details
         });
       }
 
