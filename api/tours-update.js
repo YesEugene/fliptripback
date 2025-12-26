@@ -956,8 +956,13 @@ export default async function handler(req, res) {
             tour_id: id,
             interest_id: interestId
           }));
-          await supabase.from('tour_tags').insert(tourTagInserts);
-          console.log(`✅ Linked ${tourTagInserts.length} interests to tour`);
+          console.log('💾 Saving tour_tags:', tourTagInserts);
+          const { data: insertedTags, error: insertError } = await supabase.from('tour_tags').insert(tourTagInserts).select();
+          if (insertError) {
+            console.error('❌ Error inserting tour_tags:', insertError);
+            throw insertError;
+          }
+          console.log(`✅ Linked ${tourTagInserts.length} interests to tour:`, insertedTags);
         } else {
           // Legacy system: tags are tag names
           const { data: tagsData } = await supabase
