@@ -1141,19 +1141,28 @@ export default async function handler(req, res) {
       if (reloadedTour) {
         updatedTour = reloadedTour;
         
-        // Fetch tour_tags separately (same as in tours.js)
+        // CRITICAL: Fetch tour_tags separately (same as in tours.js)
         try {
           // Load interests (only those with interest_id)
-          // Get all tour_tags and filter for those with interest_id
-          const { data: allTourTags } = await supabase
+          console.log('🔍 Reloading interests for tour:', id);
+          const { data: allTourTags, error: reloadTagsError } = await supabase
             .from('tour_tags')
-            .select('interest_id')
+            .select('id, interest_id, tag_id, tour_id')
             .eq('tour_id', id);
           
-          // Filter to get only those with interest_id
-          const tourTags = allTourTags?.filter(tt => tt.interest_id !== null && tt.interest_id !== undefined) || [];
-          
-          console.log('📋 Reloaded interests from DB:', tourTags);
+          if (reloadTagsError) {
+            console.error('❌ CRITICAL: Error reloading tour_tags:', reloadTagsError);
+            console.error('❌ Reload error details:', JSON.stringify(reloadTagsError, null, 2));
+            updatedTour.tour_tags = [];
+          } else {
+            console.log('📋 All tour_tags from DB (reload, before filter):', allTourTags);
+            console.log('📋 Total tour_tags found (reload):', allTourTags?.length || 0);
+            
+            // Filter to get only those with interest_id
+            const tourTags = allTourTags?.filter(tt => tt.interest_id !== null && tt.interest_id !== undefined) || [];
+            
+            console.log('📋 Reloaded interests from DB (after filter):', tourTags);
+            console.log('📋 Reloaded count:', tourTags.length, 'out of', allTourTags?.length || 0);
           
           if (tourTags && tourTags.length > 0) {
             const interestIds = tourTags.map(tt => tt.interest_id).filter(Boolean);
@@ -1198,10 +1207,21 @@ export default async function handler(req, res) {
             }
           } else {
             console.log('📋 No interests found in tour_tags for reload');
+            if (allTourTags && allTourTags.length > 0) {
+              console.error('❌ CRITICAL: Found tour_tags but none have interest_id!');
+              console.error('❌ All tour_tags:', allTourTags.map(tt => ({
+                id: tt.id,
+                tour_id: tt.tour_id,
+                tag_id: tt.tag_id,
+                interest_id: tt.interest_id
+              })));
+            }
             updatedTour.tour_tags = [];
           }
+          }
         } catch (tagsError) {
-          console.warn('⚠️ Could not fetch tour_tags separately:', tagsError);
+          console.error('❌ CRITICAL: Could not fetch tour_tags separately:', tagsError);
+          console.error('❌ Tags error details:', JSON.stringify(tagsError, null, 2));
           updatedTour.tour_tags = [];
         }
       }
