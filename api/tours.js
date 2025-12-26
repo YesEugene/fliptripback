@@ -132,93 +132,103 @@ export default async function handler(req, res) {
       
       console.log(`🔍 Fetching tour with ID: ${id}`);
       
-      // First, try to get tour with all relations
-      let tour, error;
-      try {
-        const result = await supabase
-          .from('tours')
-          .select(`
-            *,
-            city:cities(name),
-            tour_days(
+      // Get tour with basic relations (without tour_tags joins to avoid errors)
+      const { data: tour, error } = await supabase
+        .from('tours')
+        .select(`
+          *,
+          city:cities(name),
+          tour_days(
+            id,
+            day_number,
+            title,
+            date_hint,
+            tour_blocks(
               id,
-              day_number,
+              start_time,
+              end_time,
               title,
-              date_hint,
-              tour_blocks(
+              tour_items(
                 id,
-                start_time,
-                end_time,
-                title,
-                tour_items(
-                  id,
-                  location_id,
-                  custom_title,
-                  custom_description,
-                  custom_recommendations,
-                  order_index,
-                  duration_minutes,
-                  approx_cost,
-                  location:locations(
-                    *,
-                    location_interests(
-                      interest:interests(id, name, category_id)
-                    ),
-                    location_photos(
-                      id,
-                      url
-                    )
+                location_id,
+                custom_title,
+                custom_description,
+                custom_recommendations,
+                order_index,
+                duration_minutes,
+                approx_cost,
+                location:locations(
+                  *,
+                  location_interests(
+                    interest:interests(id, name, category_id)
+                  ),
+                  location_photos(
+                    id,
+                    url
                   )
                 )
               )
-            ),
-            tour_tags(
-              tag_id,
-              interest_id,
-              tag:tags(id, name),
-              interest:interests(id, name, category_id)
             )
-          `)
-          .eq('id', id)
-          .maybeSingle();
-        
-        tour = result.data;
-        error = result.error;
-      } catch (queryError) {
-        console.error('❌ Query error:', queryError);
-        // If complex query fails, try simpler query without tour_tags joins
-        console.log('⚠️ Trying simpler query without tour_tags joins...');
-        const simpleResult = await supabase
-          .from('tours')
-          .select(`
-            *,
-            city:cities(name),
-            tour_tags(
-              tag_id,
-              interest_id
-            )
-          `)
-          .eq('id', id)
-          .maybeSingle();
-        
-        tour = simpleResult.data;
-        error = simpleResult.error;
-        
-        // If we got tour without tags, fetch tags separately
-        if (tour && !error) {
-          try {
-            const { data: tourTags } = await supabase
-              .from('tour_tags')
-              .select('tag_id, interest_id, tag:tags(id, name), interest:interests(id, name, category_id)')
-              .eq('tour_id', id);
+          ),
+          tour_tags(
+            tag_id,
+            interest_id
+          )
+        `)
+        .eq('id', id)
+        .maybeSingle();
+      
+      // Fetch tags and interests separately to avoid join conflicts
+      if (tour && !error) {
+        try {
+          // Get tour_tags with basic info
+          const { data: tourTags } = await supabase
+            .from('tour_tags')
+            .select('tag_id, interest_id')
+            .eq('tour_id', id);
+          
+          if (tourTags && tourTags.length > 0) {
+            // Fetch tags and interests separately
+            const tagIds = tourTags.filter(tt => tt.tag_id).map(tt => tt.tag_id);
+            const interestIds = tourTags.filter(tt => tt.interest_id).map(tt => tt.interest_id);
             
-            if (tourTags) {
-              tour.tour_tags = tourTags;
+            let tags = [];
+            let interests = [];
+            
+            if (tagIds.length > 0) {
+              const { data: tagsData } = await supabase
+                .from('tags')
+                .select('id, name')
+                .in('id', tagIds);
+              tags = tagsData || [];
             }
-          } catch (tagsError) {
-            console.warn('⚠️ Could not fetch tags separately:', tagsError);
-            // Continue without tags
+            
+            if (interestIds.length > 0) {
+              const { data: interestsData } = await supabase
+                .from('interests')
+                .select('id, name, category_id')
+                .in('id', interestIds);
+              interests = interestsData || [];
+            }
+            
+            // Combine tags and interests into tour_tags format
+            tour.tour_tags = tourTags.map(tt => {
+              if (tt.tag_id) {
+                const tag = tags.find(t => t.id === tt.tag_id);
+                return { ...tt, tag };
+              } else if (tt.interest_id) {
+                const interest = interests.find(i => i.id === tt.interest_id);
+                return { ...tt, interest };
+              }
+              return tt;
+            });
+          } else {
+            tour.tour_tags = [];
           }
+        } catch (tagsError) {
+          console.warn('⚠️ Could not fetch tags separately:', tagsError);
+          // Continue without tags
+          tour.tour_tags = tour.tour_tags || [];
         }
       }
 
