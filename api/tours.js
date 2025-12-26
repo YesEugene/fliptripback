@@ -445,6 +445,8 @@ export default async function handler(req, res) {
       // Convert normalized structure to legacy format for backward compatibility
       const formattedTour = {
         ...tour,
+        // CRITICAL: Preserve tour_tags (interests) - they must be included in response!
+        tour_tags: tour.tour_tags || [],
         // Extract city name from city object if it exists
         city: tour.city?.name || tour.city || null,
         // Map preview_media_url to preview for backward compatibility
@@ -473,6 +475,17 @@ export default async function handler(req, res) {
         // Add guide info if available
         guide: guideInfo
       };
+      
+      // CRITICAL: Log what we're returning
+      console.log('📤 Formatted tour with tour_tags:', {
+        hasTourTags: !!formattedTour.tour_tags,
+        tourTagsCount: formattedTour.tour_tags?.length || 0,
+        tourTags: formattedTour.tour_tags?.map(tt => ({
+          interest_id: tt.interest_id,
+          hasInterest: !!tt.interest,
+          interest_name: tt.interest?.name
+        })) || []
+      });
 
       return res.status(200).json({
         success: true,
