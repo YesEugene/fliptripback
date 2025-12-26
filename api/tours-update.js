@@ -997,9 +997,52 @@ export default async function handler(req, res) {
     console.log(`✅ Tour ${id} updated successfully`);
     console.log(`📊 Saved ${totalItemsSaved} items from daily_plan`);
 
+    // Reload tour with tour_tags to return updated data
+    const { data: updatedTour, error: reloadError } = await supabase
+      .from('tours')
+      .select('*, city:cities(name), tour_tags(tag_id, interest_id, tag:tags(id, name), interest:interests(id, name, category_id))')
+      .eq('id', id)
+      .maybeSingle();
+    
+    if (reloadError) {
+      console.warn('⚠️ Could not reload tour with tags:', reloadError);
+      // Return tour without tags if reload fails
+      return res.status(200).json({
+        success: true,
+        tour: tour,
+        message: 'Tour updated successfully',
+        itemsSaved: totalItemsSaved
+      });
+    }
+    
+    // If we got tour_tags, fetch interests separately if needed
+    if (updatedTour && updatedTour.tour_tags) {
+      try {
+        const interestIds = updatedTour.tour_tags.filter(tt => tt.interest_id && !tt.interest).map(tt => tt.interest_id);
+        if (interestIds.length > 0) {
+          const { data: interestsData } = await supabase
+            .from('interests')
+            .select('id, name, category_id')
+            .in('id', interestIds);
+          
+          if (interestsData) {
+            updatedTour.tour_tags = updatedTour.tour_tags.map(tt => {
+              if (tt.interest_id && !tt.interest) {
+                const interest = interestsData.find(i => String(i.id) === String(tt.interest_id));
+                return { ...tt, interest };
+              }
+              return tt;
+            });
+          }
+        }
+      } catch (tagsError) {
+        console.warn('⚠️ Could not fetch interests for tour_tags:', tagsError);
+      }
+    }
+
     return res.status(200).json({
       success: true,
-      tour: tour,
+      tour: updatedTour || tour,
       message: 'Tour updated successfully',
       itemsSaved: totalItemsSaved
     });
