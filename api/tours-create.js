@@ -543,53 +543,33 @@ export default async function handler(req, res) {
       }
     }
 
-    // 2. Save tags/interests if provided
-    // Support both: array of interest IDs (new system) or array of tag names (legacy)
+    // 2. Save interests if provided
+    // tags parameter contains array of interest IDs (UUIDs)
     if (tags && Array.isArray(tags) && tags.length > 0) {
-      // Check if tags are IDs (numbers or UUIDs) or names (strings)
-      // IDs can be: numbers, UUID strings, or numeric strings
-      const isIds = tags.every(tag => {
-        if (typeof tag === 'number') return true;
-        if (typeof tag === 'string') {
-          // Check if it's a UUID
-          if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tag)) return true;
-          // Check if it's a numeric string (for integer IDs)
-          if (/^\d+$/.test(tag)) return true;
-        }
-        return false;
-      });
+      // All tags are interest IDs (UUIDs or numbers)
+      // Convert numeric strings to integers if needed
+      const tourTagInserts = tags.map(interestId => ({
+        tour_id: tour.id,
+        interest_id: typeof interestId === 'string' && /^\d+$/.test(interestId) ? parseInt(interestId, 10) : interestId
+      }));
       
-      console.log('🔍 Tags check (create):', { tags, isIds, tagTypes: tags.map(t => typeof t) });
+      console.log('💾 Saving interests to tour_tags (create):', tourTagInserts);
+      const { data: insertedTags, error: insertError } = await supabase
+        .from('tour_tags')
+        .insert(tourTagInserts)
+        .select();
       
-      if (isIds) {
-        // New system: tags are interest IDs
-        const tourTagInserts = tags.map(interestId => ({
-          tour_id: tour.id,
-          interest_id: typeof interestId === 'string' && /^\d+$/.test(interestId) ? parseInt(interestId, 10) : interestId
-        }));
-        console.log('💾 Saving tour_tags (create):', tourTagInserts);
-        const { data: insertedTags, error: insertError } = await supabase.from('tour_tags').insert(tourTagInserts).select();
-        if (insertError) {
-          console.error('❌ Error inserting tour_tags (create):', insertError);
-          // Don't throw - continue tour creation even if tags fail
-        } else {
-          console.log(`✅ Linked ${tourTagInserts.length} interests to tour:`, insertedTags);
+      if (insertError) {
+        console.error('❌ Error inserting interests (create):', insertError);
+        console.error('❌ Insert error details:', JSON.stringify(insertError, null, 2));
+        // Check if error is due to missing interest_id column
+        if (insertError.message && insertError.message.includes('interest_id')) {
+          console.error('❌ ERROR: interest_id column does not exist in tour_tags table!');
+          console.error('❌ Please run the migration: database/add-interest-id-to-tour-tags.sql');
         }
+        // Don't throw - continue tour creation even if interests fail
       } else {
-        // Legacy system: tags are tag names
-        const { data: tagsData } = await supabase
-          .from('tags')
-          .select('id, name')
-          .in('name', tags);
-        
-        if (tagsData && tagsData.length > 0) {
-          const tourTagInserts = tagsData.map(tag => ({
-            tour_id: tour.id,
-            tag_id: tag.id
-          }));
-          await supabase.from('tour_tags').insert(tourTagInserts);
-          console.log(`✅ Linked ${tourTagInserts.length} tags to tour`);
-        }
+        console.log(`✅ Linked ${insertedTags.length} interests to tour:`, insertedTags);
       }
     }
 
