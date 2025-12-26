@@ -132,50 +132,95 @@ export default async function handler(req, res) {
       
       console.log(`🔍 Fetching tour with ID: ${id}`);
       
-      const { data: tour, error } = await supabase
-        .from('tours')
-        .select(`
-          *,
-          city:cities(name),
-          tour_days(
-            id,
-            day_number,
-            title,
-            date_hint,
-            tour_blocks(
+      // First, try to get tour with all relations
+      let tour, error;
+      try {
+        const result = await supabase
+          .from('tours')
+          .select(`
+            *,
+            city:cities(name),
+            tour_days(
               id,
-              start_time,
-              end_time,
+              day_number,
               title,
-              tour_items(
+              date_hint,
+              tour_blocks(
                 id,
-                location_id,
-                custom_title,
-                custom_description,
-                custom_recommendations,
-                order_index,
-                duration_minutes,
-                approx_cost,
-                location:locations(
-                  *,
-                  location_interests(
-                    interest:interests(id, name, category_id)
-                  ),
-                  location_photos(
-                    id,
-                    url
+                start_time,
+                end_time,
+                title,
+                tour_items(
+                  id,
+                  location_id,
+                  custom_title,
+                  custom_description,
+                  custom_recommendations,
+                  order_index,
+                  duration_minutes,
+                  approx_cost,
+                  location:locations(
+                    *,
+                    location_interests(
+                      interest:interests(id, name, category_id)
+                    ),
+                    location_photos(
+                      id,
+                      url
+                    )
                   )
                 )
               )
+            ),
+            tour_tags(
+              tag_id,
+              interest_id,
+              tag:tags(id, name),
+              interest:interests(id, name, category_id)
             )
-          ),
-          tour_tags(
-            tag:tags(id, name),
-            interest:interests(id, name, category_id)
-          )
-        `)
-        .eq('id', id)
-        .maybeSingle();
+          `)
+          .eq('id', id)
+          .maybeSingle();
+        
+        tour = result.data;
+        error = result.error;
+      } catch (queryError) {
+        console.error('❌ Query error:', queryError);
+        // If complex query fails, try simpler query without tour_tags joins
+        console.log('⚠️ Trying simpler query without tour_tags joins...');
+        const simpleResult = await supabase
+          .from('tours')
+          .select(`
+            *,
+            city:cities(name),
+            tour_tags(
+              tag_id,
+              interest_id
+            )
+          `)
+          .eq('id', id)
+          .maybeSingle();
+        
+        tour = simpleResult.data;
+        error = simpleResult.error;
+        
+        // If we got tour without tags, fetch tags separately
+        if (tour && !error) {
+          try {
+            const { data: tourTags } = await supabase
+              .from('tour_tags')
+              .select('tag_id, interest_id, tag:tags(id, name), interest:interests(id, name, category_id)')
+              .eq('tour_id', id);
+            
+            if (tourTags) {
+              tour.tour_tags = tourTags;
+            }
+          } catch (tagsError) {
+            console.warn('⚠️ Could not fetch tags separately:', tagsError);
+            // Continue without tags
+          }
+        }
+      }
 
       if (error) {
         console.error('❌ Error fetching tour:', error);
@@ -183,7 +228,9 @@ export default async function handler(req, res) {
         return res.status(500).json({ 
           success: false, 
           message: 'Database error',
-          error: error.message
+          error: error.message,
+          code: error.code,
+          details: error.details
         });
       }
 
