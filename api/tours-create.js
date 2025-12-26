@@ -547,16 +547,34 @@ export default async function handler(req, res) {
     // Support both: array of interest IDs (new system) or array of tag names (legacy)
     if (tags && Array.isArray(tags) && tags.length > 0) {
       // Check if tags are IDs (numbers or UUIDs) or names (strings)
-      const isIds = tags.every(tag => typeof tag === 'number' || (typeof tag === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tag)));
+      // IDs can be: numbers, UUID strings, or numeric strings
+      const isIds = tags.every(tag => {
+        if (typeof tag === 'number') return true;
+        if (typeof tag === 'string') {
+          // Check if it's a UUID
+          if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tag)) return true;
+          // Check if it's a numeric string (for integer IDs)
+          if (/^\d+$/.test(tag)) return true;
+        }
+        return false;
+      });
+      
+      console.log('🔍 Tags check (create):', { tags, isIds, tagTypes: tags.map(t => typeof t) });
       
       if (isIds) {
         // New system: tags are interest IDs
         const tourTagInserts = tags.map(interestId => ({
           tour_id: tour.id,
-          interest_id: interestId
+          interest_id: typeof interestId === 'string' && /^\d+$/.test(interestId) ? parseInt(interestId, 10) : interestId
         }));
-        await supabase.from('tour_tags').insert(tourTagInserts);
-        console.log(`✅ Linked ${tourTagInserts.length} interests to tour`);
+        console.log('💾 Saving tour_tags (create):', tourTagInserts);
+        const { data: insertedTags, error: insertError } = await supabase.from('tour_tags').insert(tourTagInserts).select();
+        if (insertError) {
+          console.error('❌ Error inserting tour_tags (create):', insertError);
+          // Don't throw - continue tour creation even if tags fail
+        } else {
+          console.log(`✅ Linked ${tourTagInserts.length} interests to tour:`, insertedTags);
+        }
       } else {
         // Legacy system: tags are tag names
         const { data: tagsData } = await supabase
