@@ -281,9 +281,12 @@ export default async function handler(req, res) {
           } else {
             tour.tour_tags = [];
             console.log('📋 No interests found in tour_tags table for tour:', id);
+            console.log('📋 All tour_tags were:', allTourTags);
+          }
           }
         } catch (tagsError) {
-          console.warn('⚠️ Could not fetch interests:', tagsError);
+          console.error('❌ Could not fetch interests:', tagsError);
+          console.error('❌ Tags error details:', JSON.stringify(tagsError, null, 2));
           tour.tour_tags = [];
         }
         
