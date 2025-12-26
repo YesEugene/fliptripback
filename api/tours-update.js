@@ -980,16 +980,28 @@ export default async function handler(req, res) {
           if (insertError) {
             console.error('❌ Error inserting tour_tags:', insertError);
             console.error('❌ Insert error details:', JSON.stringify(insertError, null, 2));
+            // Check if error is due to missing interest_id column
+            if (insertError.message && insertError.message.includes('interest_id')) {
+              console.error('❌ ERROR: interest_id column does not exist in tour_tags table!');
+              console.error('❌ Please run the migration: database/add-interest-id-to-tour-tags.sql');
+              console.error('❌ This migration adds the interest_id column to support interests.');
+            }
             throw insertError;
           }
           console.log(`✅ Linked ${tourTagInserts.length} interests to tour:`, insertedTags);
           
           // Verify tags were saved by querying them back
-          const { data: verifyTags } = await supabase
+          const { data: verifyTags, error: verifyError } = await supabase
             .from('tour_tags')
             .select('tag_id, interest_id')
             .eq('tour_id', id);
-          console.log('🔍 Verified tour_tags in DB:', verifyTags);
+          
+          if (verifyError) {
+            console.warn('⚠️ Could not verify tour_tags:', verifyError);
+          } else {
+            console.log('🔍 Verified tour_tags in DB:', verifyTags);
+            console.log('🔍 Verified count:', verifyTags?.length || 0, 'expected:', tourTagInserts.length);
+          }
         } else {
           // Legacy system: tags are tag names
           const { data: tagsData } = await supabase
