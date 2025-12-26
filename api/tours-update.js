@@ -1019,25 +1019,37 @@ export default async function handler(req, res) {
       if (tags.length > 0) {
         // All tags are interest IDs (UUIDs or numbers)
         // Convert numeric strings to integers if needed
+        // Validate tour_id before saving
+        if (!id || typeof id !== 'string') {
+          console.error('❌ Invalid tour_id:', id, typeof id);
+          return res.status(400).json({
+            success: false,
+            error: 'Invalid tour ID'
+          });
+        }
+        
         const tourTagInserts = tags.map(interestId => ({
           tour_id: id,
           interest_id: typeof interestId === 'string' && /^\d+$/.test(interestId) ? parseInt(interestId, 10) : interestId
         }));
         
         console.log('💾 Saving interests to tour_tags:', tourTagInserts);
-        console.log('💾 Tour ID:', id);
+        console.log('💾 Tour ID (validated):', id, 'type:', typeof id);
         console.log('💾 Interest IDs to save:', tourTagInserts.map(tt => tt.interest_id));
         
+        // CRITICAL: Insert interests and verify they were saved
         const { data: insertedTags, error: insertError } = await supabase
           .from('tour_tags')
           .insert(tourTagInserts)
-          .select();
+          .select('tour_id, interest_id, id');
         
         if (insertError) {
-          console.error('❌ Error inserting interests:', insertError);
+          console.error('❌ CRITICAL: Error inserting interests:', insertError);
           console.error('❌ Insert error details:', JSON.stringify(insertError, null, 2));
           console.error('❌ Insert error code:', insertError.code);
           console.error('❌ Insert error hint:', insertError.hint);
+          console.error('❌ Tour ID used:', id);
+          console.error('❌ Interest IDs attempted:', tourTagInserts.map(tt => tt.interest_id));
           // Check if error is due to missing interest_id column
           if (insertError.message && insertError.message.includes('interest_id')) {
             console.error('❌ ERROR: interest_id column does not exist in tour_tags table!');
@@ -1056,34 +1068,59 @@ export default async function handler(req, res) {
           });
         }
         
+        if (!insertedTags || insertedTags.length === 0) {
+          console.error('❌ CRITICAL: Insert returned no data!');
+          console.error('❌ Expected to insert:', tourTagInserts.length, 'rows');
+          console.error('❌ Tour ID:', id);
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to save interests - no data returned from insert'
+          });
+        }
+        
         console.log(`✅ Linked ${insertedTags.length} interests to tour:`, insertedTags);
         console.log('✅ Inserted tags details:', insertedTags.map(it => ({
+          id: it.id,
           tour_id: it.tour_id,
           interest_id: it.interest_id,
           tag_id: it.tag_id
         })));
         
-        // Verify interests were saved by querying them back immediately
+        // CRITICAL: Verify interests were saved by querying them back immediately
         // Wait a bit to ensure DB transaction is committed
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 200));
         
         const { data: allVerifyTags, error: verifyError } = await supabase
           .from('tour_tags')
-          .select('interest_id')
+          .select('id, tour_id, interest_id')
           .eq('tour_id', id);
         
         if (verifyError) {
-          console.error('❌ Could not verify interests:', verifyError);
+          console.error('❌ CRITICAL: Could not verify interests:', verifyError);
+          console.error('❌ Verify error details:', JSON.stringify(verifyError, null, 2));
         } else {
           // Filter to get only those with interest_id
           const verifyTags = allVerifyTags?.filter(tt => tt.interest_id !== null && tt.interest_id !== undefined) || [];
           console.log('🔍 Verified interests in DB:', verifyTags);
           console.log('🔍 Verified count:', verifyTags.length, 'expected:', tourTagInserts.length);
+          console.log('🔍 Verified tour_ids:', verifyTags.map(tt => tt.tour_id));
+          console.log('🔍 Verified interest_ids:', verifyTags.map(tt => tt.interest_id));
           
           if (verifyTags.length !== tourTagInserts.length) {
-            console.error('❌ MISMATCH: Saved', tourTagInserts.length, 'but found', verifyTags.length, 'in DB!');
+            console.error('❌ CRITICAL MISMATCH: Saved', tourTagInserts.length, 'but found', verifyTags.length, 'in DB!');
+            console.error('❌ Expected tour_id:', id);
             console.error('❌ Expected IDs:', tourTagInserts.map(tt => tt.interest_id));
             console.error('❌ Found IDs:', verifyTags.map(tt => tt.interest_id));
+            console.error('❌ Found tour_ids:', verifyTags.map(tt => tt.tour_id));
+            
+            // Check if tour_id mismatch
+            const wrongTourIds = verifyTags.filter(tt => tt.tour_id !== id);
+            if (wrongTourIds.length > 0) {
+              console.error('❌ CRITICAL: Found interests with wrong tour_id!');
+              console.error('❌ Wrong tour_ids:', wrongTourIds.map(tt => tt.tour_id));
+            }
+          } else {
+            console.log('✅ VERIFICATION SUCCESS: All interests saved correctly!');
           }
         }
       }

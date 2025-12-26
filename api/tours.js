@@ -206,23 +206,44 @@ export default async function handler(req, res) {
         // Fetch interests (stored in tour_tags table with interest_id)
         try {
           console.log('🔍 Loading interests for tour:', id);
-          // Get all tour_tags and filter for those with interest_id
+          console.log('🔍 Tour ID type:', typeof id, 'value:', id);
+          
+          // CRITICAL: Get all tour_tags and filter for those with interest_id
           const { data: allTourTags, error: tourTagsError } = await supabase
             .from('tour_tags')
-            .select('interest_id, tag_id, tour_id')
+            .select('id, interest_id, tag_id, tour_id')
             .eq('tour_id', id);
           
           if (tourTagsError) {
-            console.error('❌ Error loading tour_tags:', tourTagsError);
+            console.error('❌ CRITICAL: Error loading tour_tags:', tourTagsError);
+            console.error('❌ Error details:', JSON.stringify(tourTagsError, null, 2));
+            console.error('❌ Tour ID used:', id);
             tour.tour_tags = [];
           } else {
             console.log('📋 All tour_tags from DB (before filter):', allTourTags);
+            console.log('📋 Total tour_tags found:', allTourTags?.length || 0);
+            
+            if (allTourTags && allTourTags.length > 0) {
+              console.log('📋 tour_tags structure:', allTourTags.map(tt => ({
+                id: tt.id,
+                tour_id: tt.tour_id,
+                tag_id: tt.tag_id,
+                interest_id: tt.interest_id,
+                hasTagId: tt.tag_id !== null,
+                hasInterestId: tt.interest_id !== null
+              })));
+            }
             
             // Filter to get only those with interest_id
             const tourTags = allTourTags?.filter(tt => tt.interest_id !== null && tt.interest_id !== undefined) || [];
             
             console.log('📋 Raw tour_tags (interests) from DB (after filter):', tourTags);
             console.log('📋 Tour tags count:', tourTags.length, 'out of', allTourTags?.length || 0);
+            
+            if (allTourTags && allTourTags.length > 0 && tourTags.length === 0) {
+              console.error('❌ CRITICAL: Found tour_tags but none have interest_id!');
+              console.error('❌ This means interests were saved with tag_id instead of interest_id!');
+            }
           
           if (tourTags && tourTags.length > 0) {
             const interestIds = tourTags.map(tt => tt.interest_id).filter(Boolean);
