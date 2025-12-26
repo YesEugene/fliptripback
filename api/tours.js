@@ -205,16 +205,24 @@ export default async function handler(req, res) {
         
         // Fetch interests (stored in tour_tags table with interest_id)
         try {
+          console.log('🔍 Loading interests for tour:', id);
           // Get all tour_tags and filter for those with interest_id
-          const { data: allTourTags } = await supabase
+          const { data: allTourTags, error: tourTagsError } = await supabase
             .from('tour_tags')
-            .select('interest_id')
+            .select('interest_id, tag_id, tour_id')
             .eq('tour_id', id);
           
-          // Filter to get only those with interest_id
-          const tourTags = allTourTags?.filter(tt => tt.interest_id !== null && tt.interest_id !== undefined) || [];
-          
-          console.log('📋 Raw tour_tags (interests) from DB:', tourTags);
+          if (tourTagsError) {
+            console.error('❌ Error loading tour_tags:', tourTagsError);
+            tour.tour_tags = [];
+          } else {
+            console.log('📋 All tour_tags from DB (before filter):', allTourTags);
+            
+            // Filter to get only those with interest_id
+            const tourTags = allTourTags?.filter(tt => tt.interest_id !== null && tt.interest_id !== undefined) || [];
+            
+            console.log('📋 Raw tour_tags (interests) from DB (after filter):', tourTags);
+            console.log('📋 Tour tags count:', tourTags.length, 'out of', allTourTags?.length || 0);
           
           if (tourTags && tourTags.length > 0) {
             const interestIds = tourTags.map(tt => tt.interest_id).filter(Boolean);
