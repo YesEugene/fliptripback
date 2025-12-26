@@ -1022,56 +1022,45 @@ export default async function handler(req, res) {
         
         // Fetch tour_tags separately (same as in tours.js)
         try {
+          // Load interests (only those with interest_id)
           const { data: tourTags } = await supabase
             .from('tour_tags')
-            .select('tag_id, interest_id')
-            .eq('tour_id', id);
+            .select('interest_id')
+            .eq('tour_id', id)
+            .not('interest_id', 'is', null);
           
-          console.log('📋 Reloaded tour_tags from DB:', tourTags);
+          console.log('📋 Reloaded interests from DB:', tourTags);
           
           if (tourTags && tourTags.length > 0) {
-            const tagIds = tourTags.filter(tt => tt.tag_id).map(tt => tt.tag_id);
-            const interestIds = tourTags.filter(tt => tt.interest_id).map(tt => tt.interest_id);
+            const interestIds = tourTags.map(tt => tt.interest_id).filter(Boolean);
             
-            let tags = [];
-            let interests = [];
+            // Load full interest objects
+            const { data: interestsData } = await supabase
+              .from('interests')
+              .select('id, name, category_id')
+              .in('id', interestIds);
             
-            if (tagIds.length > 0) {
-              const { data: tagsData } = await supabase
-                .from('tags')
-                .select('id, name')
-                .in('id', tagIds);
-              tags = tagsData || [];
-            }
-            
-            if (interestIds.length > 0) {
-              const { data: interestsData } = await supabase
-                .from('interests')
-                .select('id, name, category_id')
-                .in('id', interestIds);
-              interests = interestsData || [];
-            }
-            
-            updatedTour.tour_tags = tourTags.map(tt => {
-              if (tt.tag_id) {
-                const tag = tags.find(t => t.id === tt.tag_id);
-                return { ...tt, tag };
-              } else if (tt.interest_id) {
-                const interest = interests.find(i => {
+            if (interestsData) {
+              updatedTour.tour_tags = tourTags.map(tt => {
+                const interest = interestsData.find(i => {
                   const interestId = String(i.id);
                   const ttInterestId = String(tt.interest_id);
                   return interestId === ttInterestId;
                 });
-                return { ...tt, interest };
-              }
-              return tt;
-            });
-            console.log('✅ Reloaded tour.tour_tags:', updatedTour.tour_tags.map(tt => ({
-              tag_id: tt.tag_id,
-              interest_id: tt.interest_id,
-              hasTag: !!tt.tag,
-              hasInterest: !!tt.interest
-            })));
+                return {
+                  interest_id: tt.interest_id,
+                  interest: interest || null
+                };
+              });
+              
+              console.log('✅ Reloaded interests for tour:', updatedTour.tour_tags.map(tt => ({
+                interest_id: tt.interest_id,
+                interest_name: tt.interest?.name,
+                hasInterest: !!tt.interest
+              })));
+            } else {
+              updatedTour.tour_tags = [];
+            }
           } else {
             updatedTour.tour_tags = [];
           }
