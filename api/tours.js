@@ -205,11 +205,14 @@ export default async function handler(req, res) {
         
         // Fetch interests (stored in tour_tags table with interest_id)
         try {
-          const { data: tourTags } = await supabase
+          // Get all tour_tags and filter for those with interest_id
+          const { data: allTourTags } = await supabase
             .from('tour_tags')
             .select('interest_id')
-            .eq('tour_id', id)
-            .not('interest_id', 'is', null); // Only get rows with interest_id (interests)
+            .eq('tour_id', id);
+          
+          // Filter to get only those with interest_id
+          const tourTags = allTourTags?.filter(tt => tt.interest_id !== null && tt.interest_id !== undefined) || [];
           
           console.log('📋 Raw tour_tags (interests) from DB:', tourTags);
           

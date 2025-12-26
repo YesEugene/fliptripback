@@ -948,12 +948,31 @@ export default async function handler(req, res) {
       console.log('📋 Processing interests update:', { interests: tags, count: tags.length, tourId: id });
       
       // Delete existing tour_tags for this tour (only those with interest_id)
-      // Use isNotNull filter instead of .not() for better compatibility
-      const { error: deleteError } = await supabase
+      // First, get all tour_tags with interest_id, then delete them by ID
+      const { data: existingTags, error: fetchError } = await supabase
         .from('tour_tags')
-        .delete()
-        .eq('tour_id', id)
-        .not('interest_id', 'is', null);
+        .select('id, interest_id')
+        .eq('tour_id', id);
+      
+      let deleteError = null;
+      if (fetchError) {
+        console.error('❌ Error fetching existing tour_tags:', fetchError);
+        deleteError = fetchError;
+      } else if (existingTags && existingTags.length > 0) {
+        // Filter to get only those with interest_id
+        const interestTagIds = existingTags
+          .filter(tt => tt.interest_id !== null && tt.interest_id !== undefined)
+          .map(tt => tt.id);
+        
+        if (interestTagIds.length > 0) {
+          const { error: delError } = await supabase
+            .from('tour_tags')
+            .delete()
+            .in('id', interestTagIds);
+          
+          deleteError = delError;
+        }
+      }
       
       if (deleteError) {
         console.error('❌ Error deleting existing tour_tags:', deleteError);
