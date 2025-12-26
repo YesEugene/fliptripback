@@ -1175,13 +1175,21 @@ export default async function handler(req, res) {
 
     // Log what we're returning
     const finalTour = updatedTour || tour;
+    
+    // Ensure tour_tags is always an array (even if empty)
+    if (!finalTour.tour_tags) {
+      finalTour.tour_tags = [];
+      console.warn('⚠️ tour_tags was undefined, setting to empty array');
+    }
+    
     console.log('📤 Returning tour with tour_tags:', {
       hasTour: !!finalTour,
       hasTourTags: !!finalTour?.tour_tags,
       tourTagsCount: finalTour?.tour_tags?.length || 0,
       tourTags: finalTour?.tour_tags?.map(tt => ({
         interest_id: tt.interest_id,
-        hasInterest: !!tt.interest
+        hasInterest: !!tt.interest,
+        interest_name: tt.interest?.name
       })) || []
     });
     
