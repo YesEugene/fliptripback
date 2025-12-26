@@ -1008,6 +1008,7 @@ export default async function handler(req, res) {
         
         const tourTagInserts = tags.map(interestId => ({
           tour_id: id,
+          tag_id: null, // CRITICAL: Must be null for interests (not-null constraint requires explicit null)
           interest_id: typeof interestId === 'string' && /^\d+$/.test(interestId) ? parseInt(interestId, 10) : interestId
         }));
         
