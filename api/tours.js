@@ -221,48 +221,54 @@ export default async function handler(req, res) {
             
             console.log('📋 Extracted interest IDs:', interestIds);
             
-            // Load interests from interests table
-            const { data: interestsData, error: interestsError } = await supabase
-              .from('interests')
-              .select('id, name, category_id')
-              .in('id', interestIds);
-            
-            if (interestsError) {
-              console.warn('⚠️ Could not fetch interests:', interestsError);
-              tour.tour_tags = [];
-            } else if (!interestsData || interestsData.length === 0) {
-              console.warn('⚠️ No interests data returned from query, but tourTags exist');
+            // Only query if we have interest IDs
+            if (interestIds.length === 0) {
+              console.warn('⚠️ No valid interest IDs found in tour_tags');
               tour.tour_tags = [];
             } else {
-              // Map tour_tags to include full interest objects
-              tour.tour_tags = tourTags.map(tt => {
-                const interest = interestsData.find(i => {
-                  // Handle both string and number IDs
-                  const interestId = String(i.id);
-                  const ttInterestId = String(tt.interest_id);
-                  return interestId === ttInterestId;
-                });
-                
-                if (interest) {
+              // Load interests from interests table
+              const { data: interestsData, error: interestsError } = await supabase
+                .from('interests')
+                .select('id, name, category_id')
+                .in('id', interestIds);
+              
+              if (interestsError) {
+                console.warn('⚠️ Could not fetch interests:', interestsError);
+                tour.tour_tags = [];
+              } else if (!interestsData || interestsData.length === 0) {
+                console.warn('⚠️ No interests data returned from query, but tourTags exist');
+                tour.tour_tags = [];
+              } else {
+                // Map tour_tags to include full interest objects
+                tour.tour_tags = tourTags.map(tt => {
+                  const interest = interestsData.find(i => {
+                    // Handle both string and number IDs
+                    const interestId = String(i.id);
+                    const ttInterestId = String(tt.interest_id);
+                    return interestId === ttInterestId;
+                  });
+                  
+                  if (interest) {
+                    return {
+                      interest_id: tt.interest_id,
+                      interest: interest
+                    };
+                  }
+                  
+                  // If interest not found, still return the structure
                   return {
                     interest_id: tt.interest_id,
-                    interest: interest
+                    interest: null
                   };
-                }
+                });
                 
-                // If interest not found, still return the structure
-                return {
+                console.log('✅ Loaded interests for tour:', tour.tour_tags.map(tt => ({
                   interest_id: tt.interest_id,
-                  interest: null
-                };
-              });
-              
-              console.log('✅ Loaded interests for tour:', tour.tour_tags.map(tt => ({
-                interest_id: tt.interest_id,
-                interest_name: tt.interest?.name,
-                hasInterest: !!tt.interest
-              })));
-              console.log('✅ Total interests loaded:', tour.tour_tags.length);
+                  interest_name: tt.interest?.name,
+                  hasInterest: !!tt.interest
+                })));
+                console.log('✅ Total interests loaded:', tour.tour_tags.length);
+              }
             }
           } else {
             tour.tour_tags = [];
