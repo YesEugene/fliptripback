@@ -1096,35 +1096,47 @@ export default async function handler(req, res) {
           
           if (tourTags && tourTags.length > 0) {
             const interestIds = tourTags.map(tt => tt.interest_id).filter(Boolean);
+            console.log('📋 Extracted interest IDs for reload:', interestIds);
             
-            // Load full interest objects
-            const { data: interestsData } = await supabase
-              .from('interests')
-              .select('id, name, category_id')
-              .in('id', interestIds);
-            
-            if (interestsData) {
-              updatedTour.tour_tags = tourTags.map(tt => {
-                const interest = interestsData.find(i => {
-                  const interestId = String(i.id);
-                  const ttInterestId = String(tt.interest_id);
-                  return interestId === ttInterestId;
-                });
-                return {
-                  interest_id: tt.interest_id,
-                  interest: interest || null
-                };
-              });
-              
-              console.log('✅ Reloaded interests for tour:', updatedTour.tour_tags.map(tt => ({
-                interest_id: tt.interest_id,
-                interest_name: tt.interest?.name,
-                hasInterest: !!tt.interest
-              })));
-            } else {
+            if (interestIds.length === 0) {
+              console.warn('⚠️ No valid interest IDs found in reloaded tour_tags');
               updatedTour.tour_tags = [];
+            } else {
+              // Load full interest objects
+              const { data: interestsData, error: interestsError } = await supabase
+                .from('interests')
+                .select('id, name, category_id')
+                .in('id', interestIds);
+              
+              if (interestsError) {
+                console.error('❌ Error loading interests for reload:', interestsError);
+                updatedTour.tour_tags = [];
+              } else if (!interestsData || interestsData.length === 0) {
+                console.warn('⚠️ No interests data returned for reload, but interestIds exist');
+                updatedTour.tour_tags = [];
+              } else {
+                updatedTour.tour_tags = tourTags.map(tt => {
+                  const interest = interestsData.find(i => {
+                    const interestId = String(i.id);
+                    const ttInterestId = String(tt.interest_id);
+                    return interestId === ttInterestId;
+                  });
+                  return {
+                    interest_id: tt.interest_id,
+                    interest: interest || null
+                  };
+                });
+                
+                console.log('✅ Reloaded interests for tour:', updatedTour.tour_tags.map(tt => ({
+                  interest_id: tt.interest_id,
+                  interest_name: tt.interest?.name,
+                  hasInterest: !!tt.interest
+                })));
+                console.log('✅ Total reloaded interests:', updatedTour.tour_tags.length);
+              }
             }
           } else {
+            console.log('📋 No interests found in tour_tags for reload');
             updatedTour.tour_tags = [];
           }
         } catch (tagsError) {
