@@ -1059,10 +1059,8 @@ export default async function handler(req, res) {
         
         console.log(`✅ Linked ${insertedTags.length} interests to tour:`, insertedTags);
         console.log('✅ Inserted tags details:', insertedTags.map(it => ({
-          id: it.id,
           tour_id: it.tour_id,
-          interest_id: it.interest_id,
-          tag_id: it.tag_id
+          interest_id: it.interest_id
         })));
         
         // CRITICAL: Verify interests were saved by querying them back immediately
