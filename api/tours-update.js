@@ -979,9 +979,17 @@ export default async function handler(req, res) {
           const { data: insertedTags, error: insertError } = await supabase.from('tour_tags').insert(tourTagInserts).select();
           if (insertError) {
             console.error('❌ Error inserting tour_tags:', insertError);
+            console.error('❌ Insert error details:', JSON.stringify(insertError, null, 2));
             throw insertError;
           }
           console.log(`✅ Linked ${tourTagInserts.length} interests to tour:`, insertedTags);
+          
+          // Verify tags were saved by querying them back
+          const { data: verifyTags } = await supabase
+            .from('tour_tags')
+            .select('tag_id, interest_id')
+            .eq('tour_id', id);
+          console.log('🔍 Verified tour_tags in DB:', verifyTags);
         } else {
           // Legacy system: tags are tag names
           const { data: tagsData } = await supabase
