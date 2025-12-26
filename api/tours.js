@@ -238,11 +238,30 @@ export default async function handler(req, res) {
                 const tag = tags.find(t => t.id === tt.tag_id);
                 return { ...tt, tag };
               } else if (tt.interest_id) {
-                const interest = interests.find(i => i.id === tt.interest_id);
+                const interest = interests.find(i => {
+                  // Handle both string and number IDs
+                  const interestId = String(i.id);
+                  const ttInterestId = String(tt.interest_id);
+                  return interestId === ttInterestId;
+                });
+                console.log('🔍 Matching interest:', { 
+                  interest_id: tt.interest_id, 
+                  interestType: typeof tt.interest_id,
+                  foundInterest: interest,
+                  allInterests: interests.map(i => ({ id: i.id, type: typeof i.id }))
+                });
                 return { ...tt, interest };
               }
               return tt;
             });
+            console.log('✅ Final tour.tour_tags:', tour.tour_tags.map(tt => ({
+              tag_id: tt.tag_id,
+              interest_id: tt.interest_id,
+              hasTag: !!tt.tag,
+              hasInterest: !!tt.interest,
+              tagId: tt.tag?.id,
+              interestId: tt.interest?.id
+            })));
           } else {
             tour.tour_tags = [];
           }
