@@ -426,22 +426,31 @@ export default async function handler(req, res) {
       format = 'self_guided';
     }
     // CRITICAL: Determine format based on explicit flags
-    // Priority: withGuide > selfGuided > format string
-    // If selfGuided is explicitly false, format must be 'with_guide' (can't have neither)
-    if (tourData.withGuide === true) {
-      format = 'with_guide';
-    } else if (tourData.selfGuided === false) {
-      // If selfGuided is false, must be with_guide (user removed self-guided option)
-      format = 'with_guide';
-    } else if (tourData.selfGuided === true && tourData.withGuide === false) {
-      // Only self-guided selected
-      format = 'self_guided';
-    } else if (tourData.selfGuided === undefined && tourData.withGuide === undefined) {
-      // Neither specified - use format string or default to self_guided
-      // (format already set from rawFormat above)
+    // Priority: Check explicit flags first, then fallback to format string
+    // If explicit flags are provided, they take precedence
+    if (tourData.withGuide !== undefined || tourData.selfGuided !== undefined) {
+      // Explicit flags provided - use them to determine format
+      if (tourData.withGuide === true) {
+        format = 'with_guide';
+      } else if (tourData.withGuide === false && tourData.selfGuided === true) {
+        // Only self-guided selected (withGuide explicitly false, selfGuided true)
+        format = 'self_guided';
+      } else if (tourData.withGuide === false && tourData.selfGuided === false) {
+        // Both false - should not happen, but default to self_guided
+        format = 'self_guided';
+      } else if (tourData.selfGuided === false) {
+        // Only selfGuided is false - must be with_guide
+        format = 'with_guide';
+      } else if (tourData.selfGuided === true && tourData.withGuide === undefined) {
+        // Only selfGuided is true (withGuide not specified) - use self_guided
+        format = 'self_guided';
+      }
+      console.log(`📋 Format determined from explicit flags: ${format} (withGuide: ${tourData.withGuide}, selfGuided: ${tourData.selfGuided})`);
+    } else {
+      // No explicit flags - use format string or default
+      console.log(`📋 Format from format string: ${format} (rawFormat: ${rawFormat})`);
     }
-    // Default: if both undefined, format stays as determined from rawFormat (defaults to 'self_guided')
-    console.log(`📋 Tour format: ${format} (from: ${rawFormat}, withGuide: ${tourData.withGuide}, selfGuided: ${tourData.selfGuided})`);
+    console.log(`📋 Final tour format: ${format} (from: ${rawFormat}, withGuide: ${tourData.withGuide}, selfGuided: ${tourData.selfGuided})`);
     const pricePdf = tourData.price?.pdfPrice || 16.00;
     const priceGuided = tourData.price?.guidedPrice || null;
     const previewMediaUrl = tourData.preview || null;
