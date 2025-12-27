@@ -417,7 +417,9 @@ Context:
 - Interests: ${Array.isArray(interests) ? interests.join(', ') : interests}
 - Audience: ${audience}
 
-Return JSON:
+IMPORTANT: You MUST return EXACTLY 2 alternatives. Do not return fewer.
+
+Return JSON (no markdown, no code blocks, just JSON):
 {
   "mainLocation": {
     "name": "${locationName}",
@@ -428,13 +430,13 @@ Return JSON:
   "alternatives": [
     {
       "name": "Alternative location name",
-      "address": "Address",
+      "address": "Address in ${city}",
       "description": "Why it works",
       "recommendation": "Personal tip"
     },
     {
       "name": "Alternative location name 2",
-      "address": "Address 2",
+      "address": "Address 2 in ${city}",
       "description": "Why it works",
       "recommendation": "Personal tip"
     }
@@ -452,7 +454,37 @@ Return JSON:
         temperature: 0.7
       });
 
-      const content = JSON.parse(response.choices[0].message.content.trim());
+      let content;
+      try {
+        // Try to parse JSON - handle markdown code blocks if present
+        let responseText = response.choices[0].message.content.trim();
+        // Remove markdown code blocks if present
+        responseText = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        content = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('❌ Error parsing JSON response:', parseError);
+        throw new Error('Failed to parse OpenAI response as JSON');
+      }
+      
+      // Validate that we have required fields
+      if (!content.mainLocation) {
+        throw new Error('Missing mainLocation in response');
+      }
+      
+      // Ensure we have exactly 2 alternatives (add fallback if needed)
+      let alternatives = content.alternatives || [];
+      if (alternatives.length < 2) {
+        console.warn(`⚠️ Only ${alternatives.length} alternatives returned, adding fallback`);
+        // Add fallback alternatives if needed
+        while (alternatives.length < 2) {
+          alternatives.push({
+            name: `Alternative ${alternatives.length + 1} in ${city}`,
+            address: `${city} city center`,
+            description: `Another good option for ${purpose.toLowerCase()}.`,
+            recommendation: 'Worth considering.'
+          });
+        }
+      }
       
       // Get photo for main location
       const mainLocationPhoto = location.realPlace?.photos?.[0] || 
@@ -460,7 +492,7 @@ Return JSON:
       
       // Get photos for alternatives
       const alternativesWithPhotos = await Promise.all(
-        (content.alternatives || []).map(async (alt) => {
+        alternatives.slice(0, 2).map(async (alt) => {
           const altPhoto = await this.getUnsplashPhoto(`${city} ${alt.name}`);
           return {
             ...alt,
@@ -469,31 +501,46 @@ Return JSON:
         })
       );
       
+      // Ensure recommendations field exists
+      const recommendations = content.mainLocation.recommendation || 
+                              content.mainLocation.recommendations || 
+                              'Take your time here.';
+      
       // Return structure compatible with location block (frontend expects alternativeLocations, not alternatives)
       return {
         tour_block_id: null, // Will be set when saving
         tour_item_ids: [], // Will be set when saving
         mainLocation: {
           ...content.mainLocation,
-          time: timeSlot, // Add time slot
+          name: content.mainLocation.name || locationName,
+          address: content.mainLocation.address || locationAddress,
+          title: content.mainLocation.name || locationName, // Frontend may expect 'title' as well
+          time: timeSlot, // Always include time slot
           photo: mainLocationPhoto, // Add photo
-          recommendations: content.mainLocation.recommendation || content.mainLocation.recommendations || '', // Frontend expects 'recommendations'
-          title: content.mainLocation.name // Frontend may expect 'title' as well
+          recommendations: recommendations, // Frontend expects 'recommendations'
+          description: content.mainLocation.description || `${locationName} works well for ${purpose.toLowerCase()}.`
         },
         alternativeLocations: alternativesWithPhotos // Frontend expects 'alternativeLocations', not 'alternatives'
       };
     } catch (error) {
       console.error('❌ Error generating location block:', error);
+      // Fallback: ensure all required fields are present
+      const fallbackPhoto = location.realPlace?.photos?.[0] || 
+                           await this.getUnsplashPhoto(`${city} ${locationName}`);
+      
       return {
         tour_block_id: null,
         tour_item_ids: [],
         mainLocation: {
           name: locationName,
           address: locationAddress,
+          title: locationName,
+          time: timeSlot, // Always include time slot
           description: `${locationName} works well for ${purpose.toLowerCase()}.`,
-          recommendation: 'Take your time here.'
+          recommendations: 'Take your time here.', // Frontend expects 'recommendations'
+          photo: fallbackPhoto
         },
-        alternatives: []
+        alternativeLocations: [] // Frontend expects 'alternativeLocations', not 'alternatives'
       };
     }
   }

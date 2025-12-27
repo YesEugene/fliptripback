@@ -141,7 +141,7 @@ async function saveGooglePlaceToDatabase(placeData, cityId) {
  * @param {array} activities - Activities array
  * @returns {Promise<string|null>} - Tour ID or null
  */
-async function saveGeneratedTourToDatabase(tourData, userId, cityId, activities) {
+async function saveGeneratedTourToDatabase(tourData, userId, cityId, activities, interestIds = []) {
   if (!tourData || !cityId) {
     return null;
   }
@@ -175,6 +175,32 @@ async function saveGeneratedTourToDatabase(tourData, userId, cityId, activities)
 
     const tourId = newTour.id;
     console.log('✅ Tour created in DB:', tourId);
+
+    // Save interests to tour_tags if provided
+    if (interestIds && Array.isArray(interestIds) && interestIds.length > 0) {
+      try {
+        const tourTagInserts = interestIds.map(interestId => ({
+          tour_id: tourId,
+          tag_id: null, // Must be null for interests
+          interest_id: typeof interestId === 'string' && /^\d+$/.test(interestId) ? parseInt(interestId, 10) : interestId
+        }));
+        
+        console.log('💾 Saving interests to tour_tags:', tourTagInserts);
+        const { data: insertedTags, error: insertError } = await supabase
+          .from('tour_tags')
+          .insert(tourTagInserts)
+          .select();
+        
+        if (insertError) {
+          console.error('❌ Error inserting interests:', insertError);
+        } else {
+          console.log(`✅ Linked ${insertedTags.length} interests to tour`);
+        }
+      } catch (tagError) {
+        console.error('❌ Error saving interests (non-critical):', tagError);
+        // Don't fail tour creation if interests fail
+      }
+    }
 
     // Create tour_day
     const { data: tourDay, error: dayError } = await supabase
@@ -985,7 +1011,8 @@ export default async function handler(req, res) {
             },
             userId,
             cityIdForTour,
-            activities
+            activities,
+            interestIds // Pass interestIds to save to tour_tags
           );
 
           if (tourId) {
