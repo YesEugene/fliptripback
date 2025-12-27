@@ -495,6 +495,26 @@ export default async function handler(req, res) {
     if (saveAsDraft === true) {
       console.log('💾 Auto-saving to draft_data (not changing main fields or status)');
       
+      // CRITICAL: Always preserve tourSettings in draft_data
+      // Use explicit values from tourData - if not provided, use defaults
+      const tourSettings = {
+        selfGuided: tourData.selfGuided !== undefined ? tourData.selfGuided : true, // Default: true
+        withGuide: tourData.withGuide !== undefined ? tourData.withGuide : false,
+        price: {
+          pdfPrice: pricePdf,
+          guidedPrice: priceGuided,
+          currency: tourData.price?.currency || 'USD',
+          availableDates: availableDates || [],
+          meetingPoint: meetingPoint || '',
+          meetingTime: meetingTime || ''
+        },
+        additionalOptions: additionalOptions || {
+          platformOptions: ['insurance', 'accommodation'],
+          creatorOptions: {}
+        },
+        tags: tags || []
+      };
+      
       // Prepare draft data (all tour data except status)
       const draftData = {
         country,
@@ -517,6 +537,7 @@ export default async function handler(req, res) {
         preview: previewMediaUrl,
         previewType: previewMediaType,
         additionalOptions,
+        tourSettings: tourSettings, // CRITICAL: Always save tourSettings
         updated_at: new Date().toISOString()
       };
       
