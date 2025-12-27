@@ -719,6 +719,38 @@ export default async function handler(req, res) {
       updateData.country = country;
     }
 
+    // CRITICAL: Always preserve tourSettings in draft_data, even during regular updates
+    // This ensures settings persist after any save operation
+    if (!updateData.draft_data) {
+      // If draft_data wasn't set above (not submit case), set it now
+      const preservedDraftData = {
+        tourSettings: {
+          selfGuided: tourData.selfGuided !== undefined ? tourData.selfGuided : true, // Default: true
+          withGuide: tourData.withGuide !== undefined ? tourData.withGuide : false,
+          price: {
+            pdfPrice: pricePdf,
+            guidedPrice: priceGuided,
+            currency: tourData.price?.currency || 'USD',
+            availableDates: availableDates || [],
+            meetingPoint: meetingPoint || '',
+            meetingTime: meetingTime || ''
+          },
+          additionalOptions: additionalOptions || {
+            platformOptions: ['insurance', 'accommodation'],
+            creatorOptions: {}
+          },
+          tags: tags || []
+        }
+      };
+      
+      // Merge with existing draft_data if it exists
+      const existingDraftData = existingTour?.draft_data || {};
+      updateData.draft_data = {
+        ...existingDraftData,
+        ...preservedDraftData
+      };
+    }
+
     console.log(`💾 Updating tour ${id} with data:`, Object.keys(updateData));
     const { data: tour, error: tourError } = await supabase
       .from('tours')
