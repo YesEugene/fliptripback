@@ -638,12 +638,13 @@ export default async function handler(req, res) {
       // Set status to pending
       updateData.status = 'pending';
       
-      // Preserve tourSettings in draft_data for future editing, even after submission
+      // CRITICAL: Always preserve tourSettings in draft_data for future editing
       // This allows guides to see their settings when reopening the tour
+      // Use explicit values from tourData, not fallbacks
       const preservedDraftData = {
         tourSettings: {
-          selfGuided: tourData.selfGuided || (format === 'self_guided'),
-          withGuide: tourData.withGuide || (format === 'with_guide' || format === 'guided'),
+          selfGuided: tourData.selfGuided !== undefined ? tourData.selfGuided : (format === 'self_guided'),
+          withGuide: tourData.withGuide !== undefined ? tourData.withGuide : (format === 'with_guide'),
           price: {
             pdfPrice: pricePdf,
             guidedPrice: priceGuided,
