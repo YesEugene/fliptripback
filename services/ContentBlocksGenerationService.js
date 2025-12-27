@@ -32,11 +32,10 @@ export class ContentBlocksGenerationService {
     try {
       // Use Unsplash Source API (no key required for basic usage)
       // Format: https://source.unsplash.com/800x600/?{query}
-      // Note: This API redirects to actual image, so we use direct Unsplash image URLs instead
+      // This API redirects to actual image URL
       const encodedQuery = encodeURIComponent(query);
-      // Use direct Unsplash image URL with search query
-      // Fallback to a generic city/travel photo if query fails
-      return `https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=800&h=600&fit=crop&q=80`;
+      // Use Unsplash Source API - it will redirect to actual image
+      return `https://source.unsplash.com/800x600/?${encodedQuery}`;
     } catch (error) {
       console.error('❌ Error getting Unsplash photo:', error);
       // Fallback to a generic city photo
