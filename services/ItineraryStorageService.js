@@ -3,11 +3,13 @@
 
 import { Redis } from '@upstash/redis';
 import { v4 as uuidv4 } from 'uuid';
+import { ContentBlocksStorageService } from './ContentBlocksStorageService.js';
 
 export class ItineraryStorageService {
   constructor() {
     // Initialize Redis client using same logic as save-itinerary.js
     this.redis = this.getRedis();
+    this.blocksStorage = new ContentBlocksStorageService();
   }
 
   getRedis() {
@@ -25,6 +27,7 @@ export class ItineraryStorageService {
 
   /**
    * Save preview itinerary
+   * If itinerary has contentBlocks and tourId, also saves to database
    */
   async savePreview(itinerary) {
     console.log('💾 ItineraryStorageService: Saving preview...');
@@ -37,12 +40,35 @@ export class ItineraryStorageService {
     };
 
     try {
+      // Save to Redis/memory
       if (this.redis) {
         await this.redis.set(`itinerary:${itineraryId}`, JSON.stringify(dataToSave), { ex: 60 * 60 * 24 * 30 }); // 30 days TTL
       } else if (this.memoryStore) {
         this.memoryStore.set(itineraryId, dataToSave);
       } else {
         throw new Error('No storage available');
+      }
+      
+      // If itinerary has contentBlocks and tourId, save to database
+      if (itinerary.contentBlocks && Array.isArray(itinerary.contentBlocks) && itinerary.tourId) {
+        try {
+          console.log('💾 Saving content blocks to database for tour:', itinerary.tourId);
+          const locations = itinerary.activities || [];
+          const saveResult = await this.blocksStorage.saveContentBlocks(
+            itinerary.tourId,
+            itinerary.contentBlocks,
+            locations
+          );
+          
+          if (saveResult.success) {
+            console.log(`✅ Saved ${saveResult.saved} content blocks to database`);
+          } else {
+            console.warn(`⚠️ Some blocks failed to save: ${saveResult.errors} errors`);
+          }
+        } catch (dbError) {
+          console.error('❌ Error saving content blocks to database:', dbError);
+          // Don't fail the whole operation if DB save fails
+        }
       }
       
       console.log('✅ Preview saved with ID:', itineraryId);

@@ -3,6 +3,7 @@
 
 import { LocationService } from './LocationService.js';
 import { ContentGenerationService } from './ContentGenerationService.js';
+import { ContentBlocksGenerationService } from './ContentBlocksGenerationService.js';
 import { ItineraryStorageService } from './ItineraryStorageService.js';
 import { ItineraryStateService } from './ItineraryStateService.js';
 import { BudgetService } from './BudgetService.js';
@@ -11,6 +12,7 @@ export class ItineraryPipeline {
   constructor() {
     this.locationService = new LocationService();
     this.contentService = new ContentGenerationService();
+    this.blocksService = new ContentBlocksGenerationService();
     this.storageService = new ItineraryStorageService();
     this.stateService = new ItineraryStateService();
     this.budgetService = new BudgetService();
@@ -55,19 +57,18 @@ export class ItineraryPipeline {
         interestIds: interest_ids || []
       });
 
-      // STEP 3: Generate descriptions and recommendations
-      // Use interest names for content generation
-      const activities = await this.contentService.generateActivitiesContent({
+      // STEP 3: Generate content blocks (NEW: using ContentBlocksGenerationService)
+      // This generates all 17 blocks in the correct sequence
+      const contentBlocks = await this.blocksService.generateFullDayBlocks({
+        city,
+        audience,
+        interests: interests || [],
+        concept: dayConcept.concept,
         locations,
-        dayConcept,
-        interests: interests || [], // Use interest names for content generation
-        audience
+        dayConcept
       });
 
-      // STEP 4: Adjust budget
-      const adjustedActivities = this.budgetService.adjustToBudget(activities, budget);
-
-      // STEP 5: Generate meta info (title, subtitle, weather)
+      // STEP 4: Generate meta info (title, subtitle, weather)
       // Use interest names for meta info generation
       const metaInfo = await this.contentService.generateMetaInfo({
         city,
@@ -77,7 +78,14 @@ export class ItineraryPipeline {
         concept: dayConcept.concept
       });
 
-      // STEP 6: Build final itinerary
+      // STEP 5: Extract activities from location blocks for budget calculation
+      // (Location blocks contain the main location + alternatives)
+      const activities = this.extractActivitiesFromBlocks(contentBlocks, locations);
+
+      // STEP 6: Adjust budget
+      const adjustedActivities = this.budgetService.adjustToBudget(activities, budget);
+
+      // STEP 7: Build final itinerary with content blocks
       const itinerary = {
         title: metaInfo.title,
         subtitle: metaInfo.subtitle,
@@ -86,17 +94,18 @@ export class ItineraryPipeline {
         budget,
         conceptual_plan: {
           concept: dayConcept.concept,
-          architecture: "clean_modular",
+          architecture: "content_blocks", // New architecture
           timeSlots: dayConcept.timeSlots
         },
         weather: metaInfo.weather,
-        activities: adjustedActivities,
+        contentBlocks: contentBlocks, // NEW: content blocks instead of activities
+        activities: adjustedActivities, // Keep for backward compatibility and budget calculation
         totalCost: this.budgetService.calculateTotal(adjustedActivities),
         withinBudget: this.budgetService.isWithinBudget(adjustedActivities, budget),
         previewOnly: previewOnly
       };
 
-      // STEP 7: Save to storage if needed
+      // STEP 8: Save to storage if needed
       if (previewOnly) {
         try {
           const saved = await this.storageService.savePreview(itinerary);
@@ -116,6 +125,49 @@ export class ItineraryPipeline {
       console.error('❌ ItineraryPipeline: Error', error);
       throw error;
     }
+  }
+
+  /**
+   * Extract activities from location blocks for budget calculation
+   * @param {Array} contentBlocks - Array of content blocks
+   * @param {Array} locations - Original locations array
+   * @returns {Array} Activities array for budget calculation
+   */
+  extractActivitiesFromBlocks(contentBlocks, locations) {
+    const activities = [];
+    
+    // Find all location blocks
+    const locationBlocks = contentBlocks.filter(block => block.block_type === 'location');
+    
+    locationBlocks.forEach(block => {
+      const mainLocation = block.content?.mainLocation;
+      if (mainLocation) {
+        // Find corresponding location from original array
+        const originalLocation = locations.find(loc => {
+          const name = loc.realPlace?.name || loc.name || loc.title;
+          return name === mainLocation.name;
+        });
+
+        if (originalLocation) {
+          activities.push({
+            time: originalLocation.time || originalLocation.slot?.time,
+            name: mainLocation.name,
+            title: mainLocation.name,
+            description: mainLocation.description,
+            category: originalLocation.category || originalLocation.slot?.category,
+            duration: 90,
+            price: originalLocation.realPlace?.price || 0,
+            location: mainLocation.address,
+            photos: originalLocation.realPlace?.photos || [],
+            recommendations: mainLocation.recommendation,
+            locationId: originalLocation.realPlace?.locationId || null,
+            fromGooglePlace: !originalLocation.realPlace?.fromDatabase
+          });
+        }
+      }
+    });
+
+    return activities;
   }
 
   /**

@@ -43,3 +43,5 @@ CREATE UNIQUE INDEX IF NOT EXISTS tour_tags_unique_composite
 ON tour_tags(tour_id, COALESCE(tag_id::text, ''), COALESCE(interest_id::text, ''))
 WHERE (tag_id IS NOT NULL OR interest_id IS NOT NULL);
 
+
+

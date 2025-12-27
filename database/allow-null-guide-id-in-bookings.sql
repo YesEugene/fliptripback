@@ -28,3 +28,5 @@ END $$;
 COMMENT ON COLUMN tour_bookings.guide_id IS 'Гид, который проводит тур. Может быть NULL для user_generated туров (AI-сгенерированных для пользователя)';
 
 
+
+

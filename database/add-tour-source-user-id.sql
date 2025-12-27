@@ -76,3 +76,5 @@ COMMENT ON COLUMN tours.user_id IS 'ID пользователя, для кото
 
 
 
+
+

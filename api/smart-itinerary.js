@@ -7,6 +7,8 @@ import { searchLocationsForItinerary } from '../database/services/locationsServi
 import { searchToursForItinerary } from '../database/services/toursService.js';
 import { getOrCreateCity } from '../database/services/citiesService.js';
 import { supabase } from '../database/db.js';
+import { ContentBlocksGenerationService } from '../services/ContentBlocksGenerationService.js';
+import { ContentBlocksStorageService } from '../services/ContentBlocksStorageService.js';
 
 // Инициализация
 const openai = new OpenAI({
@@ -851,6 +853,18 @@ export default async function handler(req, res) {
     // МОДУЛЬ 4: Генерируем мета-информацию
     const metaInfo = await generateMetaInfo(city, audience, interests, date, dayConcept.concept);
 
+    // NEW: Генерируем контентные блоки (17 блоков в правильной последовательности)
+    const blocksService = new ContentBlocksGenerationService();
+    const contentBlocks = await blocksService.generateFullDayBlocks({
+      city,
+      audience,
+      interests: interestsForConcept || [],
+      concept: dayConcept.concept,
+      locations,
+      dayConcept
+    });
+    console.log(`✅ Generated ${contentBlocks.length} content blocks`);
+
     // МОДУЛИ 2-3: Генерируем описания и рекомендации для каждого места
     let activities = await Promise.all(locations.map(async (slot) => {
       const place = slot.realPlace;
@@ -930,11 +944,12 @@ export default async function handler(req, res) {
       budget,
       conceptual_plan: {
         concept: dayConcept.concept,
-        architecture: "clean_modular",
+        architecture: "content_blocks", // New architecture with content blocks
         timeSlots: dayConcept.timeSlots // Сохраняем полный список слотов для последующей генерации
       },
       weather: metaInfo.weather,
-      activities,
+      contentBlocks: contentBlocks, // NEW: Content blocks instead of just activities
+      activities, // Keep for backward compatibility and budget calculation
       totalCost,
       withinBudget: totalCost <= parseInt(budget),
       previewOnly: previewOnly || false // Сохраняем флаг preview режима
@@ -960,7 +975,7 @@ export default async function handler(req, res) {
         }
 
         if (cityIdForTour) {
-          // Save tour to database
+          // Save tour to database (legacy structure for backward compatibility)
           const tourId = await saveGeneratedTourToDatabase(
             {
               title: metaInfo.title,
@@ -976,6 +991,27 @@ export default async function handler(req, res) {
           if (tourId) {
             result.tourId = tourId;
             console.log('✅ Tour saved to database with ID:', tourId);
+            
+            // NEW: Save content blocks to tour_content_blocks
+            try {
+              console.log('💾 Saving content blocks to database...');
+              const blocksStorage = new ContentBlocksStorageService();
+              const saveResult = await blocksStorage.saveContentBlocks(
+                tourId,
+                contentBlocks,
+                locations
+              );
+              
+              if (saveResult.success) {
+                console.log(`✅ Saved ${saveResult.saved} content blocks to database`);
+              } else {
+                console.warn(`⚠️ Some blocks failed to save: ${saveResult.errors} errors`);
+              }
+            } catch (blocksError) {
+              console.error('❌ Error saving content blocks:', blocksError);
+              // Don't fail the whole operation if blocks save fails
+            }
+            
             console.log('📋 Returning tourId in response:', tourId);
           } else {
             console.warn('⚠️ Failed to save tour to database, but continuing...');
