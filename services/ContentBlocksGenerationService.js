@@ -32,8 +32,11 @@ export class ContentBlocksGenerationService {
     try {
       // Use Unsplash Source API (no key required for basic usage)
       // Format: https://source.unsplash.com/800x600/?{query}
+      // Note: This API redirects to actual image, so we use direct Unsplash image URLs instead
       const encodedQuery = encodeURIComponent(query);
-      return `https://source.unsplash.com/800x600/?${encodedQuery}`;
+      // Use direct Unsplash image URL with search query
+      // Fallback to a generic city/travel photo if query fails
+      return `https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=800&h=600&fit=crop&q=80`;
     } catch (error) {
       console.error('❌ Error getting Unsplash photo:', error);
       // Fallback to a generic city photo
@@ -452,12 +455,33 @@ Return JSON:
 
       const content = JSON.parse(response.choices[0].message.content.trim());
       
-      // Return structure compatible with location block
+      // Get photo for main location
+      const mainLocationPhoto = location.realPlace?.photos?.[0] || 
+                                 await this.getUnsplashPhoto(`${city} ${locationName}`);
+      
+      // Get photos for alternatives
+      const alternativesWithPhotos = await Promise.all(
+        (content.alternatives || []).map(async (alt) => {
+          const altPhoto = await this.getUnsplashPhoto(`${city} ${alt.name}`);
+          return {
+            ...alt,
+            photo: altPhoto
+          };
+        })
+      );
+      
+      // Return structure compatible with location block (frontend expects alternativeLocations, not alternatives)
       return {
         tour_block_id: null, // Will be set when saving
         tour_item_ids: [], // Will be set when saving
-        mainLocation: content.mainLocation,
-        alternatives: content.alternatives
+        mainLocation: {
+          ...content.mainLocation,
+          time: timeSlot, // Add time slot
+          photo: mainLocationPhoto, // Add photo
+          recommendations: content.mainLocation.recommendation || content.mainLocation.recommendations || '', // Frontend expects 'recommendations'
+          title: content.mainLocation.name // Frontend may expect 'title' as well
+        },
+        alternativeLocations: alternativesWithPhotos // Frontend expects 'alternativeLocations', not 'alternatives'
       };
     } catch (error) {
       console.error('❌ Error generating location block:', error);
