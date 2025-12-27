@@ -425,11 +425,18 @@ export default async function handler(req, res) {
     } else if (rawFormat === 'self_guided' || rawFormat === 'self-guided') {
       format = 'self_guided';
     }
-    // Also check withGuide flag if format is not clear
-    if (tourData.withGuide && format === 'self_guided') {
+    // CRITICAL: Check withGuide flag - it takes priority over format string
+    // If withGuide is explicitly true, set format to 'with_guide'
+    // If withGuide is explicitly false and selfGuided is true, set format to 'self_guided'
+    if (tourData.withGuide === true) {
       format = 'with_guide';
+    } else if (tourData.withGuide === false && tourData.selfGuided === true) {
+      format = 'self_guided';
+    } else if (tourData.selfGuided === false && tourData.withGuide === false) {
+      // Both false - default to self_guided
+      format = 'self_guided';
     }
-    console.log(`📋 Tour format: ${format} (from: ${rawFormat}, withGuide: ${tourData.withGuide})`);
+    console.log(`📋 Tour format: ${format} (from: ${rawFormat}, withGuide: ${tourData.withGuide}, selfGuided: ${tourData.selfGuided})`);
     const pricePdf = tourData.price?.pdfPrice || 16.00;
     const priceGuided = tourData.price?.guidedPrice || null;
     const previewMediaUrl = tourData.preview || null;
