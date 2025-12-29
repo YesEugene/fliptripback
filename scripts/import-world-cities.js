@@ -13,7 +13,11 @@ const __dirname = path.dirname(__filename);
 
 // Загрузить переменные окружения
 import dotenv from 'dotenv';
+// Попробовать загрузить из .env.local, затем из .env
 dotenv.config({ path: path.join(__dirname, '../.env.local') });
+dotenv.config({ path: path.join(__dirname, '../.env') });
+// Также загрузить из системных переменных окружения
+dotenv.config();
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
