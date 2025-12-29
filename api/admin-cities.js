@@ -59,13 +59,21 @@ export default async function handler(req, res) {
         });
       }
 
-      // Format cities for frontend
-      const formattedCities = (cities || []).map(city => ({
-        id: city.id,
-        name: city.name,
-        country: city.country || null,
-        displayName: city.country ? `${city.name}, ${city.country}` : city.name
-      }));
+      // Format cities for frontend and deduplicate by name+country combination
+      const cityMap = new Map();
+      (cities || []).forEach(city => {
+        const key = `${city.name.toLowerCase()}_${(city.country || '').toLowerCase()}`;
+        if (!cityMap.has(key)) {
+          cityMap.set(key, {
+            id: city.id,
+            name: city.name,
+            country: city.country || null,
+            displayName: city.country ? `${city.name}, ${city.country}` : city.name
+          });
+        }
+      });
+
+      const formattedCities = Array.from(cityMap.values());
 
       return res.status(200).json({
         success: true,
