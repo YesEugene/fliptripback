@@ -57,6 +57,14 @@ export default async function handler(req, res) {
     if (search && search.trim().length > 0) {
       const searchTerm = search.trim();
       
+      // Minimum search length is 2 characters
+      if (searchTerm.length < 2) {
+        return res.status(200).json({
+          success: true,
+          cities: []
+        });
+      }
+      
       let query = supabase
         .from('cities')
         .select('id, name, country')
