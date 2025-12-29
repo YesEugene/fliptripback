@@ -87,6 +87,23 @@ export default async function handler(req, res) {
 
     const place = response.data.result;
 
+    // Extract city and country from address_components
+    let cityName = null;
+    let countryName = null;
+    
+    if (place.address_components && Array.isArray(place.address_components)) {
+      for (const component of place.address_components) {
+        if (component.types.includes('locality')) {
+          cityName = component.long_name;
+        } else if (component.types.includes('administrative_area_level_1') && !cityName) {
+          // Fallback to administrative_area_level_1 if locality not found
+          cityName = component.long_name;
+        } else if (component.types.includes('country')) {
+          countryName = component.long_name;
+        }
+      }
+    }
+
     // Calculate approximate cost based on price_level
     // price_level: 0 = free, 1 = inexpensive, 2 = moderate, 3 = expensive, 4 = very expensive
     const priceLevelMap = {
@@ -132,7 +149,10 @@ export default async function handler(req, res) {
         : null,
       website: place.website || null,
       phone: place.international_phone_number || null,
-      opening_hours: place.opening_hours || null
+      opening_hours: place.opening_hours || null,
+      // City and country extracted from address_components
+      city_name: cityName,
+      country_name: countryName
     };
 
     return res.status(200).json({
