@@ -597,12 +597,24 @@ Return only the caption text, no quotes.`;
 
       const caption = response.choices[0].message.content.trim();
       
-      // Get photo from Unsplash (Google Places not available)
-      const photoQuery = `${city} street walking`;
-      const photoUrl = await this.getUnsplashPhoto(photoQuery);
+      // Get 1-3 photos from Unsplash (Google Places not available)
+      const photoQueries = [
+        `${city} street walking`,
+        `${city} ${concept}`,
+        `${city} ${interests?.[0] || 'travel'}`
+      ].filter(Boolean);
+      
+      // Get 1-3 photos (randomly choose 1-3)
+      const numPhotos = Math.floor(Math.random() * 3) + 1; // 1-3 photos
+      const selectedQueries = photoQueries.slice(0, numPhotos);
+      
+      const photos = await Promise.all(
+        selectedQueries.map(query => this.getUnsplashPhoto(query))
+      );
       
       return {
-        photo: photoUrl,
+        photos: photos, // Use photos array
+        photo: photos[0] || null, // Keep single photo for backward compatibility
         caption: caption
       };
     } catch (error) {
