@@ -60,3 +60,4 @@ SELECT COUNT(*) FROM cities WHERE country IS NOT NULL;
 - Новые города будут добавлены
 - Если поле `country` уже заполнено, скрипт пропустит импорт
 
+

@@ -21,3 +21,4 @@ CREATE INDEX IF NOT EXISTS idx_cities_country ON cities(country);
 -- Создать составной индекс для поиска по городу и стране
 CREATE INDEX IF NOT EXISTS idx_cities_name_country ON cities(name, country);
 
+
