@@ -486,17 +486,27 @@ Return JSON (no markdown, no code blocks, just JSON):
         }
       }
       
-      // Get photo for main location
-      const mainLocationPhoto = location.realPlace?.photos?.[0] || 
-                                 await this.getUnsplashPhoto(`${city} ${locationName}`);
+      // Get photos for main location - use all photos from Google Places (up to 10)
+      const mainLocationPhotos = location.realPlace?.photos || [];
+      let finalMainPhotos = [];
+      
+      if (mainLocationPhotos.length > 0) {
+        // Use up to 10 photos from Google Places
+        finalMainPhotos = mainLocationPhotos.slice(0, 10);
+      } else {
+        // Fallback to Unsplash if no Google Places photos
+        const fallbackPhoto = await this.getUnsplashPhoto(`${city} ${locationName}`);
+        finalMainPhotos = [fallbackPhoto];
+      }
       
       // Get photos for alternatives
       const alternativesWithPhotos = await Promise.all(
         alternatives.slice(0, 2).map(async (alt) => {
+          // For alternatives, use Unsplash (they don't have Google Places data)
           const altPhoto = await this.getUnsplashPhoto(`${city} ${alt.name}`);
           return {
             ...alt,
-            photo: altPhoto
+            photos: [altPhoto] // Use photos array for consistency
           };
         })
       );
@@ -516,7 +526,8 @@ Return JSON (no markdown, no code blocks, just JSON):
           address: content.mainLocation.address || locationAddress,
           title: content.mainLocation.name || locationName, // Frontend may expect 'title' as well
           time: timeSlot, // Always include time slot
-          photo: mainLocationPhoto, // Add photo
+          photos: finalMainPhotos, // Use photos array (multiple photos)
+          photo: finalMainPhotos[0] || null, // Keep single photo for backward compatibility
           recommendations: recommendations, // Frontend expects 'recommendations'
           description: content.mainLocation.description || `${locationName} works well for ${purpose.toLowerCase()}.`
         },
@@ -525,8 +536,15 @@ Return JSON (no markdown, no code blocks, just JSON):
     } catch (error) {
       console.error('❌ Error generating location block:', error);
       // Fallback: ensure all required fields are present
-      const fallbackPhoto = location.realPlace?.photos?.[0] || 
-                           await this.getUnsplashPhoto(`${city} ${locationName}`);
+      const fallbackPhotos = location.realPlace?.photos || [];
+      let finalFallbackPhotos = [];
+      
+      if (fallbackPhotos.length > 0) {
+        finalFallbackPhotos = fallbackPhotos.slice(0, 10);
+      } else {
+        const fallbackPhoto = await this.getUnsplashPhoto(`${city} ${locationName}`);
+        finalFallbackPhotos = [fallbackPhoto];
+      }
       
       return {
         tour_block_id: null,
@@ -538,7 +556,8 @@ Return JSON (no markdown, no code blocks, just JSON):
           time: timeSlot, // Always include time slot
           description: `${locationName} works well for ${purpose.toLowerCase()}.`,
           recommendations: 'Take your time here.', // Frontend expects 'recommendations'
-          photo: fallbackPhoto
+          photos: finalFallbackPhotos, // Use photos array
+          photo: finalFallbackPhotos[0] || null // Keep single photo for backward compatibility
         },
         alternativeLocations: [] // Frontend expects 'alternativeLocations', not 'alternatives'
       };

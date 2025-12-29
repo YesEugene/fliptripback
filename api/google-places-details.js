@@ -120,6 +120,13 @@ export default async function handler(req, res) {
         lat: place.geometry.location.lat,
         lng: place.geometry.location.lng
       } : null,
+      // Return array of photos (up to 10)
+      photos: place.photos && place.photos.length > 0
+        ? place.photos.slice(0, 10).map(photo => 
+            `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photo.photo_reference}&key=${process.env.GOOGLE_MAPS_KEY}`
+          )
+        : [],
+      // Keep photo_url for backward compatibility (first photo)
       photo_url: place.photos && place.photos.length > 0 
         ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${place.photos[0].photo_reference}&key=${process.env.GOOGLE_MAPS_KEY}`
         : null,
