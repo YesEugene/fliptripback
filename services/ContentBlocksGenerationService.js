@@ -35,7 +35,9 @@ export class ContentBlocksGenerationService {
       // This API redirects to actual image URL
       const encodedQuery = encodeURIComponent(query);
       // Use Unsplash Source API - it will redirect to actual image
-      return `https://source.unsplash.com/800x600/?${encodedQuery}`;
+      const photoUrl = `https://source.unsplash.com/800x600/?${encodedQuery}`;
+      console.log(`📸 Getting Unsplash photo for query: "${query}" -> ${photoUrl}`);
+      return photoUrl;
     } catch (error) {
       console.error('❌ Error getting Unsplash photo:', error);
       // Fallback to a generic city photo
