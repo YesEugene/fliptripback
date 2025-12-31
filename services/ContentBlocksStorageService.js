@@ -187,18 +187,15 @@ export class ContentBlocksStorageService {
     // Note: alternativeLocations are stored in content, not as separate tour_items
     // They're displayed in "Author also recommends" section on frontend
     
+    // CRITICAL: Preserve ALL content fields including alternativeLocations
+    const preservedAlternativeLocations = block.content?.alternativeLocations || block.content?.alternatives || [];
+    
     // Update block content with tour_block_id and tour_item_ids
     // IMPORTANT: Preserve alternativeLocations from block.content
     const updatedContent = {
       ...block.content,
       tour_block_id: tourBlockId,
       tour_item_ids: tourItemIds,
-    // Ensure alternativeLocations are preserved (check both alternatives and alternativeLocations for compatibility)
-    // CRITICAL: Preserve ALL content fields including alternativeLocations
-    const preservedAlternativeLocations = block.content?.alternativeLocations || block.content?.alternatives || [];
-    
-    updatedContent = {
-      ...updatedContent,
       alternativeLocations: preservedAlternativeLocations
     };
     
