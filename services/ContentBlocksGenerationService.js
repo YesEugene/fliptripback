@@ -778,13 +778,30 @@ Return JSON:
       };
     } catch (error) {
       console.error('❌ Error generating 3 columns block:', error);
-      return {
-        columns: [
-          { photo: null, text: 'One way to be.' },
-          { photo: null, text: 'Another way to be.' },
-          { photo: null, text: 'A third way to be.' }
-        ]
-      };
+      // Fallback: try to get photos from Unsplash
+      try {
+        const fallbackPhotos = await Promise.all([
+          this.getUnsplashPhoto(`${city} afternoon`),
+          this.getUnsplashPhoto(`${city} evening`),
+          this.getUnsplashPhoto(`${city} cityscape`)
+        ]);
+        return {
+          columns: [
+            { photo: fallbackPhotos[0], text: 'One way to be.' },
+            { photo: fallbackPhotos[1], text: 'Another way to be.' },
+            { photo: fallbackPhotos[2], text: 'A third way to be.' }
+          ]
+        };
+      } catch (fallbackError) {
+        console.error('❌ Error getting fallback photos for 3 columns:', fallbackError);
+        return {
+          columns: [
+            { photo: null, text: 'One way to be.' },
+            { photo: null, text: 'Another way to be.' },
+            { photo: null, text: 'A third way to be.' }
+          ]
+        };
+      }
     }
   }
 
