@@ -560,6 +560,19 @@ Return JSON (no markdown, no code blocks, just JSON):
         },
         alternativeLocations: alternativesWithPhotos // Frontend expects 'alternativeLocations', not 'alternatives'
       };
+      
+      console.log('📍 Generated location block:', {
+        mainLocation: result.mainLocation?.title || result.mainLocation?.name,
+        mainLocationPhotos: result.mainLocation?.photos?.length || 0,
+        alternativeLocationsCount: alternativesWithPhotos.length,
+        alternativeLocations: alternativesWithPhotos.map(alt => ({
+          name: alt.name || alt.title,
+          hasPhotos: !!alt.photos && alt.photos.length > 0,
+          photosCount: alt.photos?.length || 0
+        }))
+      });
+      
+      return result;
     } catch (error) {
       console.error('❌ Error generating location block:', error);
       // Fallback: ensure all required fields are present
@@ -666,11 +679,20 @@ Return only the caption text, no quotes.`;
         selectedQueries.map(query => this.getUnsplashPhoto(query))
       );
       
-      return {
+      const result = {
         photos: photos, // Use photos array
         photo: photos[0] || null, // Keep single photo for backward compatibility
         caption: caption
       };
+      
+      console.log('📸 Generated photo block:', {
+        photosCount: photos.length,
+        hasPhotos: photos.length > 0,
+        firstPhoto: photos[0] || null,
+        caption: caption
+      });
+      
+      return result;
     } catch (error) {
       console.error('❌ Error generating photo block:', error);
       // Fallback: try to get at least one photo from Unsplash
@@ -827,9 +849,21 @@ Return JSON:
         })
       );
       
-      return {
+      const result = {
         columns: columnsWithPhotos
       };
+      
+      console.log('📸 Generated 3columns block:', {
+        columnsCount: columnsWithPhotos.length,
+        columnsWithPhotos: columnsWithPhotos.map((col, idx) => ({
+          index: idx,
+          hasPhoto: !!col.photo,
+          photo: col.photo || null,
+          text: col.text
+        }))
+      });
+      
+      return result;
     } catch (error) {
       console.error('❌ Error generating 3 columns block:', error);
       // Fallback: try to get photos from Unsplash
