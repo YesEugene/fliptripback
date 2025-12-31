@@ -573,6 +573,28 @@ Return JSON (no markdown, no code blocks, just JSON):
         finalFallbackPhotos = [fallbackPhoto];
       }
       
+      // Get rating, price_level, and approximate_cost from Google Places data (fallback)
+      const realPlace = location.realPlace || {};
+      const rating = realPlace.rating || null;
+      const userRatingsTotal = realPlace.user_ratings_total || realPlace.userRatingsTotal || null;
+      const priceLevel = realPlace.priceLevel !== undefined && realPlace.priceLevel !== null 
+        ? String(realPlace.priceLevel) 
+        : (realPlace.price_level !== undefined && realPlace.price_level !== null 
+          ? String(realPlace.price_level) 
+          : '');
+      
+      // Map price_level to approximate_cost
+      const approximateCostMap = {
+        0: 'Free',
+        1: '€5-10',
+        2: '€10-30',
+        3: '€30-60',
+        4: '€60+'
+      };
+      const approximateCost = priceLevel && approximateCostMap[priceLevel] 
+        ? approximateCostMap[priceLevel] 
+        : '';
+      
       return {
         tour_block_id: null,
         tour_item_ids: [],
@@ -584,7 +606,12 @@ Return JSON (no markdown, no code blocks, just JSON):
           description: `${locationName} works well for ${purpose.toLowerCase()}.`,
           recommendations: 'Take your time here.', // Frontend expects 'recommendations'
           photos: finalFallbackPhotos, // Use photos array
-          photo: finalFallbackPhotos[0] || null // Keep single photo for backward compatibility
+          photo: finalFallbackPhotos[0] || null, // Keep single photo for backward compatibility
+          // Add Google Places data
+          rating: rating,
+          user_ratings_total: userRatingsTotal,
+          price_level: priceLevel,
+          approx_cost: approximateCost
         },
         alternativeLocations: [] // Frontend expects 'alternativeLocations', not 'alternatives'
       };
