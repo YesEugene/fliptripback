@@ -180,9 +180,20 @@ export class ContentBlocksStorageService {
       ...block.content,
       tour_block_id: tourBlockId,
       tour_item_ids: tourItemIds,
-      // Ensure alternativeLocations are preserved (check both alternatives and alternativeLocations for compatibility)
-      alternativeLocations: block.content?.alternativeLocations || block.content?.alternatives || []
+    // Ensure alternativeLocations are preserved (check both alternatives and alternativeLocations for compatibility)
+    // CRITICAL: Preserve ALL content fields including alternativeLocations
+    const preservedAlternativeLocations = block.content?.alternativeLocations || block.content?.alternatives || [];
+    
+    updatedContent = {
+      ...updatedContent,
+      alternativeLocations: preservedAlternativeLocations
     };
+    
+    console.log('💾 Saving location block with alternativeLocations:', {
+      mainLocation: updatedContent.mainLocation?.title || updatedContent.mainLocation?.name,
+      alternativeLocationsCount: preservedAlternativeLocations.length,
+      alternativeLocations: preservedAlternativeLocations.map(alt => alt.name || alt.title)
+    });
 
     // Save content block
     const { error: contentBlockError } = await supabase
@@ -196,6 +207,8 @@ export class ContentBlocksStorageService {
 
     if (contentBlockError) {
       console.error('❌ Error saving location content block:', contentBlockError);
+    } else {
+      console.log('✅ Location block saved successfully with', preservedAlternativeLocations.length, 'alternative locations');
     }
   }
 }
