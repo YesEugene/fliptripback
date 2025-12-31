@@ -506,7 +506,10 @@ Return JSON (no markdown, no code blocks, just JSON):
           const altPhoto = await this.getUnsplashPhoto(`${city} ${alt.name}`);
           return {
             ...alt,
-            photos: [altPhoto] // Use photos array for consistency
+            name: alt.name || alt.title || 'Alternative location',
+            title: alt.name || alt.title || 'Alternative location', // Frontend expects 'title'
+            photos: [altPhoto], // Use photos array for consistency
+            photo: altPhoto // Keep single photo for backward compatibility
           };
         })
       );
