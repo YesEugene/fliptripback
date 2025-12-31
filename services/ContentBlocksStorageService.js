@@ -170,19 +170,18 @@ export class ContentBlocksStorageService {
       tourItemIds.push(tourItem.id);
     }
 
-    // Create tour_items for alternatives (if any)
-    if (block.content?.alternatives && Array.isArray(block.content.alternatives)) {
-      block.content.alternatives.forEach((alt, index) => {
-        // Note: Alternatives are stored as tour_items but may not have location_id
-        // They're stored for reference but the main location is the primary one
-      });
-    }
-
+    // Ensure alternativeLocations are preserved (they're already in block.content from generation)
+    // Note: alternativeLocations are stored in content, not as separate tour_items
+    // They're displayed in "Author also recommends" section on frontend
+    
     // Update block content with tour_block_id and tour_item_ids
+    // IMPORTANT: Preserve alternativeLocations from block.content
     const updatedContent = {
       ...block.content,
       tour_block_id: tourBlockId,
-      tour_item_ids: tourItemIds
+      tour_item_ids: tourItemIds,
+      // Ensure alternativeLocations are preserved (check both alternatives and alternativeLocations for compatibility)
+      alternativeLocations: block.content?.alternativeLocations || block.content?.alternatives || []
     };
 
     // Save content block
