@@ -220,6 +220,14 @@ async function saveGeneratedTourToDatabase(tourData, userId, cityId, activities,
       return tourId;
     }
 
+    // CRITICAL: Only create tour_blocks/tour_items if activities are provided
+    // If activities array is empty, it means we're using contentBlocks (new format)
+    // and should NOT create old format structure
+    if (!activities || activities.length === 0) {
+      console.log('ℹ️ No activities provided - using contentBlocks format only (no tour_blocks/tour_items)');
+      return tourId;
+    }
+
     // Group activities by time blocks
     const timeBlocks = {};
     activities.forEach(activity => {
