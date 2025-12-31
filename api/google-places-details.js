@@ -116,8 +116,8 @@ export default async function handler(req, res) {
 
     const approximateCostMap = {
       0: 'Free',
-      1: '€5-15',
-      2: '€15-30',
+      1: '€5-10',
+      2: '€10-30',
       3: '€30-60',
       4: '€60+'
     };
