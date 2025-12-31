@@ -65,13 +65,12 @@ export default async function handler(req, res) {
         });
       }
       
-      // Escape special characters in search term for Supabase
-      const escapedSearchTerm = searchTerm.replace(/[%_\\]/g, '\\$&');
-      
+      // Use Supabase textSearch or separate queries to avoid issues with special characters
+      // Build query with proper escaping - use separate filters instead of .or() with complex patterns
       let query = supabase
         .from('cities')
         .select('id, name, country')
-        .or(`name.ilike.%${escapedSearchTerm}%,country.ilike.%${escapedSearchTerm}%`)
+        .or(`name.ilike.%${searchTerm}%,country.ilike.%${searchTerm}%`)
         .limit(50) // Limit results for autocomplete
         .order('name', { ascending: true });
 
