@@ -516,6 +516,28 @@ Return JSON (no markdown, no code blocks, just JSON):
                               content.mainLocation.recommendations || 
                               'Take your time here.';
       
+      // Get rating, price_level, and approximate_cost from Google Places data
+      const realPlace = location.realPlace || {};
+      const rating = realPlace.rating || null;
+      const userRatingsTotal = realPlace.user_ratings_total || realPlace.userRatingsTotal || null;
+      const priceLevel = realPlace.priceLevel !== undefined && realPlace.priceLevel !== null 
+        ? String(realPlace.priceLevel) 
+        : (realPlace.price_level !== undefined && realPlace.price_level !== null 
+          ? String(realPlace.price_level) 
+          : '');
+      
+      // Map price_level to approximate_cost
+      const approximateCostMap = {
+        0: 'Free',
+        1: '€5-10',
+        2: '€10-30',
+        3: '€30-60',
+        4: '€60+'
+      };
+      const approximateCost = priceLevel && approximateCostMap[priceLevel] 
+        ? approximateCostMap[priceLevel] 
+        : '';
+      
       // Return structure compatible with location block (frontend expects alternativeLocations, not alternatives)
       return {
         tour_block_id: null, // Will be set when saving
@@ -529,7 +551,12 @@ Return JSON (no markdown, no code blocks, just JSON):
           photos: finalMainPhotos, // Use photos array (multiple photos)
           photo: finalMainPhotos[0] || null, // Keep single photo for backward compatibility
           recommendations: recommendations, // Frontend expects 'recommendations'
-          description: content.mainLocation.description || `${locationName} works well for ${purpose.toLowerCase()}.`
+          description: content.mainLocation.description || `${locationName} works well for ${purpose.toLowerCase()}.`,
+          // Add Google Places data
+          rating: rating,
+          user_ratings_total: userRatingsTotal,
+          price_level: priceLevel,
+          approx_cost: approximateCost
         },
         alternativeLocations: alternativesWithPhotos // Frontend expects 'alternativeLocations', not 'alternatives'
       };
