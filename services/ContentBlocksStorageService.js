@@ -61,6 +61,16 @@ export class ContentBlocksStorageService {
           saved++;
         } else {
           // Other blocks can be saved directly
+          // Log photo blocks to debug photo issues
+          if (block.block_type === 'photo' || block.block_type === '3columns') {
+            console.log(`💾 Saving ${block.block_type} block:`, {
+              blockType: block.block_type,
+              hasPhotos: block.block_type === 'photo' ? (block.content?.photos?.length || block.content?.photo) : (block.content?.columns?.some(col => col.photo)),
+              photosCount: block.block_type === 'photo' ? (block.content?.photos?.length || 0) : (block.content?.columns?.filter(col => col.photo).length || 0),
+              content: block.content
+            });
+          }
+          
           const { error } = await supabase
             .from('tour_content_blocks')
             .insert({
@@ -75,6 +85,9 @@ export class ContentBlocksStorageService {
             errors++;
           } else {
             saved++;
+            if (block.block_type === 'photo' || block.block_type === '3columns') {
+              console.log(`✅ ${block.block_type} block saved successfully`);
+            }
           }
         }
       } catch (error) {
