@@ -1001,75 +1001,28 @@ export default async function handler(req, res) {
         }
 
         if (cityIdForTour) {
-          // CRITICAL: For tours with contentBlocks, we should NOT create daily_plan structure
-          // ContentBlocks are the new format and should be the primary source
-          // Only create minimal tour structure (tour, tour_day) without tour_blocks/tour_items
-          // This ensures new format is always used when contentBlocks exist
-          
-          let tourId = null;
-          try {
-            // Create tour record
-            const { data: newTour, error: tourError } = await supabase
-              .from('tours')
-              .insert({
-                title: metaInfo.title || `Tour in ${city}`,
-                description: metaInfo.subtitle || null,
-                city_id: cityIdForTour,
-                user_id: userId,
-                guide_id: null,
-                source: 'user_generated',
-                is_published: false,
-                status: 'draft',
-                default_format: 'self_guided',
-                price_pdf: 16.00,
-                currency: 'USD',
-                duration_type: 'days',
-                duration_value: 1
-              })
-              .select('id')
-              .single();
+          // Save tour to database
+          // For tours with contentBlocks, we still call saveGeneratedTourToDatabase but it won't create tour_blocks/tour_items
+          // because we pass empty activities array when contentBlocks exist
+          const tourId = await saveGeneratedTourToDatabase(
+            {
+              title: metaInfo.title,
+              subtitle: metaInfo.subtitle,
+              city: city,
+              date: date
+            },
+            userId,
+            cityIdForTour,
+            [], // Pass empty activities array - we use contentBlocks instead
+            interestIds // Pass interestIds to save to tour_tags
+          );
 
-            if (tourError || !newTour) {
-              console.error('❌ Error creating tour:', tourError);
-            } else {
-              tourId = newTour.id;
-              console.log('✅ Tour created in DB:', tourId);
-              
-              // Save interests to tour_tags if provided
-              if (interestIds && Array.isArray(interestIds) && interestIds.length > 0) {
-                try {
-                  const tourTagInserts = interestIds.map(interestId => ({
-                    tour_id: tourId,
-                    tag_id: null,
-                    interest_id: typeof interestId === 'string' && /^\d+$/.test(interestId) ? parseInt(interestId, 10) : interestId
-                  }));
-                  
-                  await supabase.from('tour_tags').insert(tourTagInserts);
-                  console.log(`✅ Linked ${tourTagInserts.length} interests to tour`);
-                } catch (tagError) {
-                  console.error('❌ Error saving interests (non-critical):', tagError);
-                }
-              }
-              
-              // Create tour_day (required for contentBlocks, but no tour_blocks/tour_items)
-              const { data: tourDay, error: dayError } = await supabase
-                .from('tour_days')
-                .insert({
-                  tour_id: tourId,
-                  day_number: 1,
-                  title: `Day 1 in ${city}`,
-                  date_hint: date ? new Date(date) : null
-                })
-                .select('id')
-                .single();
-
-              if (dayError || !tourDay) {
-                console.error('❌ Error creating tour_day:', dayError);
-              } else {
-                console.log('✅ Tour day created:', tourDay.id);
-              }
-              
-              // Save content blocks to tour_content_blocks (NEW FORMAT)
+          if (tourId) {
+            result.tourId = tourId;
+            console.log('✅ Tour saved to database with ID:', tourId);
+            
+            // NEW: Save content blocks to tour_content_blocks
+            try {
               console.log('💾 Saving content blocks to database...');
               const blocksStorage = new ContentBlocksStorageService();
               const saveResult = await blocksStorage.saveContentBlocks(
@@ -1083,13 +1036,11 @@ export default async function handler(req, res) {
               } else {
                 console.warn(`⚠️ Some blocks failed to save: ${saveResult.errors} errors`);
               }
+            } catch (blocksError) {
+              console.error('❌ Error saving content blocks:', blocksError);
+              // Don't fail the whole operation if blocks save fails
             }
-          } catch (saveError) {
-            console.error('❌ Error saving tour to database:', saveError);
-          }
-
-          if (tourId) {
-            result.tourId = tourId;
+            
             console.log('📋 Returning tourId in response:', tourId);
           } else {
             console.warn('⚠️ Failed to save tour to database, but continuing...');
