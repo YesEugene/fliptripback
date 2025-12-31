@@ -129,9 +129,9 @@ export default async function handler(req, res) {
       address: place.formatted_address || '',
       rating: place.rating || null,
       user_ratings_total: place.user_ratings_total || 0,
-      price_level: place.price_level !== undefined ? priceLevelMap[place.price_level] || '' : '',
-      price_level_numeric: place.price_level !== undefined ? place.price_level : null,
-      approximate_cost: place.price_level !== undefined ? approximateCostMap[place.price_level] || '' : '',
+      price_level: place.price_level !== undefined && place.price_level !== null ? priceLevelMap[place.price_level] || '' : '',
+      price_level_numeric: place.price_level !== undefined && place.price_level !== null ? place.price_level : null,
+      approximate_cost: place.price_level !== undefined && place.price_level !== null ? approximateCostMap[place.price_level] || '' : '',
       types: place.types || [],
       location: place.geometry?.location ? {
         lat: place.geometry.location.lat,
