@@ -584,7 +584,8 @@ Return JSON (no markdown, no code blocks, just JSON):
         alternativeLocations: alternativesWithPhotos.map(alt => ({
           name: alt.name || alt.title,
           hasPhotos: !!alt.photos && alt.photos.length > 0,
-          photosCount: alt.photos?.length || 0
+          photosCount: alt.photos?.length || 0,
+          photos: alt.photos || []
         }))
       });
       
