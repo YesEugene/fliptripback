@@ -501,17 +501,28 @@ Return JSON (no markdown, no code blocks, just JSON):
         finalMainPhotos = [fallbackPhoto];
       }
       
-      // Get photos for alternatives
+      // Get photos for alternatives - generate 1-3 photos per alternative
       const alternativesWithPhotos = await Promise.all(
         alternatives.slice(0, 2).map(async (alt) => {
           // For alternatives, use Unsplash (they don't have Google Places data)
-          const altPhoto = await this.getUnsplashPhoto(`${city} ${alt.name}`);
+          // Generate 1-3 photos for variety
+          const numPhotos = Math.floor(Math.random() * 3) + 1; // 1-3 photos
+          const photoQueries = [
+            `${city} ${alt.name}`,
+            `${city} ${alt.name} restaurant`,
+            `${city} ${alt.name} cafe`
+          ].slice(0, numPhotos);
+          
+          const altPhotos = await Promise.all(
+            photoQueries.map(query => this.getUnsplashPhoto(query))
+          );
+          
           return {
             ...alt,
             name: alt.name || alt.title || 'Alternative location',
             title: alt.name || alt.title || 'Alternative location', // Frontend expects 'title'
-            photos: [altPhoto], // Use photos array for consistency
-            photo: altPhoto // Keep single photo for backward compatibility
+            photos: altPhotos.filter(photo => photo), // Filter out any null/undefined photos
+            photo: altPhotos[0] || null // Keep single photo for backward compatibility
           };
         })
       );
