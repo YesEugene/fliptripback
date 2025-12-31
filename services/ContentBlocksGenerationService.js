@@ -30,19 +30,59 @@ export class ContentBlocksGenerationService {
    */
   async getUnsplashPhoto(query) {
     try {
-      // Use Unsplash Source API (no key required for basic usage)
-      // Format: https://source.unsplash.com/800x600/?{query}
-      // This API redirects to actual image URL
+      // Use Unsplash's public API with random images
+      // Since source.unsplash.com is deprecated, we'll use a curated list of high-quality images
+      // or use the Unsplash API with a simple fetch approach
+      
+      // For now, use a hash-based approach to get consistent images for the same query
+      // This uses Unsplash's image service directly
       const encodedQuery = encodeURIComponent(query);
-      // Use Unsplash Source API - it will redirect to actual image
-      const photoUrl = `https://source.unsplash.com/800x600/?${encodedQuery}`;
-      console.log(`📸 Getting Unsplash photo for query: "${query}" -> ${photoUrl}`);
-      return photoUrl;
+      
+      // Use Unsplash's image service with random seed based on query
+      // This ensures we get different images for different queries
+      const seed = this.hashString(query);
+      const photoUrl = `https://images.unsplash.com/photo-${1500000000000 + (seed % 1000000)}?w=800&h=600&fit=crop&q=80`;
+      
+      // Alternative: Use a curated list of popular Unsplash photos
+      // This is more reliable than source.unsplash.com
+      const curatedPhotos = [
+        'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=800&h=600&fit=crop&q=80', // Nature
+        'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=800&h=600&fit=crop&q=80', // City
+        'https://images.unsplash.com/photo-1516550893923-42d28e5677af?w=800&h=600&fit=crop&q=80', // Architecture
+        'https://images.unsplash.com/photo-1539037116277-4db20889f2d2?w=800&h=600&fit=crop&q=80', // Travel
+        'https://images.unsplash.com/photo-1534351590666-13e3e96b5017?w=800&h=600&fit=crop&q=80', // Street
+        'https://images.unsplash.com/photo-1529260830199-42c24126f198?w=800&h=600&fit=crop&q=80', // Landscape
+        'https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=800&h=600&fit=crop&q=80', // Urban
+        'https://images.unsplash.com/photo-1587330979470-3595ac045ab0?w=800&h=600&fit=crop&q=80', // Culture
+        'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=800&h=600&fit=crop&q=80', // Food
+        'https://images.unsplash.com/photo-1541849546-216549ae216d?w=800&h=600&fit=crop&q=80'  // Lifestyle
+      ];
+      
+      // Select photo based on query hash for consistency
+      const selectedPhoto = curatedPhotos[seed % curatedPhotos.length];
+      
+      console.log(`📸 Getting Unsplash photo for query: "${query}" -> ${selectedPhoto}`);
+      return selectedPhoto;
     } catch (error) {
       console.error('❌ Error getting Unsplash photo:', error);
       // Fallback to a generic city photo
       return 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=800&h=600&fit=crop&q=80';
     }
+  }
+  
+  /**
+   * Simple hash function to convert string to number
+   * @param {string} str - String to hash
+   * @returns {number} Hash value
+   */
+  hashString(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return Math.abs(hash);
   }
 
   /**
