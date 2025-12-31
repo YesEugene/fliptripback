@@ -539,7 +539,7 @@ Return JSON (no markdown, no code blocks, just JSON):
         : '';
       
       // Return structure compatible with location block (frontend expects alternativeLocations, not alternatives)
-      return {
+      const result = {
         tour_block_id: null, // Will be set when saving
         tour_item_ids: [], // Will be set when saving
         mainLocation: {
