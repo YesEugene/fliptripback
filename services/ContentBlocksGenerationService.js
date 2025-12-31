@@ -619,10 +619,22 @@ Return only the caption text, no quotes.`;
       };
     } catch (error) {
       console.error('❌ Error generating photo block:', error);
-      return {
-        photo: null,
-        caption: 'A moment between places.'
-      };
+      // Fallback: try to get at least one photo from Unsplash
+      try {
+        const fallbackPhoto = await this.getUnsplashPhoto(city);
+        return {
+          photos: [fallbackPhoto], // Use photos array
+          photo: fallbackPhoto, // Keep single photo for backward compatibility
+          caption: 'A moment between places.'
+        };
+      } catch (fallbackError) {
+        console.error('❌ Error getting fallback photo:', fallbackError);
+        return {
+          photos: [], // Empty array if all fails
+          photo: null,
+          caption: 'A moment between places.'
+        };
+      }
     }
   }
 
