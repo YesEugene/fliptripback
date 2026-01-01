@@ -205,14 +205,19 @@ export class ContentBlocksGenerationService {
           });
           
           if (response.data.results && response.data.results.length > 0) {
-            // Take first result and get its photos
-            const place = response.data.results[0];
-            if (place.photos && place.photos.length > 0) {
-              const photos = place.photos.slice(0, 3).map(photo => 
-                `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photo.photo_reference}&key=${process.env.GOOGLE_MAPS_KEY}`
-              );
-              allPhotos.push(...photos);
-              console.log(`✅ Found ${photos.length} photos from ${place.name} in ${city}`);
+            // Get photos from multiple results to ensure diversity
+            for (let i = 0; i < Math.min(3, response.data.results.length) && allPhotos.length < count; i++) {
+              const place = response.data.results[i];
+              if (place.photos && place.photos.length > 0) {
+                // Get first photo from each place (to ensure different places)
+                const photo = place.photos[0];
+                if (!seenPhotoRefs.has(photo.photo_reference)) {
+                  const photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photo.photo_reference}&key=${process.env.GOOGLE_MAPS_KEY}`;
+                  allPhotos.push(photoUrl);
+                  seenPhotoRefs.add(photo.photo_reference);
+                  console.log(`✅ Found photo from ${place.name} in ${city}`);
+                }
+              }
             }
           }
         } catch (queryError) {
