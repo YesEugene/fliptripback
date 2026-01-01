@@ -199,8 +199,8 @@ export class ContentBlocksGenerationService {
             params: {
               query: query,
               key: process.env.GOOGLE_MAPS_KEY,
-              language: 'en',
-              type: 'tourist_attraction' // Focus on tourist attractions
+              language: 'en'
+              // Removed type restriction to get more diverse results
             }
           });
           
