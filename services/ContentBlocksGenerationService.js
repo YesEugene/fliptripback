@@ -31,6 +31,20 @@ export class ContentBlocksGenerationService {
    * @param {string} city - City name
    * @returns {Promise<Object|null>} Place data with photos or null
    */
+  /**
+   * Check if address contains city name (case-insensitive)
+   * @param {string} address - Full address string
+   * @param {string} city - City name to check
+   * @returns {boolean} True if address contains city
+   */
+  addressMatchesCity(address, city) {
+    if (!address || !city) return false;
+    const addressLower = address.toLowerCase();
+    const cityLower = city.toLowerCase();
+    // Check if city name appears in address
+    return addressLower.includes(cityLower);
+  }
+
   async searchGooglePlace(query, city) {
     try {
       if (!process.env.GOOGLE_MAPS_KEY) {
@@ -50,14 +64,50 @@ export class ContentBlocksGenerationService {
       });
       
       if (response.data.results && response.data.results.length > 0) {
-        const place = response.data.results[0];
+        // Try to find a place that matches the city
+        let place = null;
+        for (const result of response.data.results) {
+          const address = result.formatted_address || '';
+          // Check if address contains city name
+          if (this.addressMatchesCity(address, city)) {
+            place = result;
+            break;
+          }
+        }
+        
+        // If no exact match, use first result but log warning
+        if (!place) {
+          place = response.data.results[0];
+          const address = place.formatted_address || '';
+          console.warn(`⚠️ Found place "${place.name}" but address "${address}" doesn't match city "${city}"`);
+          // Only return if we're confident it's in the same region
+          // Check if address contains any part of city name or is in same country
+          if (!this.addressMatchesCity(address, city)) {
+            // Try to find a better match in remaining results
+            for (let i = 1; i < Math.min(5, response.data.results.length); i++) {
+              const altResult = response.data.results[i];
+              const altAddress = altResult.formatted_address || '';
+              if (this.addressMatchesCity(altAddress, city)) {
+                place = altResult;
+                console.log(`✅ Found better match: ${place.name} in ${city}`);
+                break;
+              }
+            }
+            // If still no match, return null to avoid showing wrong city
+            if (!this.addressMatchesCity(place.formatted_address || '', city)) {
+              console.warn(`❌ No location found in ${city} for query "${query}"`);
+              return null;
+            }
+          }
+        }
+        
         const photos = place.photos && place.photos.length > 0
           ? place.photos.slice(0, 10).map(photo => 
               `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photo.photo_reference}&key=${process.env.GOOGLE_MAPS_KEY}`
             )
           : [];
         
-        console.log(`✅ Found Google Place: ${place.name} with ${photos.length} photos`);
+        console.log(`✅ Found Google Place: ${place.name} in ${city} with ${photos.length} photos`);
         
         return {
           name: place.name,
@@ -215,6 +265,25 @@ export class ContentBlocksGenerationService {
 
     const blocks = [];
     let orderIndex = 0;
+    
+    // Track used locations to avoid duplicates
+    const usedLocationNames = new Set();
+    const usedPlaceIds = new Set();
+    
+    // Helper function to check if location is already used
+    const isLocationUsed = (location) => {
+      const name = location?.realPlace?.name || location?.name || '';
+      const placeId = location?.realPlace?.place_id || location?.place_id || '';
+      return usedLocationNames.has(name.toLowerCase()) || usedPlaceIds.has(placeId);
+    };
+    
+    // Helper function to mark location as used
+    const markLocationAsUsed = (location) => {
+      const name = location?.realPlace?.name || location?.name || '';
+      const placeId = location?.realPlace?.place_id || location?.place_id || '';
+      if (name) usedLocationNames.add(name.toLowerCase());
+      if (placeId) usedPlaceIds.add(placeId);
+    };
 
     // 1. TITLE BLOCK
     const titleBlock = await this.generateTitleBlock({ city, concept, interests, audience });
@@ -237,7 +306,8 @@ export class ContentBlocksGenerationService {
       const time = loc.time || loc.slot?.time;
       return time && (time.startsWith('09:') || time.startsWith('10:00'));
     });
-    if (breakfastLocation) {
+    if (breakfastLocation && !isLocationUsed(breakfastLocation)) {
+      markLocationAsUsed(breakfastLocation);
       const locationBlock = await this.generateLocationBlock({
         location: breakfastLocation,
         timeSlot: '09:00-10:00',
@@ -245,7 +315,9 @@ export class ContentBlocksGenerationService {
         city,
         concept,
         interests,
-        audience
+        audience,
+        usedLocationNames,
+        usedPlaceIds
       });
       blocks.push({
         block_type: 'location',
@@ -280,7 +352,8 @@ export class ContentBlocksGenerationService {
       const time = loc.time || loc.slot?.time;
       return time && (time.startsWith('10:') || time.startsWith('11:') || time.startsWith('12:00'));
     });
-    if (morningLocation) {
+    if (morningLocation && !isLocationUsed(morningLocation)) {
+      markLocationAsUsed(morningLocation);
       const locationBlock = await this.generateLocationBlock({
         location: morningLocation,
         timeSlot: '10:30-12:00',
@@ -288,7 +361,9 @@ export class ContentBlocksGenerationService {
         city,
         concept,
         interests,
-        audience
+        audience,
+        usedLocationNames,
+        usedPlaceIds
       });
       blocks.push({
         block_type: 'location',
@@ -309,7 +384,8 @@ export class ContentBlocksGenerationService {
       const time = loc.time || loc.slot?.time;
       return time && (time.startsWith('12:') || time.startsWith('13:') || time.startsWith('14:') || time.startsWith('15:00'));
     });
-    if (lunchLocation) {
+    if (lunchLocation && !isLocationUsed(lunchLocation)) {
+      markLocationAsUsed(lunchLocation);
       const locationBlock = await this.generateLocationBlock({
         location: lunchLocation,
         timeSlot: '12:30-15:00',
@@ -317,7 +393,9 @@ export class ContentBlocksGenerationService {
         city,
         concept,
         interests,
-        audience
+        audience,
+        usedLocationNames,
+        usedPlaceIds
       });
       blocks.push({
         block_type: 'location',
@@ -352,7 +430,8 @@ export class ContentBlocksGenerationService {
       const time = loc.time || loc.slot?.time;
       return time && (time.startsWith('15:') || time.startsWith('16:') || time.startsWith('17:00'));
     });
-    if (afternoonLocation) {
+    if (afternoonLocation && !isLocationUsed(afternoonLocation)) {
+      markLocationAsUsed(afternoonLocation);
       const locationBlock = await this.generateLocationBlock({
         location: afternoonLocation,
         timeSlot: '15:30-17:00',
@@ -360,7 +439,9 @@ export class ContentBlocksGenerationService {
         city,
         concept,
         interests,
-        audience
+        audience,
+        usedLocationNames,
+        usedPlaceIds
       });
       blocks.push({
         block_type: 'location',
@@ -395,7 +476,8 @@ export class ContentBlocksGenerationService {
       const time = loc.time || loc.slot?.time;
       return time && (time.startsWith('17:') || time.startsWith('18:') || time.startsWith('19:00'));
     });
-    if (preDinnerLocation) {
+    if (preDinnerLocation && !isLocationUsed(preDinnerLocation)) {
+      markLocationAsUsed(preDinnerLocation);
       const locationBlock = await this.generateLocationBlock({
         location: preDinnerLocation,
         timeSlot: '17:30-19:00',
@@ -403,7 +485,9 @@ export class ContentBlocksGenerationService {
         city,
         concept,
         interests,
-        audience
+        audience,
+        usedLocationNames,
+        usedPlaceIds
       });
       blocks.push({
         block_type: 'location',
@@ -555,7 +639,7 @@ Return only the text, no markdown, no quotes.`;
   /**
    * Generate LOCATION block with 1 main + 2 alternatives
    */
-  async generateLocationBlock({ location, timeSlot, purpose, city, concept, interests, audience }) {
+  async generateLocationBlock({ location, timeSlot, purpose, city, concept, interests, audience, usedLocationNames = new Set(), usedPlaceIds = new Set() }) {
     const locationName = location.realPlace?.name || location.name || location.title;
     const locationAddress = location.realPlace?.address || location.location || location.address;
     const category = location.category || location.realPlace?.category;
@@ -665,12 +749,24 @@ Return JSON (no markdown, no code blocks, just JSON):
       }
       
       // Get photos for alternatives - search Google Places for real photos
+      // Filter out already used locations
+      const availableAlternatives = alternatives.filter(alt => {
+        const altName = (alt.name || alt.title || '').toLowerCase();
+        return !usedLocationNames.has(altName);
+      });
+      
       const alternativesWithPhotos = await Promise.all(
-        alternatives.slice(0, 2).map(async (alt) => {
+        availableAlternatives.slice(0, 2).map(async (alt) => {
           const altName = alt.name || alt.title || 'Alternative location';
           
-          // Try to find location in Google Places to get real photos
+          // Try to find location in Google Places to get real photos (with city filter)
           const googlePlace = await this.searchGooglePlace(altName, city);
+          
+          // If found, mark as used
+          if (googlePlace && googlePlace.place_id) {
+            usedPlaceIds.add(googlePlace.place_id);
+            usedLocationNames.add(googlePlace.name.toLowerCase());
+          }
           
           let altPhotos = [];
           let altAddress = alt.address || '';
