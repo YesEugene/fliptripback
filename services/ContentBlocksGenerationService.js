@@ -75,6 +75,73 @@ export class ContentBlocksGenerationService {
       return null;
     }
   }
+  
+  /**
+   * Search for popular places in a city via Google Places API
+   * Used to get real photos of the city for Photo and 3columns blocks
+   * @param {string} city - City name
+   * @param {number} count - Number of places to find
+   * @param {Array<string>} queries - Optional search queries (e.g., ['landmarks', 'cafes', 'viewpoints'])
+   * @returns {Promise<Array<string>>} Array of photo URLs
+   */
+  async searchCityPhotos(city, count = 3, queries = null) {
+    try {
+      if (!process.env.GOOGLE_MAPS_KEY) {
+        console.warn('⚠️ Google Maps API key not configured');
+        return [];
+      }
+      
+      // Default queries if not provided
+      const searchQueries = queries || [
+        `landmarks ${city}`,
+        `popular places ${city}`,
+        `tourist attractions ${city}`
+      ];
+      
+      const allPhotos = [];
+      
+      // Search for each query and collect photos
+      for (const query of searchQueries.slice(0, count)) {
+        try {
+          console.log(`🔍 Searching Google Places for city photos: ${query}`);
+          
+          const response = await this.googleMapsClient.textSearch({
+            params: {
+              query: query,
+              key: process.env.GOOGLE_MAPS_KEY,
+              language: 'en',
+              type: 'tourist_attraction' // Focus on tourist attractions
+            }
+          });
+          
+          if (response.data.results && response.data.results.length > 0) {
+            // Take first result and get its photos
+            const place = response.data.results[0];
+            if (place.photos && place.photos.length > 0) {
+              const photos = place.photos.slice(0, 3).map(photo => 
+                `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photo.photo_reference}&key=${process.env.GOOGLE_MAPS_KEY}`
+              );
+              allPhotos.push(...photos);
+              console.log(`✅ Found ${photos.length} photos from ${place.name} in ${city}`);
+            }
+          }
+        } catch (queryError) {
+          console.warn(`⚠️ Error searching for "${query}":`, queryError.message || queryError);
+          // Continue with next query
+        }
+      }
+      
+      // If we got photos, return them (up to count)
+      if (allPhotos.length > 0) {
+        return allPhotos.slice(0, count);
+      }
+      
+      return [];
+    } catch (error) {
+      console.warn(`⚠️ Error searching city photos for "${city}":`, error.message || error);
+      return [];
+    }
+  }
 
   /**
    * Get photo from Unsplash (no API key needed for basic usage)
@@ -976,25 +1043,39 @@ Return JSON:
         });
       }
       
+      // If not enough location photos, search for popular places in the city
+      if (locationPhotos.length < 3) {
+        console.log(`🔍 Not enough location photos (${locationPhotos.length}), searching Google Places for city photos: ${city}`);
+        const cityPhotos = await this.searchCityPhotos(city, 3, [
+          `landmarks ${city}`,
+          `cafes ${city}`,
+          `viewpoints ${city}`
+        ]);
+        if (cityPhotos.length > 0) {
+          locationPhotos.push(...cityPhotos);
+          console.log(`✅ Added ${cityPhotos.length} photos from Google Places, total: ${locationPhotos.length}`);
+        }
+      }
+      
       const columnsWithPhotos = await Promise.all(
         content.columns.map(async (col, index) => {
           let photoUrl = null;
           
-          // Use location photos if available
+          // Use location/city photos if available
           if (locationPhotos.length > 0) {
             // Use different photos for each column
             const photoIndex = index % locationPhotos.length;
             photoUrl = locationPhotos[photoIndex];
-            console.log(`📸 Using location photo ${photoIndex + 1} for 3columns block column ${index + 1}`);
+            console.log(`📸 Using location/city photo ${photoIndex + 1} for 3columns block column ${index + 1}`);
           } else {
-            // Fallback to Unsplash
+            // Final fallback to Unsplash
             const photoQueries = [
-              `${city} afternoon`,
-              `${city} evening`,
-              `${city} cityscape`
+              `${city} travel`,
+              `${city} cityscape`,
+              `${city} landmarks`
             ];
             photoUrl = await this.getUnsplashPhoto(photoQueries[index] || `${city}`);
-            console.log(`⚠️ No location photos, using Unsplash for 3columns block column ${index + 1}`);
+            console.log(`⚠️ No location/city photos, using Unsplash for 3columns block column ${index + 1}`);
           }
           
           return {
