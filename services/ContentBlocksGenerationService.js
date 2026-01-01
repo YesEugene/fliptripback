@@ -1307,45 +1307,59 @@ Return JSON:
             nearbyQueries.push(`cafes near ${locName} ${city}`);
             nearbyQueries.push(`viewpoints near ${locName} ${city}`);
             nearbyQueries.push(`local markets ${city}`);
+            nearbyQueries.push(`parks ${city}`);
+            nearbyQueries.push(`streets ${city}`);
           }
         });
       }
       
       // If we have nearby queries, use them; otherwise use general city photos
       const searchQueries = nearbyQueries.length > 0 
-        ? nearbyQueries.slice(0, 3)
-        : [`cafes ${city}`, `viewpoints ${city}`, `local markets ${city}`];
+        ? nearbyQueries.slice(0, 5)
+        : [`cafes ${city}`, `viewpoints ${city}`, `local markets ${city}`, `parks ${city}`, `streets ${city}`];
       
       console.log(`🔍 Searching Google Places for interesting places near locations: ${city}`);
-      const cityPhotos = await this.searchCityPhotos(city, 5, searchQueries);
+      // Get more photos to ensure we have at least 3 unique ones
+      const cityPhotos = await this.searchCityPhotos(city, 10, searchQueries);
       
       // Filter out already used photos
       const availablePhotos = cityPhotos.filter(photoUrl => !usedPhotoUrls.has(photoUrl));
       
-      if (availablePhotos.length > 0) {
-        // Use 3 different photos for 3 columns
+      if (availablePhotos.length >= 3) {
+        // Use exactly 3 different photos for 3 columns
         locationPhotos = availablePhotos.slice(0, 3);
         // Mark photos as used
         locationPhotos.forEach(photo => usedPhotoUrls.add(photo));
         console.log(`✅ Using ${locationPhotos.length} unique photos from Google Places for 3columns block in ${city}`);
+      } else if (availablePhotos.length > 0) {
+        // If we have some photos but less than 3, use what we have and fill the rest with Unsplash
+        locationPhotos = availablePhotos;
+        locationPhotos.forEach(photo => usedPhotoUrls.add(photo));
+        console.log(`⚠️ Only ${availablePhotos.length} unique photos found, will use Unsplash for remaining columns`);
       }
       
       const columnsWithPhotos = await Promise.all(
         content.columns.map(async (col, index) => {
           let photoUrl = null;
           
-          // Use location/city photos if available
-          if (locationPhotos.length > 0) {
-            // Use different photos for each column
+          // Use location/city photos if available for this specific column
+          if (locationPhotos.length > index) {
+            // Use different photo for each column (index 0, 1, 2)
+            photoUrl = locationPhotos[index];
+            console.log(`📸 Using location/city photo ${index + 1} for 3columns block column ${index + 1}`);
+          } else if (locationPhotos.length > 0) {
+            // If we have some photos but not enough, cycle through them
             const photoIndex = index % locationPhotos.length;
             photoUrl = locationPhotos[photoIndex];
-            console.log(`📸 Using location/city photo ${photoIndex + 1} for 3columns block column ${index + 1}`);
+            console.log(`⚠️ Using location/city photo ${photoIndex + 1} (reused) for 3columns block column ${index + 1}`);
           } else {
-            // Final fallback to Unsplash
+            // Final fallback to Unsplash - use different queries for each column
             const photoQueries = [
               `${city} travel`,
               `${city} cityscape`,
-              `${city} landmarks`
+              `${city} landmarks`,
+              `${city} streets`,
+              `${city} culture`
             ];
             photoUrl = await this.getUnsplashPhoto(photoQueries[index] || `${city}`);
             console.log(`⚠️ No location/city photos, using Unsplash for 3columns block column ${index + 1}`);
