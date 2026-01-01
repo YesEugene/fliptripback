@@ -201,8 +201,13 @@ export class ContentBlocksStorageService {
     
     console.log('💾 Saving location block with alternativeLocations:', {
       mainLocation: updatedContent.mainLocation?.title || updatedContent.mainLocation?.name,
+      mainLocationPhotos: updatedContent.mainLocation?.photos?.length || 0,
       alternativeLocationsCount: preservedAlternativeLocations.length,
-      alternativeLocations: preservedAlternativeLocations.map(alt => alt.name || alt.title)
+      alternativeLocations: preservedAlternativeLocations.map(alt => ({
+        name: alt.name || alt.title,
+        photosCount: (alt.photos || (alt.photo ? [alt.photo] : [])).length,
+        hasPhotos: !!(alt.photos || alt.photo)
+      }))
     });
 
     // Save content block
