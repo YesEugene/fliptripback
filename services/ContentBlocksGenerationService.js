@@ -685,7 +685,8 @@ Return JSON (no markdown, no code blocks, just JSON):
           rating: rating,
           user_ratings_total: userRatingsTotal,
           price_level: priceLevel,
-          approx_cost: approximateCost
+          approx_cost: approximateCost,
+          place_id: location.realPlace?.place_id || location.realPlace?.googlePlaceId || null // For Google Maps link
         },
         alternativeLocations: alternativesWithPhotos // Frontend expects 'alternativeLocations', not 'alternatives'
       };
