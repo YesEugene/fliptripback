@@ -949,8 +949,9 @@ Return only the caption text, no quotes.`;
 
   /**
    * Generate SLIDE block
+   * @param {Object} params - { context, city, concept, interests, locations }
    */
-  async generateSlideBlock({ context, city, concept, interests }) {
+  async generateSlideBlock({ context, city, concept, interests, locations = [] }) {
     const prompt = `Create a slide with:
 - A short title (max 5 words)
 - A short description (2 sentences)
