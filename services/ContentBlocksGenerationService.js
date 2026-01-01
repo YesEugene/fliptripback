@@ -42,83 +42,123 @@ export class ContentBlocksGenerationService {
     const addressLower = address.toLowerCase();
     const cityLower = city.toLowerCase();
     // Check if city name appears in address
-    return addressLower.includes(cityLower);
+    // Also check for common city name variations (e.g., "Lisboa" vs "Lisbon")
+    const cityVariations = {
+      'lisboa': ['lisbon', 'lisboa'],
+      'paris': ['paris'],
+      'rome': ['roma', 'rome'],
+      'barcelona': ['barcelona'],
+      'madrid': ['madrid'],
+      'amsterdam': ['amsterdam'],
+      'berlin': ['berlin'],
+      'vienna': ['wien', 'vienna'],
+      'prague': ['praha', 'prague']
+    };
+    
+    // Check exact match
+    if (addressLower.includes(cityLower)) return true;
+    
+    // Check variations
+    const variations = cityVariations[cityLower] || [cityLower];
+    for (const variation of variations) {
+      if (addressLower.includes(variation)) return true;
+    }
+    
+    return false;
   }
 
-  async searchGooglePlace(query, city) {
+  async searchGooglePlace(query, city, options = {}) {
     try {
       if (!process.env.GOOGLE_MAPS_KEY) {
         console.warn('⚠️ Google Maps API key not configured');
         return null;
       }
       
-      const searchQuery = `${query} ${city}`;
-      console.log(`🔍 Searching Google Places for alternative location: ${searchQuery}`);
+      const { strictCityMatch = false, maxResults = 5 } = options;
       
-      const response = await this.googleMapsClient.textSearch({
-        params: {
-          query: searchQuery,
-          key: process.env.GOOGLE_MAPS_KEY,
-          language: 'en'
-        }
-      });
+      // Try multiple search queries
+      const searchQueries = [
+        `${query} ${city}`, // Exact query with city
+        query, // Just the query (Google Places is usually good at geolocation)
+        `${query} near ${city}` // Alternative format
+      ];
       
-      if (response.data.results && response.data.results.length > 0) {
-        // Try to find a place that matches the city
-        let place = null;
-        for (const result of response.data.results) {
-          const address = result.formatted_address || '';
-          // Check if address contains city name
-          if (this.addressMatchesCity(address, city)) {
-            place = result;
-            break;
-          }
-        }
+      for (const searchQuery of searchQueries) {
+        console.log(`🔍 Searching Google Places: "${searchQuery}"`);
         
-        // If no exact match, use first result but log warning
-        if (!place) {
-          place = response.data.results[0];
-          const address = place.formatted_address || '';
-          console.warn(`⚠️ Found place "${place.name}" but address "${address}" doesn't match city "${city}"`);
-          // Only return if we're confident it's in the same region
-          // Check if address contains any part of city name or is in same country
-          if (!this.addressMatchesCity(address, city)) {
-            // Try to find a better match in remaining results
-            for (let i = 1; i < Math.min(5, response.data.results.length); i++) {
-              const altResult = response.data.results[i];
-              const altAddress = altResult.formatted_address || '';
-              if (this.addressMatchesCity(altAddress, city)) {
-                place = altResult;
-                console.log(`✅ Found better match: ${place.name} in ${city}`);
+        try {
+          const response = await this.googleMapsClient.textSearch({
+            params: {
+              query: searchQuery,
+              key: process.env.GOOGLE_MAPS_KEY,
+              language: 'en'
+            }
+          });
+          
+          if (response.data.results && response.data.results.length > 0) {
+            // Try to find a place that matches the city
+            let place = null;
+            
+            // First, try to find exact city match
+            for (const result of response.data.results) {
+              const address = result.formatted_address || '';
+              if (this.addressMatchesCity(address, city)) {
+                place = result;
+                console.log(`✅ Found exact city match: ${place.name} in ${city}`);
                 break;
               }
             }
-            // If still no match, return null to avoid showing wrong city
-            if (!this.addressMatchesCity(place.formatted_address || '', city)) {
-              console.warn(`❌ No location found in ${city} for query "${query}"`);
-              return null;
+            
+            // If no exact match and strictCityMatch is false, use first result
+            if (!place && !strictCityMatch) {
+              // Check first few results to see if any are in the city
+              for (let i = 0; i < Math.min(maxResults, response.data.results.length); i++) {
+                const result = response.data.results[i];
+                const address = result.formatted_address || '';
+                
+                // If address matches city, use it
+                if (this.addressMatchesCity(address, city)) {
+                  place = result;
+                  console.log(`✅ Found city match in result ${i + 1}: ${place.name}`);
+                  break;
+                }
+              }
+              
+              // If still no match, but we have results, use first one (Google Places is usually accurate)
+              if (!place && response.data.results.length > 0) {
+                place = response.data.results[0];
+                const address = place.formatted_address || '';
+                console.log(`⚠️ Using first result "${place.name}" (address: ${address.substring(0, 50)}...) - may not be in ${city}`);
+              }
+            }
+            
+            if (place) {
+              const photos = place.photos && place.photos.length > 0
+                ? place.photos.slice(0, 10).map(photo => 
+                    `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photo.photo_reference}&key=${process.env.GOOGLE_MAPS_KEY}`
+                  )
+                : [];
+              
+              console.log(`✅ Found Google Place: ${place.name} with ${photos.length} photos`);
+              
+              return {
+                name: place.name,
+                address: place.formatted_address || '',
+                photos: photos,
+                place_id: place.place_id,
+                rating: place.rating || null,
+                price_level: place.price_level !== undefined ? String(place.price_level) : null
+              };
             }
           }
+        } catch (searchError) {
+          console.warn(`⚠️ Search query "${searchQuery}" failed:`, searchError.message || searchError);
+          // Continue to next query
+          continue;
         }
-        
-        const photos = place.photos && place.photos.length > 0
-          ? place.photos.slice(0, 10).map(photo => 
-              `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photo.photo_reference}&key=${process.env.GOOGLE_MAPS_KEY}`
-            )
-          : [];
-        
-        console.log(`✅ Found Google Place: ${place.name} in ${city} with ${photos.length} photos`);
-        
-        return {
-          name: place.name,
-          address: place.formatted_address || '',
-          photos: photos,
-          place_id: place.place_id,
-          rating: place.rating || null,
-          price_level: place.price_level !== undefined ? String(place.price_level) : null
-        };
       }
       
+      console.warn(`❌ No location found for query "${query}" in ${city} after trying ${searchQueries.length} search queries`);
       return null;
     } catch (error) {
       console.warn(`⚠️ Google Places search error for "${query}":`, error.message || error);
@@ -781,21 +821,27 @@ Return JSON (no markdown, no code blocks, just JSON):
           // Try multiple search strategies to find the location in Google Places
           let googlePlace = null;
           
-          // Strategy 1: Search by exact name
-          googlePlace = await this.searchGooglePlace(altName, city);
+          // Strategy 1: Search by exact name (not strict city match - Google Places is usually accurate)
+          googlePlace = await this.searchGooglePlace(altName, city, { strictCityMatch: false });
           
-          // Strategy 2: If failed, try with address if available
+          // Strategy 2: If failed or no photos, try with address if available
           if ((!googlePlace || !googlePlace.photos || googlePlace.photos.length === 0) && alt.address) {
             console.log(`⚠️ First search failed for "${altName}", trying with address: ${alt.address}`);
             const addressQuery = `${altName} ${alt.address}`;
-            googlePlace = await this.searchGooglePlace(addressQuery, city);
+            googlePlace = await this.searchGooglePlace(addressQuery, city, { strictCityMatch: false });
           }
           
           // Strategy 3: If still failed, try with purpose/category context
           if ((!googlePlace || !googlePlace.photos || googlePlace.photos.length === 0) && purpose) {
             console.log(`⚠️ Second search failed for "${altName}", trying with purpose: ${purpose}`);
-            const purposeQuery = `${altName} ${purpose} ${city}`;
-            googlePlace = await this.searchGooglePlace(purposeQuery, city);
+            const purposeQuery = `${altName} ${purpose}`;
+            googlePlace = await this.searchGooglePlace(purposeQuery, city, { strictCityMatch: false });
+          }
+          
+          // Strategy 4: Try searching just the name without city (Google Places geolocation)
+          if ((!googlePlace || !googlePlace.photos || googlePlace.photos.length === 0)) {
+            console.log(`⚠️ Third search failed for "${altName}", trying name only`);
+            googlePlace = await this.searchGooglePlace(altName, city, { strictCityMatch: false });
           }
           
           // If found, mark as used
