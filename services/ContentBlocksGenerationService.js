@@ -778,8 +778,25 @@ Return JSON (no markdown, no code blocks, just JSON):
         availableAlternatives.slice(0, 2).map(async (alt) => {
           const altName = alt.name || alt.title || 'Alternative location';
           
-          // Try to find location in Google Places to get real photos (with city filter)
-          const googlePlace = await this.searchGooglePlace(altName, city);
+          // Try multiple search strategies to find the location in Google Places
+          let googlePlace = null;
+          
+          // Strategy 1: Search by exact name
+          googlePlace = await this.searchGooglePlace(altName, city);
+          
+          // Strategy 2: If failed, try with address if available
+          if ((!googlePlace || !googlePlace.photos || googlePlace.photos.length === 0) && alt.address) {
+            console.log(`⚠️ First search failed for "${altName}", trying with address: ${alt.address}`);
+            const addressQuery = `${altName} ${alt.address}`;
+            googlePlace = await this.searchGooglePlace(addressQuery, city);
+          }
+          
+          // Strategy 3: If still failed, try with purpose/category context
+          if ((!googlePlace || !googlePlace.photos || googlePlace.photos.length === 0) && purpose) {
+            console.log(`⚠️ Second search failed for "${altName}", trying with purpose: ${purpose}`);
+            const purposeQuery = `${altName} ${purpose} ${city}`;
+            googlePlace = await this.searchGooglePlace(purposeQuery, city);
+          }
           
           // If found, mark as used
           if (googlePlace && googlePlace.place_id) {
@@ -803,24 +820,10 @@ Return JSON (no markdown, no code blocks, just JSON):
             altPlaceId = googlePlace.place_id;
             console.log(`✅ Using ${altPhotos.length} Google Places photos (gallery) for alternative: ${altName}`);
           } else {
-            // If Google Places search failed, try searching with more specific query
-            console.log(`⚠️ Google Places search failed for "${altName}", trying more specific search`);
-            const moreSpecificQuery = `${altName} ${city} ${purpose}`;
-            const retryGooglePlace = await this.searchGooglePlace(moreSpecificQuery, city);
-            
-            if (retryGooglePlace && retryGooglePlace.photos && retryGooglePlace.photos.length > 0) {
-              altPhotos = retryGooglePlace.photos.slice(0, 5);
-              altAddress = retryGooglePlace.address || altAddress;
-              altRating = retryGooglePlace.rating;
-              altPriceLevel = retryGooglePlace.price_level;
-              altPlaceId = retryGooglePlace.place_id;
-              console.log(`✅ Retry successful: Using ${altPhotos.length} Google Places photos for alternative: ${altName}`);
-            } else {
-              // Final fallback: use Unsplash only if all Google Places searches fail
-              console.log(`⚠️ All Google Places searches failed for "${altName}", using Unsplash fallback`);
-              const fallbackPhoto = await this.getUnsplashPhoto(`${city} ${altName}`);
-              altPhotos = [fallbackPhoto];
-            }
+            // Final fallback: use Unsplash only if all Google Places searches fail
+            console.warn(`⚠️ All Google Places searches failed for "${altName}", using Unsplash fallback`);
+            const fallbackPhoto = await this.getUnsplashPhoto(`${city} ${altName}`);
+            altPhotos = [fallbackPhoto];
           }
           
           return {

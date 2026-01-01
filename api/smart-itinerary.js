@@ -443,7 +443,7 @@ async function findRealLocations(timeSlots, city, interestIds = []) {
               address: place.formatted_address,
               rating: place.rating || 4.0,
               priceLevel: place.price_level || 2,
-              photos: place.photos ? place.photos.slice(0, 3).map(photo => 
+              photos: place.photos ? place.photos.slice(0, 10).map(photo => 
                 `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photo.photo_reference}&key=${process.env.GOOGLE_MAPS_KEY}`
               ) : [],
               fromDatabase: false,
