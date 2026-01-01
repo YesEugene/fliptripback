@@ -741,14 +741,28 @@ Return JSON (no markdown, no code blocks, just JSON):
       }
       
       // Get photos for main location - use all photos from Google Places (up to 10)
-      const mainLocationPhotos = location.realPlace?.photos || [];
+      // First check if we have photos in realPlace
+      let mainLocationPhotos = location.realPlace?.photos || [];
+      
+      // If no photos in realPlace, try to search Google Places by name and address
+      if (mainLocationPhotos.length === 0 && locationName) {
+        console.log(`🔍 Main location has no photos, searching Google Places for: ${locationName} in ${city}`);
+        const googlePlace = await this.searchGooglePlace(locationName, city);
+        if (googlePlace && googlePlace.photos && googlePlace.photos.length > 0) {
+          mainLocationPhotos = googlePlace.photos;
+          console.log(`✅ Found ${mainLocationPhotos.length} photos for main location via Google Places search`);
+        }
+      }
+      
       let finalMainPhotos = [];
       
       if (mainLocationPhotos.length > 0) {
         // Use up to 10 photos from Google Places
         finalMainPhotos = mainLocationPhotos.slice(0, 10);
+        console.log(`✅ Using ${finalMainPhotos.length} photos for main location`);
       } else {
-        // Fallback to Unsplash if no Google Places photos
+        // Final fallback to Unsplash only if Google Places search also failed
+        console.warn(`⚠️ No Google Places photos found for main location "${locationName}", using Unsplash fallback`);
         const fallbackPhoto = await this.getUnsplashPhoto(`${city} ${locationName}`);
         finalMainPhotos = [fallbackPhoto];
       }
@@ -877,12 +891,13 @@ Return JSON (no markdown, no code blocks, just JSON):
       console.log('📍 Generated location block:', {
         mainLocation: result.mainLocation?.title || result.mainLocation?.name,
         mainLocationPhotos: result.mainLocation?.photos?.length || 0,
+        mainLocationPhotosArray: result.mainLocation?.photos?.slice(0, 3).map(p => p?.substring(0, 80)) || [],
         alternativeLocationsCount: alternativesWithPhotos.length,
         alternativeLocations: alternativesWithPhotos.map(alt => ({
           name: alt.name || alt.title,
           hasPhotos: !!alt.photos && alt.photos.length > 0,
           photosCount: alt.photos?.length || 0,
-          photos: alt.photos || []
+          photosArray: alt.photos?.slice(0, 3).map(p => p?.substring(0, 80)) || []
         }))
       });
       
