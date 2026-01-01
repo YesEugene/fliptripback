@@ -959,36 +959,16 @@ Return only the caption text, no quotes.`;
 
       const caption = response.choices[0].message.content.trim();
       
-      // Try to get photos from locations first (real photos from Google Places)
+      // IMPORTANT: Photo blocks should NOT use photos from locations
+      // They are meant to complement the story, not repeat location photos
+      // Search for popular places in the city via Google Places
       let photos = [];
-      if (locations && locations.length > 0) {
-        // Collect photos from all locations
-        const allLocationPhotos = [];
-        locations.forEach(loc => {
-          const locPhotos = loc.realPlace?.photos || [];
-          if (locPhotos.length > 0) {
-            allLocationPhotos.push(...locPhotos.slice(0, 3)); // Take up to 3 photos per location
-          }
-        });
-        
-        if (allLocationPhotos.length > 0) {
-          // Use 1-3 photos from locations (randomly select)
-          const numPhotos = Math.min(Math.floor(Math.random() * 3) + 1, allLocationPhotos.length);
-          const shuffled = [...allLocationPhotos].sort(() => Math.random() - 0.5);
-          photos = shuffled.slice(0, numPhotos);
-          console.log(`📸 Using ${photos.length} photos from locations for Photo block`);
-        }
-      }
-      
-      // If no location photos, search for popular places in the city via Google Places
-      if (photos.length === 0) {
-        console.log(`🔍 No location photos available, searching Google Places for city photos: ${city}`);
-        const cityPhotos = await this.searchCityPhotos(city, 3);
-        if (cityPhotos.length > 0) {
-          const numPhotos = Math.min(Math.floor(Math.random() * 3) + 1, cityPhotos.length);
-          photos = cityPhotos.slice(0, numPhotos);
-          console.log(`✅ Using ${photos.length} photos from Google Places for Photo block in ${city}`);
-        }
+      console.log(`🔍 Searching Google Places for city photos (NOT from locations): ${city}`);
+      const cityPhotos = await this.searchCityPhotos(city, 3);
+      if (cityPhotos.length > 0) {
+        const numPhotos = Math.min(Math.floor(Math.random() * 3) + 1, cityPhotos.length);
+        photos = cityPhotos.slice(0, numPhotos);
+        console.log(`✅ Using ${photos.length} photos from Google Places for Photo block in ${city}`);
       }
       
       // Final fallback to Unsplash if Google Places search failed
@@ -1083,36 +1063,16 @@ Return JSON:
 
       const content = JSON.parse(response.choices[0].message.content.trim());
       
-      // Try to get photos from locations first (real photos from Google Places)
+      // IMPORTANT: Slide blocks should NOT use photos from locations
+      // They are meant to complement the story, not repeat location photos
+      // Search for popular places in the city via Google Places
       let photos = [];
-      if (locations && locations.length > 0) {
-        // Collect photos from all locations
-        const allLocationPhotos = [];
-        locations.forEach(loc => {
-          const locPhotos = loc.realPlace?.photos || [];
-          if (locPhotos.length > 0) {
-            allLocationPhotos.push(...locPhotos.slice(0, 2)); // Take up to 2 photos per location
-          }
-        });
-        
-        if (allLocationPhotos.length > 0) {
-          // Use 1-3 photos from locations (randomly select)
-          const numPhotos = Math.min(Math.floor(Math.random() * 3) + 1, allLocationPhotos.length);
-          const shuffled = [...allLocationPhotos].sort(() => Math.random() - 0.5);
-          photos = shuffled.slice(0, numPhotos);
-          console.log(`📸 Using ${photos.length} photos from locations for Slide block`);
-        }
-      }
-      
-      // If no location photos, search for popular places in the city via Google Places
-      if (photos.length === 0) {
-        console.log(`🔍 No location photos available, searching Google Places for city photos: ${city}`);
-        const cityPhotos = await this.searchCityPhotos(city, 3);
-        if (cityPhotos.length > 0) {
-          const numPhotos = Math.min(Math.floor(Math.random() * 3) + 1, cityPhotos.length);
-          photos = cityPhotos.slice(0, numPhotos);
-          console.log(`✅ Using ${photos.length} photos from Google Places for Slide block in ${city}`);
-        }
+      console.log(`🔍 Searching Google Places for city photos (NOT from locations): ${city}`);
+      const cityPhotos = await this.searchCityPhotos(city, 3);
+      if (cityPhotos.length > 0) {
+        const numPhotos = Math.min(Math.floor(Math.random() * 3) + 1, cityPhotos.length);
+        photos = cityPhotos.slice(0, numPhotos);
+        console.log(`✅ Using ${photos.length} photos from Google Places for Slide block in ${city}`);
       }
       
       // Final fallback to Unsplash if Google Places search failed
@@ -1196,30 +1156,19 @@ Return JSON:
 
       const content = JSON.parse(response.choices[0].message.content.trim());
       
-      // Try to get photos from locations first (real photos from Google Places)
+      // IMPORTANT: 3columns blocks should NOT use photos from locations
+      // They are meant to complement the story, not repeat location photos
+      // Search for popular places in the city via Google Places
       let locationPhotos = [];
-      if (locations && locations.length > 0) {
-        // Collect photos from all locations
-        locations.forEach(loc => {
-          const locPhotos = loc.realPlace?.photos || [];
-          if (locPhotos.length > 0) {
-            locationPhotos.push(...locPhotos);
-          }
-        });
-      }
-      
-      // If not enough location photos, search for popular places in the city
-      if (locationPhotos.length < 3) {
-        console.log(`🔍 Not enough location photos (${locationPhotos.length}), searching Google Places for city photos: ${city}`);
-        const cityPhotos = await this.searchCityPhotos(city, 3, [
-          `landmarks ${city}`,
-          `cafes ${city}`,
-          `viewpoints ${city}`
-        ]);
-        if (cityPhotos.length > 0) {
-          locationPhotos.push(...cityPhotos);
-          console.log(`✅ Added ${cityPhotos.length} photos from Google Places, total: ${locationPhotos.length}`);
-        }
+      console.log(`🔍 Searching Google Places for city photos (NOT from locations): ${city}`);
+      const cityPhotos = await this.searchCityPhotos(city, 3, [
+        `landmarks ${city}`,
+        `cafes ${city}`,
+        `viewpoints ${city}`
+      ]);
+      if (cityPhotos.length > 0) {
+        locationPhotos = cityPhotos;
+        console.log(`✅ Using ${cityPhotos.length} photos from Google Places for 3columns block in ${city}`);
       }
       
       const columnsWithPhotos = await Promise.all(
