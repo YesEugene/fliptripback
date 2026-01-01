@@ -270,6 +270,9 @@ export class ContentBlocksGenerationService {
     const usedLocationNames = new Set();
     const usedPlaceIds = new Set();
     
+    // Track used photos in Photo/Slide/3columns blocks to avoid duplicates
+    const usedPhotoUrls = new Set();
+    
     // Helper function to check if location is already used
     const isLocationUsed = (location) => {
       const name = location?.realPlace?.name || location?.name || '';
@@ -961,14 +964,40 @@ Return only the caption text, no quotes.`;
       
       // IMPORTANT: Photo blocks should NOT use photos from locations
       // They are meant to complement the story, not repeat location photos
-      // Search for popular places in the city via Google Places
+      // Search for interesting places near the suggested locations
       let photos = [];
-      console.log(`🔍 Searching Google Places for city photos (NOT from locations): ${city}`);
-      const cityPhotos = await this.searchCityPhotos(city, 3);
-      if (cityPhotos.length > 0) {
-        const numPhotos = Math.min(Math.floor(Math.random() * 3) + 1, cityPhotos.length);
-        photos = cityPhotos.slice(0, numPhotos);
-        console.log(`✅ Using ${photos.length} photos from Google Places for Photo block in ${city}`);
+      
+      // Get context from nearby locations - search for interesting places near them
+      const nearbyQueries = [];
+      if (locations && locations.length > 0) {
+        locations.forEach(loc => {
+          const locName = loc.realPlace?.name || loc.name || '';
+          if (locName) {
+            // Search for interesting places near this location
+            nearbyQueries.push(`interesting places near ${locName} ${city}`);
+            nearbyQueries.push(`hidden gems ${city}`);
+            nearbyQueries.push(`local spots ${city}`);
+          }
+        });
+      }
+      
+      // If we have nearby queries, use them; otherwise use general city photos
+      const searchQueries = nearbyQueries.length > 0 
+        ? nearbyQueries.slice(0, 3)
+        : [`landmarks ${city}`, `hidden gems ${city}`, `local spots ${city}`];
+      
+      console.log(`🔍 Searching Google Places for interesting places near locations: ${city}`);
+      const cityPhotos = await this.searchCityPhotos(city, 5, searchQueries);
+      
+      // Filter out already used photos
+      const availablePhotos = cityPhotos.filter(photoUrl => !usedPhotoUrls.has(photoUrl));
+      
+      if (availablePhotos.length > 0) {
+        const numPhotos = Math.min(Math.floor(Math.random() * 3) + 1, availablePhotos.length);
+        photos = availablePhotos.slice(0, numPhotos);
+        // Mark photos as used
+        photos.forEach(photo => usedPhotoUrls.add(photo));
+        console.log(`✅ Using ${photos.length} unique photos from Google Places for Photo block in ${city}`);
       }
       
       // Final fallback to Unsplash if Google Places search failed
@@ -1065,14 +1094,40 @@ Return JSON:
       
       // IMPORTANT: Slide blocks should NOT use photos from locations
       // They are meant to complement the story, not repeat location photos
-      // Search for popular places in the city via Google Places
+      // Search for interesting places near the suggested locations
       let photos = [];
-      console.log(`🔍 Searching Google Places for city photos (NOT from locations): ${city}`);
-      const cityPhotos = await this.searchCityPhotos(city, 3);
-      if (cityPhotos.length > 0) {
-        const numPhotos = Math.min(Math.floor(Math.random() * 3) + 1, cityPhotos.length);
-        photos = cityPhotos.slice(0, numPhotos);
-        console.log(`✅ Using ${photos.length} photos from Google Places for Slide block in ${city}`);
+      
+      // Get context from nearby locations - search for interesting places near them
+      const nearbyQueries = [];
+      if (locations && locations.length > 0) {
+        locations.forEach(loc => {
+          const locName = loc.realPlace?.name || loc.name || '';
+          if (locName) {
+            // Search for interesting places near this location
+            nearbyQueries.push(`scenic views near ${locName} ${city}`);
+            nearbyQueries.push(`local life ${city}`);
+            nearbyQueries.push(`street scenes ${city}`);
+          }
+        });
+      }
+      
+      // If we have nearby queries, use them; otherwise use general city photos
+      const searchQueries = nearbyQueries.length > 0 
+        ? nearbyQueries.slice(0, 3)
+        : [`scenic views ${city}`, `local life ${city}`, `street scenes ${city}`];
+      
+      console.log(`🔍 Searching Google Places for interesting places near locations: ${city}`);
+      const cityPhotos = await this.searchCityPhotos(city, 5, searchQueries);
+      
+      // Filter out already used photos
+      const availablePhotos = cityPhotos.filter(photoUrl => !usedPhotoUrls.has(photoUrl));
+      
+      if (availablePhotos.length > 0) {
+        const numPhotos = Math.min(Math.floor(Math.random() * 3) + 1, availablePhotos.length);
+        photos = availablePhotos.slice(0, numPhotos);
+        // Mark photos as used
+        photos.forEach(photo => usedPhotoUrls.add(photo));
+        console.log(`✅ Using ${photos.length} unique photos from Google Places for Slide block in ${city}`);
       }
       
       // Final fallback to Unsplash if Google Places search failed
