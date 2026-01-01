@@ -987,20 +987,54 @@ Return JSON:
 
       const content = JSON.parse(response.choices[0].message.content.trim());
       
-      // Get 1-3 photos from Unsplash (Google Places not available)
-      const photoQueries = [
-        `${city} ${concept}`,
-        `${city} ${interests?.[0] || 'travel'}`,
-        `${city} street`
-      ].filter(Boolean);
+      // Try to get photos from locations first (real photos from Google Places)
+      let photos = [];
+      if (locations && locations.length > 0) {
+        // Collect photos from all locations
+        const allLocationPhotos = [];
+        locations.forEach(loc => {
+          const locPhotos = loc.realPlace?.photos || [];
+          if (locPhotos.length > 0) {
+            allLocationPhotos.push(...locPhotos.slice(0, 2)); // Take up to 2 photos per location
+          }
+        });
+        
+        if (allLocationPhotos.length > 0) {
+          // Use 1-3 photos from locations (randomly select)
+          const numPhotos = Math.min(Math.floor(Math.random() * 3) + 1, allLocationPhotos.length);
+          const shuffled = [...allLocationPhotos].sort(() => Math.random() - 0.5);
+          photos = shuffled.slice(0, numPhotos);
+          console.log(`📸 Using ${photos.length} photos from locations for Slide block`);
+        }
+      }
       
-      // Get 1-3 photos (randomly choose 1-3)
-      const numPhotos = Math.floor(Math.random() * 3) + 1; // 1-3 photos
-      const selectedQueries = photoQueries.slice(0, numPhotos);
+      // If no location photos, search for popular places in the city via Google Places
+      if (photos.length === 0) {
+        console.log(`🔍 No location photos available, searching Google Places for city photos: ${city}`);
+        const cityPhotos = await this.searchCityPhotos(city, 3);
+        if (cityPhotos.length > 0) {
+          const numPhotos = Math.min(Math.floor(Math.random() * 3) + 1, cityPhotos.length);
+          photos = cityPhotos.slice(0, numPhotos);
+          console.log(`✅ Using ${photos.length} photos from Google Places for Slide block in ${city}`);
+        }
+      }
       
-      const photos = await Promise.all(
-        selectedQueries.map(query => this.getUnsplashPhoto(query))
-      );
+      // Final fallback to Unsplash if Google Places search failed
+      if (photos.length === 0) {
+        console.log(`⚠️ No Google Places photos found, using Unsplash fallback for Slide block`);
+        const photoQueries = [
+          `${city} travel`,
+          `${city} cityscape`,
+          `${city} ${interests?.[0] || 'travel'}`
+        ].filter(Boolean);
+        
+        const numPhotos = Math.floor(Math.random() * 3) + 1; // 1-3 photos
+        const selectedQueries = photoQueries.slice(0, numPhotos);
+        
+        photos = await Promise.all(
+          selectedQueries.map(query => this.getUnsplashPhoto(query))
+        );
+      }
       
       return {
         title: content.title,
