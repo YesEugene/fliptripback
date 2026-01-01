@@ -413,7 +413,8 @@ export class ContentBlocksGenerationService {
       city,
       concept,
       interests,
-      locations
+      locations,
+      usedPhotoUrls
     });
     blocks.push({
       block_type: 'slide',
@@ -459,7 +460,8 @@ export class ContentBlocksGenerationService {
       city,
       concept,
       interests,
-      locations
+      locations,
+      usedPhotoUrls
     });
     blocks.push({
       block_type: '3columns',
@@ -778,18 +780,33 @@ Return JSON (no markdown, no code blocks, just JSON):
           let altPlaceId = null;
           
           if (googlePlace && googlePlace.photos && googlePlace.photos.length > 0) {
-            // Use real photos from Google Places
-            altPhotos = googlePlace.photos;
+            // Use real photos from Google Places - get multiple photos (gallery)
+            // Use up to 5 photos for alternative locations
+            altPhotos = googlePlace.photos.slice(0, 5);
             altAddress = googlePlace.address || altAddress;
             altRating = googlePlace.rating;
             altPriceLevel = googlePlace.price_level;
             altPlaceId = googlePlace.place_id;
-            console.log(`✅ Using ${altPhotos.length} Google Places photos for alternative: ${altName}`);
+            console.log(`✅ Using ${altPhotos.length} Google Places photos (gallery) for alternative: ${altName}`);
           } else {
-            // Fallback: use Unsplash only if Google Places search fails
-            console.log(`⚠️ Google Places search failed for "${altName}", using Unsplash fallback`);
-            const fallbackPhoto = await this.getUnsplashPhoto(`${city} ${altName}`);
-            altPhotos = [fallbackPhoto];
+            // If Google Places search failed, try searching with more specific query
+            console.log(`⚠️ Google Places search failed for "${altName}", trying more specific search`);
+            const moreSpecificQuery = `${altName} ${city} ${purpose}`;
+            const retryGooglePlace = await this.searchGooglePlace(moreSpecificQuery, city);
+            
+            if (retryGooglePlace && retryGooglePlace.photos && retryGooglePlace.photos.length > 0) {
+              altPhotos = retryGooglePlace.photos.slice(0, 5);
+              altAddress = retryGooglePlace.address || altAddress;
+              altRating = retryGooglePlace.rating;
+              altPriceLevel = retryGooglePlace.price_level;
+              altPlaceId = retryGooglePlace.place_id;
+              console.log(`✅ Retry successful: Using ${altPhotos.length} Google Places photos for alternative: ${altName}`);
+            } else {
+              // Final fallback: use Unsplash only if all Google Places searches fail
+              console.log(`⚠️ All Google Places searches failed for "${altName}", using Unsplash fallback`);
+              const fallbackPhoto = await this.getUnsplashPhoto(`${city} ${altName}`);
+              altPhotos = [fallbackPhoto];
+            }
           }
           
           return {
