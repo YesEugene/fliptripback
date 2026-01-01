@@ -863,20 +863,54 @@ Return only the caption text, no quotes.`;
 
       const caption = response.choices[0].message.content.trim();
       
-      // Get 1-3 photos from Unsplash (Google Places not available)
-      const photoQueries = [
-        `${city} street walking`,
-        `${city} ${concept}`,
-        `${city} ${interests?.[0] || 'travel'}`
-      ].filter(Boolean);
+      // Try to get photos from locations first (real photos from Google Places)
+      let photos = [];
+      if (locations && locations.length > 0) {
+        // Collect photos from all locations
+        const allLocationPhotos = [];
+        locations.forEach(loc => {
+          const locPhotos = loc.realPlace?.photos || [];
+          if (locPhotos.length > 0) {
+            allLocationPhotos.push(...locPhotos.slice(0, 3)); // Take up to 3 photos per location
+          }
+        });
+        
+        if (allLocationPhotos.length > 0) {
+          // Use 1-3 photos from locations (randomly select)
+          const numPhotos = Math.min(Math.floor(Math.random() * 3) + 1, allLocationPhotos.length);
+          const shuffled = [...allLocationPhotos].sort(() => Math.random() - 0.5);
+          photos = shuffled.slice(0, numPhotos);
+          console.log(`📸 Using ${photos.length} photos from locations for Photo block`);
+        }
+      }
       
-      // Get 1-3 photos (randomly choose 1-3)
-      const numPhotos = Math.floor(Math.random() * 3) + 1; // 1-3 photos
-      const selectedQueries = photoQueries.slice(0, numPhotos);
+      // If no location photos, search for popular places in the city via Google Places
+      if (photos.length === 0) {
+        console.log(`🔍 No location photos available, searching Google Places for city photos: ${city}`);
+        const cityPhotos = await this.searchCityPhotos(city, 3);
+        if (cityPhotos.length > 0) {
+          const numPhotos = Math.min(Math.floor(Math.random() * 3) + 1, cityPhotos.length);
+          photos = cityPhotos.slice(0, numPhotos);
+          console.log(`✅ Using ${photos.length} photos from Google Places for Photo block in ${city}`);
+        }
+      }
       
-      const photos = await Promise.all(
-        selectedQueries.map(query => this.getUnsplashPhoto(query))
-      );
+      // Final fallback to Unsplash if Google Places search failed
+      if (photos.length === 0) {
+        console.log(`⚠️ No Google Places photos found, using Unsplash fallback for Photo block`);
+        const photoQueries = [
+          `${city} travel`,
+          `${city} cityscape`,
+          `${city} ${interests?.[0] || 'travel'}`
+        ].filter(Boolean);
+        
+        const numPhotos = Math.floor(Math.random() * 3) + 1; // 1-3 photos
+        const selectedQueries = photoQueries.slice(0, numPhotos);
+        
+        photos = await Promise.all(
+          selectedQueries.map(query => this.getUnsplashPhoto(query))
+        );
+      }
       
       const result = {
         photos: photos, // Use photos array
