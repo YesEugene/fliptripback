@@ -949,7 +949,7 @@ Return JSON (no markdown, no code blocks, just JSON):
    * Generate PHOTO block
    * @param {Object} params - { context, city, concept, interests, locations }
    */
-  async generatePhotoBlock({ context, city, concept, interests, locations = [] }) {
+  async generatePhotoBlock({ context, city, concept, interests, locations = [], usedPhotoUrls = new Set() }) {
     const prompt = `Write a short caption for a photo taken ${context} in ${city}.
 
 Do not mention locations.
@@ -1073,7 +1073,7 @@ Return only the caption text, no quotes.`;
    * Generate SLIDE block
    * @param {Object} params - { context, city, concept, interests, locations }
    */
-  async generateSlideBlock({ context, city, concept, interests, locations = [] }) {
+  async generateSlideBlock({ context, city, concept, interests, locations = [], usedPhotoUrls = new Set() }) {
     const prompt = `Create a slide with:
 - A short title (max 5 words)
 - A short description (2 sentences)
@@ -1183,7 +1183,7 @@ Return JSON:
   /**
    * Generate 3 COLUMNS block
    */
-  async generateThreeColumnsBlock({ context, city, concept, interests }) {
+  async generateThreeColumnsBlock({ context, city, concept, interests, locations = [], usedPhotoUrls = new Set() }) {
     const prompt = `Create a 3-column block for ${context} in ${city}.
 
 Each column should represent a different possible mood or approach to this part of the day.
