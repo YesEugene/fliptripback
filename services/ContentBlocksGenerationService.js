@@ -1295,42 +1295,39 @@ Return JSON:
 
       const content = JSON.parse(response.choices[0].message.content.trim());
       
-      // IMPORTANT: Slide blocks should NOT use photos from locations
-      // They are meant to complement the story, not repeat location photos
-      // Search for interesting places near the suggested locations
+      // IMPORTANT: Slide blocks should show viewpoints near the previous location
+      // They complement the story by showing scenic views nearby
       let photos = [];
       
-      // Get context from nearby locations - search for interesting places near them
-      const nearbyQueries = [];
-      if (locations && locations.length > 0) {
-        locations.forEach(loc => {
-          const locName = loc.realPlace?.name || loc.name || '';
-          if (locName) {
-            // Search for interesting places near this location
-            nearbyQueries.push(`scenic views near ${locName} ${city}`);
-            nearbyQueries.push(`local life ${city}`);
-            nearbyQueries.push(`street scenes ${city}`);
+      // Get coordinates from previous location and search for nearby viewpoints
+      if (previousLocation) {
+        const coords = await this.getLocationCoordinates(previousLocation);
+        if (coords) {
+          console.log(`🔍 Searching for viewpoints near previous location (${coords.lat}, ${coords.lng}) within 5km`);
+          const viewpointPhotos = await this.searchNearbyViewpoints(coords.lat, coords.lng, 5000, 5);
+          
+          // Filter out already used photos
+          const availablePhotos = viewpointPhotos.filter(photoUrl => !usedPhotoUrls.has(photoUrl));
+          
+          if (availablePhotos.length > 0) {
+            const numPhotos = Math.min(Math.floor(Math.random() * 3) + 1, availablePhotos.length);
+            photos = availablePhotos.slice(0, numPhotos);
+            // Mark photos as used
+            photos.forEach(photo => usedPhotoUrls.add(photo));
+            console.log(`✅ Using ${photos.length} viewpoint photos near previous location for Slide block`);
           }
-        });
+        }
       }
       
-      // If we have nearby queries, use them; otherwise use general city photos
-      const searchQueries = nearbyQueries.length > 0 
-        ? nearbyQueries.slice(0, 3)
-        : [`scenic views ${city}`, `local life ${city}`, `street scenes ${city}`];
-      
-      console.log(`🔍 Searching Google Places for interesting places near locations: ${city}`);
-      const cityPhotos = await this.searchCityPhotos(city, 5, searchQueries);
-      
-      // Filter out already used photos
-      const availablePhotos = cityPhotos.filter(photoUrl => !usedPhotoUrls.has(photoUrl));
-      
-      if (availablePhotos.length > 0) {
-        const numPhotos = Math.min(Math.floor(Math.random() * 3) + 1, availablePhotos.length);
-        photos = availablePhotos.slice(0, numPhotos);
-        // Mark photos as used
-        photos.forEach(photo => usedPhotoUrls.add(photo));
-        console.log(`✅ Using ${photos.length} unique photos from Google Places for Slide block in ${city}`);
+      // Fallback: if no previous location or no viewpoints found, use general city photos
+      if (photos.length === 0) {
+        console.log(`⚠️ No viewpoints found near previous location, using general city photos for Slide block`);
+        const cityPhotos = await this.searchCityPhotos(city, 5, [`viewpoints ${city}`, `scenic views ${city}`]);
+        const availablePhotos = cityPhotos.filter(photoUrl => !usedPhotoUrls.has(photoUrl));
+        if (availablePhotos.length > 0) {
+          photos = availablePhotos.slice(0, Math.min(3, availablePhotos.length));
+          photos.forEach(photo => usedPhotoUrls.add(photo));
+        }
       }
       
       // Final fallback to Unsplash if Google Places search failed
