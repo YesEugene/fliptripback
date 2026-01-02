@@ -1414,50 +1414,46 @@ Return JSON:
 
       const content = JSON.parse(response.choices[0].message.content.trim());
       
-      // IMPORTANT: 3columns blocks should NOT use photos from locations
-      // They are meant to complement the story, not repeat location photos
-      // Search for interesting places near the suggested locations
+      // IMPORTANT: 3columns blocks should show viewpoints near the previous location
+      // They complement the story by showing different scenic views nearby
       let locationPhotos = [];
       
-      // Get context from nearby locations - search for interesting places near them
-      const nearbyQueries = [];
-      if (locations && locations.length > 0) {
-        locations.forEach(loc => {
-          const locName = loc.realPlace?.name || loc.name || '';
-          if (locName) {
-            // Search for different types of interesting places near this location
-            nearbyQueries.push(`cafes near ${locName} ${city}`);
-            nearbyQueries.push(`viewpoints near ${locName} ${city}`);
-            nearbyQueries.push(`local markets ${city}`);
-            nearbyQueries.push(`parks ${city}`);
-            nearbyQueries.push(`streets ${city}`);
+      // Get coordinates from previous location and search for nearby viewpoints
+      if (previousLocation) {
+        const coords = await this.getLocationCoordinates(previousLocation);
+        if (coords) {
+          console.log(`🔍 Searching for viewpoints near previous location (${coords.lat}, ${coords.lng}) within 5km`);
+          // Get more viewpoints to ensure we have at least 3 unique ones
+          const viewpointPhotos = await this.searchNearbyViewpoints(coords.lat, coords.lng, 5000, 10);
+          
+          // Filter out already used photos
+          const availablePhotos = viewpointPhotos.filter(photoUrl => !usedPhotoUrls.has(photoUrl));
+          
+          if (availablePhotos.length >= 3) {
+            // Use exactly 3 different photos for 3 columns
+            locationPhotos = availablePhotos.slice(0, 3);
+            // Mark photos as used
+            locationPhotos.forEach(photo => usedPhotoUrls.add(photo));
+            console.log(`✅ Using ${locationPhotos.length} viewpoint photos near previous location for 3columns block`);
+          } else if (availablePhotos.length > 0) {
+            // If we have some photos but less than 3, use what we have
+            locationPhotos = availablePhotos;
+            locationPhotos.forEach(photo => usedPhotoUrls.add(photo));
+            console.log(`⚠️ Only ${availablePhotos.length} viewpoint photos found, will use Unsplash for remaining columns`);
           }
-        });
+        }
       }
       
-      // If we have nearby queries, use them; otherwise use general city photos
-      const searchQueries = nearbyQueries.length > 0 
-        ? nearbyQueries.slice(0, 5)
-        : [`cafes ${city}`, `viewpoints ${city}`, `local markets ${city}`, `parks ${city}`, `streets ${city}`];
-      
-      console.log(`🔍 Searching Google Places for interesting places near locations: ${city}`);
-      // Get more photos to ensure we have at least 3 unique ones
-      const cityPhotos = await this.searchCityPhotos(city, 10, searchQueries);
-      
-      // Filter out already used photos
-      const availablePhotos = cityPhotos.filter(photoUrl => !usedPhotoUrls.has(photoUrl));
-      
-      if (availablePhotos.length >= 3) {
-        // Use exactly 3 different photos for 3 columns
-        locationPhotos = availablePhotos.slice(0, 3);
-        // Mark photos as used
-        locationPhotos.forEach(photo => usedPhotoUrls.add(photo));
-        console.log(`✅ Using ${locationPhotos.length} unique photos from Google Places for 3columns block in ${city}`);
-      } else if (availablePhotos.length > 0) {
-        // If we have some photos but less than 3, use what we have and fill the rest with Unsplash
-        locationPhotos = availablePhotos;
-        locationPhotos.forEach(photo => usedPhotoUrls.add(photo));
-        console.log(`⚠️ Only ${availablePhotos.length} unique photos found, will use Unsplash for remaining columns`);
+      // Fallback: if no previous location or not enough viewpoints, use general city photos
+      if (locationPhotos.length < 3) {
+        console.log(`⚠️ Not enough viewpoints found, using general city photos for 3columns block`);
+        const cityPhotos = await this.searchCityPhotos(city, 10, [`viewpoints ${city}`, `scenic views ${city}`, `parks ${city}`]);
+        const availablePhotos = cityPhotos.filter(photoUrl => !usedPhotoUrls.has(photoUrl));
+        const needed = 3 - locationPhotos.length;
+        if (availablePhotos.length > 0) {
+          locationPhotos.push(...availablePhotos.slice(0, needed));
+          locationPhotos.forEach(photo => usedPhotoUrls.add(photo));
+        }
       }
       
       const columnsWithPhotos = await Promise.all(
