@@ -167,6 +167,122 @@ export class ContentBlocksGenerationService {
   }
   
   /**
+   * Get coordinates from a location (from place_id or realPlace)
+   * @param {Object} location - Location object
+   * @returns {Promise<{lat: number, lng: number}|null>} Coordinates or null
+   */
+  async getLocationCoordinates(location) {
+    try {
+      // First try to get coordinates from realPlace if available
+      if (location.realPlace?.geometry?.location) {
+        return {
+          lat: location.realPlace.geometry.location.lat,
+          lng: location.realPlace.geometry.location.lng
+        };
+      }
+
+      // If we have place_id, get coordinates via Place Details API
+      const placeId = location.realPlace?.place_id || location.realPlace?.googlePlaceId || location.place_id;
+      if (placeId && process.env.GOOGLE_MAPS_KEY) {
+        try {
+          const response = await this.googleMapsClient.placeDetails({
+            params: {
+              place_id: placeId,
+              key: process.env.GOOGLE_MAPS_KEY,
+              language: 'en',
+              fields: ['geometry']
+            }
+          });
+
+          if (response.data.result?.geometry?.location) {
+            return {
+              lat: response.data.result.geometry.location.lat,
+              lng: response.data.result.geometry.location.lng
+            };
+          }
+        } catch (error) {
+          console.warn(`⚠️ Error getting coordinates for place_id ${placeId}:`, error.message);
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.warn(`⚠️ Error in getLocationCoordinates:`, error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Search for viewpoints near a location using Google Places Nearby Search
+   * @param {number} lat - Latitude of the location
+   * @param {number} lng - Longitude of the location
+   * @param {number} radius - Search radius in meters (default 5000 = 5km)
+   * @param {number} count - Number of viewpoints to find
+   * @returns {Promise<Array<string>>} Array of photo URLs
+   */
+  async searchNearbyViewpoints(lat, lng, radius = 5000, count = 5) {
+    try {
+      if (!process.env.GOOGLE_MAPS_KEY) {
+        console.warn('⚠️ Google Maps API key not configured');
+        return [];
+      }
+
+      console.log(`🔍 Searching for viewpoints near location (${lat}, ${lng}) within ${radius}m radius`);
+
+      const allPhotos = [];
+      const seenPhotoRefs = new Set();
+
+      try {
+        // Use Nearby Search API to find viewpoints
+        const response = await this.googleMapsClient.placesNearby({
+          params: {
+            location: `${lat},${lng}`,
+            radius: radius,
+            type: 'tourist_attraction', // Viewpoints are usually tourist attractions
+            key: process.env.GOOGLE_MAPS_KEY,
+            language: 'en'
+          }
+        });
+
+        if (response.data.results && response.data.results.length > 0) {
+          // Filter for places that are likely viewpoints (check types or names)
+          const viewpointKeywords = ['viewpoint', 'view', 'lookout', 'panorama', 'scenic', 'overlook', 'mirador', 'belvedere'];
+          
+          for (const place of response.data.results) {
+            if (allPhotos.length >= count) break;
+
+            // Check if place name or types suggest it's a viewpoint
+            const placeName = (place.name || '').toLowerCase();
+            const placeTypes = (place.types || []).map(t => t.toLowerCase());
+            const isViewpoint = viewpointKeywords.some(keyword => 
+              placeName.includes(keyword) || placeTypes.includes(keyword)
+            ) || placeTypes.includes('tourist_attraction');
+
+            if (isViewpoint && place.photos && place.photos.length > 0) {
+              // Get first photo from each viewpoint
+              const photo = place.photos[0];
+              if (!seenPhotoRefs.has(photo.photo_reference)) {
+                const photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photo.photo_reference}&key=${process.env.GOOGLE_MAPS_KEY}`;
+                allPhotos.push(photoUrl);
+                seenPhotoRefs.add(photo.photo_reference);
+                console.log(`✅ Found viewpoint photo from ${place.name}`);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.warn(`⚠️ Error searching nearby viewpoints:`, error.message || error);
+      }
+
+      console.log(`✅ Found ${allPhotos.length} viewpoint photos near location`);
+      return allPhotos.slice(0, count);
+    } catch (error) {
+      console.warn(`⚠️ Error in searchNearbyViewpoints:`, error.message || error);
+      return [];
+    }
+  }
+
+  /**
    * Search for popular places in a city via Google Places API
    * Used to get real photos of the city for Photo and 3columns blocks
    * @param {string} city - City name
@@ -381,13 +497,15 @@ export class ContentBlocksGenerationService {
       content: { style: 'solid' }
     });
 
-    // 5. PHOTO BLOCK
+    // 5. PHOTO BLOCK (after breakfast location)
+    // Get coordinates from previous location (breakfast) to find nearby viewpoints
+    const previousLocationForPhoto = breakfastLocation;
     const photoBlock = await this.generatePhotoBlock({
       context: 'after breakfast, while walking',
       city,
       concept,
       interests,
-      locations
+      previousLocation: previousLocationForPhoto
     });
     blocks.push({
       block_type: 'photo',
@@ -452,13 +570,15 @@ export class ContentBlocksGenerationService {
       });
     }
 
-    // 9. SLIDE BLOCK
+    // 9. SLIDE BLOCK (after lunch location)
+    // Get coordinates from previous location (lunch) to find nearby viewpoints
+    const previousLocationForSlide = lunchLocation;
     const slideBlock = await this.generateSlideBlock({
       context: 'after lunch, middle of the day',
       city,
       concept,
       interests,
-      locations,
+      previousLocation: previousLocationForSlide,
       usedPhotoUrls
     });
     blocks.push({
@@ -1018,7 +1138,7 @@ Return JSON (no markdown, no code blocks, just JSON):
    * Generate PHOTO block
    * @param {Object} params - { context, city, concept, interests, locations }
    */
-  async generatePhotoBlock({ context, city, concept, interests, locations = [], usedPhotoUrls = new Set() }) {
+  async generatePhotoBlock({ context, city, concept, interests, previousLocation = null, usedPhotoUrls = new Set() }) {
     const prompt = `Write a short caption for a photo taken ${context} in ${city}.
 
 Do not mention locations.
@@ -1048,42 +1168,39 @@ Return only the caption text, no quotes.`;
 
       const caption = response.choices[0].message.content.trim();
       
-      // IMPORTANT: Photo blocks should NOT use photos from locations
-      // They are meant to complement the story, not repeat location photos
-      // Search for interesting places near the suggested locations
+      // IMPORTANT: Photo blocks should show viewpoints near the previous location
+      // They complement the story by showing scenic views nearby
       let photos = [];
       
-      // Get context from nearby locations - search for interesting places near them
-      const nearbyQueries = [];
-      if (locations && locations.length > 0) {
-        locations.forEach(loc => {
-          const locName = loc.realPlace?.name || loc.name || '';
-          if (locName) {
-            // Search for interesting places near this location
-            nearbyQueries.push(`interesting places near ${locName} ${city}`);
-            nearbyQueries.push(`hidden gems ${city}`);
-            nearbyQueries.push(`local spots ${city}`);
+      // Get coordinates from previous location and search for nearby viewpoints
+      if (previousLocation) {
+        const coords = await this.getLocationCoordinates(previousLocation);
+        if (coords) {
+          console.log(`🔍 Searching for viewpoints near previous location (${coords.lat}, ${coords.lng}) within 5km`);
+          const viewpointPhotos = await this.searchNearbyViewpoints(coords.lat, coords.lng, 5000, 5);
+          
+          // Filter out already used photos
+          const availablePhotos = viewpointPhotos.filter(photoUrl => !usedPhotoUrls.has(photoUrl));
+          
+          if (availablePhotos.length > 0) {
+            const numPhotos = Math.min(Math.floor(Math.random() * 3) + 1, availablePhotos.length);
+            photos = availablePhotos.slice(0, numPhotos);
+            // Mark photos as used
+            photos.forEach(photo => usedPhotoUrls.add(photo));
+            console.log(`✅ Using ${photos.length} viewpoint photos near previous location for Photo block`);
           }
-        });
+        }
       }
       
-      // If we have nearby queries, use them; otherwise use general city photos
-      const searchQueries = nearbyQueries.length > 0 
-        ? nearbyQueries.slice(0, 3)
-        : [`landmarks ${city}`, `hidden gems ${city}`, `local spots ${city}`];
-      
-      console.log(`🔍 Searching Google Places for interesting places near locations: ${city}`);
-      const cityPhotos = await this.searchCityPhotos(city, 5, searchQueries);
-      
-      // Filter out already used photos
-      const availablePhotos = cityPhotos.filter(photoUrl => !usedPhotoUrls.has(photoUrl));
-      
-      if (availablePhotos.length > 0) {
-        const numPhotos = Math.min(Math.floor(Math.random() * 3) + 1, availablePhotos.length);
-        photos = availablePhotos.slice(0, numPhotos);
-        // Mark photos as used
-        photos.forEach(photo => usedPhotoUrls.add(photo));
-        console.log(`✅ Using ${photos.length} unique photos from Google Places for Photo block in ${city}`);
+      // Fallback: if no previous location or no viewpoints found, use general city photos
+      if (photos.length === 0) {
+        console.log(`⚠️ No viewpoints found near previous location, using general city photos for Photo block`);
+        const cityPhotos = await this.searchCityPhotos(city, 5, [`viewpoints ${city}`, `scenic views ${city}`]);
+        const availablePhotos = cityPhotos.filter(photoUrl => !usedPhotoUrls.has(photoUrl));
+        if (availablePhotos.length > 0) {
+          photos = availablePhotos.slice(0, Math.min(3, availablePhotos.length));
+          photos.forEach(photo => usedPhotoUrls.add(photo));
+        }
       }
       
       // Final fallback to Unsplash if Google Places search failed
@@ -1142,7 +1259,7 @@ Return only the caption text, no quotes.`;
    * Generate SLIDE block
    * @param {Object} params - { context, city, concept, interests, locations }
    */
-  async generateSlideBlock({ context, city, concept, interests, locations = [], usedPhotoUrls = new Set() }) {
+  async generateSlideBlock({ context, city, concept, interests, previousLocation = null, usedPhotoUrls = new Set() }) {
     const prompt = `Create a slide with:
 - A short title (max 5 words)
 - A short description (2 sentences)
@@ -1252,7 +1369,7 @@ Return JSON:
   /**
    * Generate 3 COLUMNS block
    */
-  async generateThreeColumnsBlock({ context, city, concept, interests, locations = [], usedPhotoUrls = new Set() }) {
+  async generateThreeColumnsBlock({ context, city, concept, interests, previousLocation = null, usedPhotoUrls = new Set() }) {
     const prompt = `Create a 3-column block for ${context} in ${city}.
 
 Each column should represent a different possible mood or approach to this part of the day.
