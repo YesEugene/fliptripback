@@ -804,7 +804,10 @@ export default async function handler(req, res) {
       const existingDraftData = existingTour?.draft_data || {};
       updateData.draft_data = {
         ...existingDraftData,
-        ...preservedDraftData
+        ...preservedDraftData,
+        // CRITICAL: Also preserve preview in draft_data if it exists
+        preview: previewMediaUrl !== undefined ? previewMediaUrl : existingDraftData.preview,
+        previewType: previewMediaUrl !== undefined ? previewMediaType : (existingDraftData.previewType || 'image')
       };
     }
 
