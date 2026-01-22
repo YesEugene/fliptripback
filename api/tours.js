@@ -745,10 +745,20 @@ export default async function handler(req, res) {
             guideInfo = guide;
           }
         }
+        // Format tour similar to single tour response
         return {
           ...tour,
           guide: guideInfo,
-          daily_plan: [] // Would need to load full structure for this
+          daily_plan: [], // Would need to load full structure for this
+          // Map preview_media_url to preview for backward compatibility
+          preview: tour.preview_media_url || tour.preview || null,
+          preview_media_url: tour.preview_media_url || tour.preview || null, // Also include original field
+          previewType: tour.preview_media_type || tour.previewType || 'image',
+          // Map format for backward compatibility
+          format: tour.default_format === 'with_guide' ? 'guided' : (tour.default_format || 'self-guided'),
+          withGuide: tour.default_format === 'with_guide',
+          // Extract city name from city object if it exists
+          city: tour.city?.name || tour.city || null
         };
       })
     );
