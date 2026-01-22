@@ -520,8 +520,12 @@ export default async function handler(req, res) {
     console.log('📋 Query params:', { city, format, interests, limit, offset });
     
     // Build select query - include location_interests only if filtering by interests
+    // CRITICAL: Explicitly include preview_media_url and preview_media_type
+    // When using * with nested queries, Supabase may not return all fields
     const baseSelect = `
       *,
+      preview_media_url,
+      preview_media_type,
       city:cities(name),
       tour_tags(
         tag:tags(id, name)
@@ -530,6 +534,8 @@ export default async function handler(req, res) {
     
     const selectWithInterests = `
       *,
+      preview_media_url,
+      preview_media_type,
       city:cities(name),
       tour_tags(
         tag:tags(id, name)
