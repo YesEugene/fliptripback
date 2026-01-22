@@ -585,10 +585,23 @@ export default async function handler(req, res) {
         updated_at: new Date().toISOString()
       };
       
-      // Update only draft_data, keep everything else unchanged
+      // CRITICAL: Also update preview_media_url in main table if preview is provided
+      // This ensures preview images are available for homepage even for draft tours
+      const updateDataForDraft = {
+        draft_data: draftData
+      };
+      
+      // If preview is provided, also save it to preview_media_url
+      if (previewMediaUrl !== undefined) {
+        updateDataForDraft.preview_media_url = previewMediaUrl;
+        updateDataForDraft.preview_media_type = previewMediaType;
+        console.log('💾 Also saving preview_media_url to main table');
+      }
+      
+      // Update draft_data and preview_media_url
       const { data: tour, error: tourError } = await supabase
         .from('tours')
-        .update({ draft_data: draftData })
+        .update(updateDataForDraft)
         .eq('id', id)
         .select()
         .single();
