@@ -620,6 +620,21 @@ export default async function handler(req, res) {
       error: error?.message || null,
       errorCode: error?.code || null
     });
+    
+    // DEBUG: Check first tour immediately after query to see raw data
+    if (tours && tours.length > 0) {
+      const firstTourRaw = tours[0];
+      console.log('🔍 FIRST TOUR RAW FROM QUERY:', {
+        id: firstTourRaw.id,
+        title: firstTourRaw.title?.substring(0, 50),
+        hasPreviewMediaUrlKey: 'preview_media_url' in firstTourRaw,
+        preview_media_url_value: firstTourRaw.preview_media_url,
+        preview_media_url_type: typeof firstTourRaw.preview_media_url,
+        preview_media_type: firstTourRaw.preview_media_type,
+        allKeys: Object.keys(firstTourRaw).sort(),
+        previewKeys: Object.keys(firstTourRaw).filter(k => k.toLowerCase().includes('preview') || k.toLowerCase().includes('media'))
+      });
+    }
 
     if (error) {
       console.error('❌ Database query error:', error);
