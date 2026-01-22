@@ -733,6 +733,17 @@ export default async function handler(req, res) {
     // Load guide info for all tours
     const toursWithGuides = await Promise.all(
       filteredTours.map(async (tour) => {
+        // DEBUG: Log what we got from database
+        console.log('🔍 Tour from DB:', {
+          id: tour.id,
+          title: tour.title?.substring(0, 50),
+          preview_media_url: tour.preview_media_url ? tour.preview_media_url.substring(0, 100) : 'NULL/UNDEFINED',
+          preview_media_type: tour.preview_media_type,
+          hasPreviewMediaUrl: !!tour.preview_media_url,
+          previewMediaUrlType: typeof tour.preview_media_url,
+          allKeys: Object.keys(tour).filter(k => k.includes('preview'))
+        });
+        
         let guideInfo = null;
         if (tour.guide_id) {
           // Note: guides.id = users.id (not user_id)
@@ -745,21 +756,36 @@ export default async function handler(req, res) {
             guideInfo = guide;
           }
         }
+        
+        // CRITICAL: Use preview_media_url directly from tour object
+        // Don't fallback to tour.preview as it might not exist
+        const previewMediaUrl = tour.preview_media_url || null;
+        
         // Format tour similar to single tour response
-        return {
+        const formattedTour = {
           ...tour,
           guide: guideInfo,
           daily_plan: [], // Would need to load full structure for this
           // Map preview_media_url to preview for backward compatibility
-          preview: tour.preview_media_url || tour.preview || null,
-          preview_media_url: tour.preview_media_url || tour.preview || null, // Also include original field
-          previewType: tour.preview_media_type || tour.previewType || 'image',
+          preview: previewMediaUrl,
+          preview_media_url: previewMediaUrl, // Use direct value, no fallback
+          previewType: tour.preview_media_type || 'image',
           // Map format for backward compatibility
           format: tour.default_format === 'with_guide' ? 'guided' : (tour.default_format || 'self-guided'),
           withGuide: tour.default_format === 'with_guide',
           // Extract city name from city object if it exists
           city: tour.city?.name || tour.city || null
         };
+        
+        // DEBUG: Log what we're returning
+        console.log('📤 Formatted tour:', {
+          id: formattedTour.id,
+          title: formattedTour.title?.substring(0, 50),
+          preview_media_url: formattedTour.preview_media_url ? formattedTour.preview_media_url.substring(0, 100) : 'NULL',
+          preview: formattedTour.preview ? formattedTour.preview.substring(0, 100) : 'NULL'
+        });
+        
+        return formattedTour;
       })
     );
 
