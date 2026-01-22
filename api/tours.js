@@ -783,7 +783,11 @@ export default async function handler(req, res) {
         
         // CRITICAL: Use preview_media_url directly from tour object
         // Don't fallback to tour.preview as it might not exist
-        const previewMediaUrl = tour.preview_media_url || null;
+        // Handle both null and empty string cases
+        let previewMediaUrl = null;
+        if (tour.preview_media_url && tour.preview_media_url.trim() !== '') {
+          previewMediaUrl = tour.preview_media_url;
+        }
         
         // Format tour similar to single tour response
         const formattedTour = {
