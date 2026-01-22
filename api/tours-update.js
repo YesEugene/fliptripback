@@ -477,7 +477,9 @@ export default async function handler(req, res) {
     console.log(`📋 Final tour format: ${format} (from: ${rawFormat}, withGuide: ${tourData.withGuide}, selfGuided: ${tourData.selfGuided})`);
     const pricePdf = tourData.price?.pdfPrice || 16.00;
     const priceGuided = tourData.price?.guidedPrice || null;
-    const previewMediaUrl = tourData.preview || null;
+    // CRITICAL: Only update preview_media_url if preview is explicitly provided
+    // If preview is not provided (undefined), keep existing value in database
+    const previewMediaUrl = tourData.preview !== undefined ? tourData.preview : undefined;
     const previewMediaType = tourData.previewType || 'image';
     
     // Extract With Guide data
@@ -498,10 +500,14 @@ export default async function handler(req, res) {
       default_format: format,
       price_pdf: pricePdf,
       price_guided: priceGuided,
-      currency: tourData.price?.currency || 'USD',
-      preview_media_url: previewMediaUrl,
-      preview_media_type: previewMediaType
+      currency: tourData.price?.currency || 'USD'
     };
+    
+    // Only include preview_media_url if it was explicitly provided
+    if (previewMediaUrl !== undefined) {
+      updateData.preview_media_url = previewMediaUrl;
+      updateData.preview_media_type = previewMediaType;
+    }
 
     // Add default_group_size if provided
     const defaultGroupSize = tourData.price?.defaultGroupSize || tourData.defaultGroupSize || null;
