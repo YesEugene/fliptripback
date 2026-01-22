@@ -573,6 +573,9 @@ export default async function handler(req, res) {
     
     query = query.order('created_at', { ascending: false })
       .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
+    
+    // DEBUG: Log the query we're about to execute
+    console.log('🔍 Executing tours query with selectQuery:', selectQuery.substring(0, 200));
 
     // Apply filters
     if (city) {
