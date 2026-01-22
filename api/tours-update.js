@@ -242,7 +242,25 @@ export default async function handler(req, res) {
       });
     }
 
-    // Verify user owns the tour
+    // Get user role to check if admin
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('id, role')
+      .eq('id', userId)
+      .single();
+
+    if (userError || !userData) {
+      console.error('❌ User not found:', userError);
+      return res.status(401).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
+    const isAdmin = userData.role === 'admin';
+    console.log(`👤 User role: ${userData.role}, isAdmin: ${isAdmin}`);
+
+    // Verify user owns the tour (unless admin)
     console.log(`🔍 Checking tour ownership for tour ID: ${id}, userId: ${userId}`);
     // Use select('*') to get all columns, then check which owner column exists
     // Also get current status to protect approved tours
@@ -290,8 +308,10 @@ export default async function handler(req, res) {
     } else if (existingTour.created_by !== undefined) {
       ownerId = existingTour.created_by;
     }
-    console.log(`🔐 Ownership check: ownerId=${ownerId}, userId=${userId}, match=${ownerId === userId}`);
-    if (ownerId !== userId) {
+    console.log(`🔐 Ownership check: ownerId=${ownerId}, userId=${userId}, match=${ownerId === userId}, isAdmin=${isAdmin}`);
+    
+    // Allow admin to edit any tour, but regular users can only edit their own
+    if (!isAdmin && ownerId !== userId) {
       console.warn(`⚠️ Ownership mismatch: ownerId=${ownerId}, userId=${userId}`);
       return res.status(403).json({
         success: false,
@@ -299,6 +319,10 @@ export default async function handler(req, res) {
         ownerId,
         userId
       });
+    }
+    
+    if (isAdmin && ownerId !== userId) {
+      console.log(`✅ Admin editing tour owned by ${ownerId}`);
     }
 
     const tourData = req.body;

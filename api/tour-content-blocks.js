@@ -28,6 +28,56 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
+  // Helper function to get user ID and role from token
+  const getUserFromToken = async (authHeader) => {
+    if (!authHeader) return { userId: null, isAdmin: false };
+    
+    let userId = null;
+    try {
+      const cleanToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
+      try {
+        const payload = JSON.parse(Buffer.from(cleanToken, 'base64').toString());
+        userId = payload.userId || payload.id || payload.sub;
+      } catch (e) {
+        const { data: { user }, error: authError } = await supabase.auth.getUser(cleanToken);
+        if (!authError && user) {
+          userId = user.id;
+        }
+      }
+    } catch (error) {
+      console.error('Token decode error:', error);
+    }
+    
+    if (!userId) return { userId: null, isAdmin: false };
+    
+    // Get user role
+    const { data: userData } = await supabase
+      .from('users')
+      .select('id, role')
+      .eq('id', userId)
+      .single();
+    
+    const isAdmin = userData?.role === 'admin';
+    return { userId, isAdmin, userData };
+  };
+  
+  // Helper function to check if user can edit tour
+  const canEditTour = async (tourId, userId, isAdmin) => {
+    if (isAdmin) return true; // Admin can edit any tour
+    
+    // Get tour owner
+    const { data: tour } = await supabase
+      .from('tours')
+      .select('guide_id, creator_id, user_id, created_by')
+      .eq('id', tourId)
+      .single();
+    
+    if (!tour) return false;
+    
+    const ownerId = tour.guide_id || tour.creator_id || tour.user_id || tour.created_by;
+    return ownerId === userId;
+  };
+
   try {
     // GET - Get all blocks for a tour
     if (req.method === 'GET') {
@@ -62,6 +112,26 @@ export default async function handler(req, res) {
 
       if (!tourId || !blockType) {
         return res.status(400).json({ error: 'tourId and blockType are required' });
+      }
+
+      // Check authorization and permissions
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { userId, isAdmin } = await getUserFromToken(authHeader);
+      if (!userId) {
+        return res.status(401).json({ error: 'Invalid token' });
+      }
+
+      // Check if user can edit this tour
+      const canEdit = await canEditTour(tourId, userId, isAdmin);
+      if (!canEdit) {
+        return res.status(403).json({ 
+          error: 'You can only edit your own tours',
+          isAdmin 
+        });
       }
 
       // Get current max order_index for this tour
@@ -126,6 +196,37 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'blockId is required' });
       }
 
+      // Check authorization and permissions
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { userId, isAdmin } = await getUserFromToken(authHeader);
+      if (!userId) {
+        return res.status(401).json({ error: 'Invalid token' });
+      }
+
+      // Get tour_id from block to check permissions
+      const { data: existingBlock } = await supabase
+        .from('tour_content_blocks')
+        .select('tour_id')
+        .eq('id', blockId)
+        .single();
+
+      if (!existingBlock) {
+        return res.status(404).json({ error: 'Block not found' });
+      }
+
+      // Check if user can edit this tour
+      const canEdit = await canEditTour(existingBlock.tour_id, userId, isAdmin);
+      if (!canEdit) {
+        return res.status(403).json({ 
+          error: 'You can only edit your own tours',
+          isAdmin 
+        });
+      }
+
       const updateData = {};
       if (content !== undefined) updateData.content = content;
       if (orderIndex !== undefined) updateData.order_index = orderIndex;
@@ -162,6 +263,37 @@ export default async function handler(req, res) {
 
       if (!blockId) {
         return res.status(400).json({ error: 'blockId is required' });
+      }
+
+      // Check authorization and permissions
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { userId, isAdmin } = await getUserFromToken(authHeader);
+      if (!userId) {
+        return res.status(401).json({ error: 'Invalid token' });
+      }
+
+      // Get tour_id from block to check permissions
+      const { data: existingBlock } = await supabase
+        .from('tour_content_blocks')
+        .select('tour_id')
+        .eq('id', blockId)
+        .single();
+
+      if (!existingBlock) {
+        return res.status(404).json({ error: 'Block not found' });
+      }
+
+      // Check if user can edit this tour
+      const canEdit = await canEditTour(existingBlock.tour_id, userId, isAdmin);
+      if (!canEdit) {
+        return res.status(403).json({ 
+          error: 'You can only edit your own tours',
+          isAdmin 
+        });
       }
 
       const { error } = await supabase

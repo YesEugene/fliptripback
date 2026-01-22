@@ -62,3 +62,13 @@ SELECT COUNT(*) FROM cities WHERE country IS NOT NULL;
 
 
 
+
+
+
+
+
+
+
+
+
+
