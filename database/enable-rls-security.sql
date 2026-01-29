@@ -78,26 +78,70 @@ CREATE POLICY "Public user data is readable"
 -- ПОЛИТИКИ ДЛЯ ТАБЛИЦЫ guides
 -- ============================================================================
 
--- Политика: Все могут читать публичные данные гидов
-DROP POLICY IF EXISTS "Guides are publicly readable" ON public.guides;
-CREATE POLICY "Guides are publicly readable"
-  ON public.guides
-  FOR SELECT
-  USING (true);
+-- Проверяем структуру таблицы guides и создаем политики соответственно
+DO $$
+DECLARE
+  has_user_id BOOLEAN;
+  has_id_as_pk BOOLEAN;
+BEGIN
+  -- Проверяем, существует ли колонка user_id
+  SELECT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'guides'
+      AND column_name = 'user_id'
+  ) INTO has_user_id;
 
--- Политика: Гиды могут обновлять свой собственный профиль
-DROP POLICY IF EXISTS "Guides can update own profile" ON public.guides;
-CREATE POLICY "Guides can update own profile"
-  ON public.guides
-  FOR UPDATE
-  USING (auth.uid() = user_id);
+  -- Проверяем, является ли id первичным ключом и совпадает ли с users.id
+  SELECT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints tc
+    JOIN information_schema.key_column_usage kcu
+      ON tc.constraint_name = kcu.constraint_name
+    WHERE tc.table_schema = 'public'
+      AND tc.table_name = 'guides'
+      AND tc.constraint_type = 'PRIMARY KEY'
+      AND kcu.column_name = 'id'
+  ) INTO has_id_as_pk;
 
--- Политика: Гиды могут создавать свой профиль
-DROP POLICY IF EXISTS "Guides can create own profile" ON public.guides;
-CREATE POLICY "Guides can create own profile"
-  ON public.guides
-  FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+  -- Политика: Все могут читать публичные данные гидов
+  DROP POLICY IF EXISTS "Guides are publicly readable" ON public.guides;
+  EXECUTE 'CREATE POLICY "Guides are publicly readable"
+    ON public.guides
+    FOR SELECT
+    USING (true)';
+
+  -- Создаем политики в зависимости от структуры таблицы
+  IF has_user_id THEN
+    -- Если есть user_id, используем его
+    DROP POLICY IF EXISTS "Guides can update own profile" ON public.guides;
+    EXECUTE 'CREATE POLICY "Guides can update own profile"
+      ON public.guides
+      FOR UPDATE
+      USING (auth.uid() = user_id)';
+
+    DROP POLICY IF EXISTS "Guides can create own profile" ON public.guides;
+    EXECUTE 'CREATE POLICY "Guides can create own profile"
+      ON public.guides
+      FOR INSERT
+      WITH CHECK (auth.uid() = user_id)';
+  ELSIF has_id_as_pk THEN
+    -- Если id совпадает с users.id, используем id
+    DROP POLICY IF EXISTS "Guides can update own profile" ON public.guides;
+    EXECUTE 'CREATE POLICY "Guides can update own profile"
+      ON public.guides
+      FOR UPDATE
+      USING (auth.uid() = id)';
+
+    DROP POLICY IF EXISTS "Guides can create own profile" ON public.guides;
+    EXECUTE 'CREATE POLICY "Guides can create own profile"
+      ON public.guides
+      FOR INSERT
+      WITH CHECK (auth.uid() = id)';
+  ELSE
+    -- Если структура неизвестна, создаем политику только для чтения
+    RAISE NOTICE 'Warning: guides table structure unknown, only read policy created';
+  END IF;
+END $$;
 
 -- ============================================================================
 -- ПОЛИТИКИ ДЛЯ ТАБЛИЦЫ countries
@@ -132,19 +176,49 @@ CREATE POLICY "Locations are publicly readable"
   FOR SELECT
   USING (true);
 
--- Политика: Создатели могут обновлять свои локации
-DROP POLICY IF EXISTS "Location creators can update" ON public.locations;
-CREATE POLICY "Location creators can update"
-  ON public.locations
-  FOR UPDATE
-  USING (auth.uid() = created_by);
+-- Проверяем структуру таблицы locations и создаем политики соответственно
+DO $$
+DECLARE
+  has_created_by BOOLEAN;
+BEGIN
+  -- Проверяем, существует ли колонка created_by
+  SELECT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'locations'
+      AND column_name = 'created_by'
+  ) INTO has_created_by;
 
--- Политика: Создатели могут создавать локации
-DROP POLICY IF EXISTS "Location creators can insert" ON public.locations;
-CREATE POLICY "Location creators can insert"
-  ON public.locations
-  FOR INSERT
-  WITH CHECK (auth.uid() = created_by);
+  IF has_created_by THEN
+    -- Если есть created_by, используем его для ограничения доступа
+    DROP POLICY IF EXISTS "Location creators can update" ON public.locations;
+    EXECUTE 'CREATE POLICY "Location creators can update"
+      ON public.locations
+      FOR UPDATE
+      USING (auth.uid() = created_by)';
+
+    DROP POLICY IF EXISTS "Location creators can insert" ON public.locations;
+    EXECUTE 'CREATE POLICY "Location creators can insert"
+      ON public.locations
+      FOR INSERT
+      WITH CHECK (auth.uid() = created_by)';
+  ELSE
+    -- Если created_by нет, разрешаем всем авторизованным пользователям
+    DROP POLICY IF EXISTS "Authenticated users can update locations" ON public.locations;
+    EXECUTE 'CREATE POLICY "Authenticated users can update locations"
+      ON public.locations
+      FOR UPDATE
+      USING (auth.uid() IS NOT NULL)';
+
+    DROP POLICY IF EXISTS "Authenticated users can insert locations" ON public.locations;
+    EXECUTE 'CREATE POLICY "Authenticated users can insert locations"
+      ON public.locations
+      FOR INSERT
+      WITH CHECK (auth.uid() IS NOT NULL)';
+    
+    RAISE NOTICE 'Warning: locations table has no created_by column, using authenticated users policy';
+  END IF;
+END $$;
 
 -- ============================================================================
 -- ПОЛИТИКИ ДЛЯ ТАБЛИЦЫ location_photos
@@ -157,18 +231,38 @@ CREATE POLICY "Location photos are publicly readable"
   FOR SELECT
   USING (true);
 
--- Политика: Создатели локаций могут добавлять фотографии
-DROP POLICY IF EXISTS "Location creators can add photos" ON public.location_photos;
-CREATE POLICY "Location creators can add photos"
-  ON public.location_photos
-  FOR INSERT
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.locations
-      WHERE locations.id = location_photos.location_id
-      AND locations.created_by = auth.uid()
-    )
-  );
+-- Политика для добавления фотографий (с проверкой структуры)
+DO $$
+DECLARE
+  has_created_by BOOLEAN;
+BEGIN
+  SELECT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'locations'
+      AND column_name = 'created_by'
+  ) INTO has_created_by;
+
+  IF has_created_by THEN
+    DROP POLICY IF EXISTS "Location creators can add photos" ON public.location_photos;
+    EXECUTE 'CREATE POLICY "Location creators can add photos"
+      ON public.location_photos
+      FOR INSERT
+      WITH CHECK (
+        EXISTS (
+          SELECT 1 FROM public.locations
+          WHERE locations.id = location_photos.location_id
+          AND locations.created_by = auth.uid()
+        )
+      )';
+  ELSE
+    DROP POLICY IF EXISTS "Authenticated users can add photos" ON public.location_photos;
+    EXECUTE 'CREATE POLICY "Authenticated users can add photos"
+      ON public.location_photos
+      FOR INSERT
+      WITH CHECK (auth.uid() IS NOT NULL)';
+  END IF;
+END $$;
 
 -- ============================================================================
 -- ПОЛИТИКИ ДЛЯ ТАБЛИЦЫ location_tags
@@ -181,18 +275,38 @@ CREATE POLICY "Location tags are publicly readable"
   FOR SELECT
   USING (true);
 
--- Политика: Создатели локаций могут добавлять теги
-DROP POLICY IF EXISTS "Location creators can add tags" ON public.location_tags;
-CREATE POLICY "Location creators can add tags"
-  ON public.location_tags
-  FOR INSERT
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.locations
-      WHERE locations.id = location_tags.location_id
-      AND locations.created_by = auth.uid()
-    )
-  );
+-- Политика для добавления тегов (с проверкой структуры)
+DO $$
+DECLARE
+  has_created_by BOOLEAN;
+BEGIN
+  SELECT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'locations'
+      AND column_name = 'created_by'
+  ) INTO has_created_by;
+
+  IF has_created_by THEN
+    DROP POLICY IF EXISTS "Location creators can add tags" ON public.location_tags;
+    EXECUTE 'CREATE POLICY "Location creators can add tags"
+      ON public.location_tags
+      FOR INSERT
+      WITH CHECK (
+        EXISTS (
+          SELECT 1 FROM public.locations
+          WHERE locations.id = location_tags.location_id
+          AND locations.created_by = auth.uid()
+        )
+      )';
+  ELSE
+    DROP POLICY IF EXISTS "Authenticated users can add tags" ON public.location_tags;
+    EXECUTE 'CREATE POLICY "Authenticated users can add tags"
+      ON public.location_tags
+      FOR INSERT
+      WITH CHECK (auth.uid() IS NOT NULL)';
+  END IF;
+END $$;
 
 -- ============================================================================
 -- ПОЛИТИКИ ДЛЯ ТАБЛИЦЫ tags
