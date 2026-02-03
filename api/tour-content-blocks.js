@@ -89,10 +89,11 @@ export default async function handler(req, res) {
       return false;
     }
     
-    // Get tour owner
+    // Get tour owner - use select('*') to get all columns, then check which ones exist
+    // This avoids errors if some columns don't exist in the schema
     const { data: tour, error: tourError } = await supabase
       .from('tours')
-      .select('guide_id, creator_id, user_id, created_by')
+      .select('*')
       .eq('id', tourId)
       .single();
     
@@ -107,7 +108,8 @@ export default async function handler(req, res) {
     }
     
     // Check ownership - handle null values properly
-    // Use the first non-null value, not just truthy (to handle empty strings, 0, etc.)
+    // Try different column names in order of preference
+    // The schema uses guide_id, but we check other possible names for compatibility
     let ownerId = null;
     if (tour.guide_id !== null && tour.guide_id !== undefined) {
       ownerId = tour.guide_id;
@@ -123,19 +125,26 @@ export default async function handler(req, res) {
       userId,
       ownerId,
       guide_id: tour.guide_id,
-      creator_id: tour.creator_id,
-      user_id: tour.user_id,
-      created_by: tour.created_by,
+      has_creator_id: 'creator_id' in tour,
+      has_user_id: 'user_id' in tour,
+      has_created_by: 'created_by' in tour,
       match: ownerId === userId,
       ownerIdType: typeof ownerId,
       userIdType: typeof userId
     });
     
+    if (!ownerId) {
+      console.warn(`⚠️ No owner ID found for tour ${tourId}`);
+      return false;
+    }
+    
     // Compare as strings to handle UUID comparison issues
-    const isOwner = ownerId && userId && String(ownerId) === String(userId);
+    const isOwner = String(ownerId) === String(userId);
     
     if (!isOwner) {
       console.warn(`⚠️ Permission denied: userId ${userId} !== ownerId ${ownerId}`);
+    } else {
+      console.log(`✅ Permission granted: userId ${userId} matches ownerId ${ownerId}`);
     }
     
     return isOwner;
