@@ -30,7 +30,10 @@ export default async function handler(req, res) {
 
   // Helper function to get user ID and role from token
   const getUserFromToken = async (authHeader) => {
-    if (!authHeader) return { userId: null, isAdmin: false };
+    if (!authHeader) {
+      console.warn('⚠️ No auth header provided');
+      return { userId: null, isAdmin: false };
+    }
     
     let userId = null;
     try {
@@ -38,44 +41,104 @@ export default async function handler(req, res) {
       try {
         const payload = JSON.parse(Buffer.from(cleanToken, 'base64').toString());
         userId = payload.userId || payload.id || payload.sub;
+        console.log('🔑 Extracted userId from JWT payload:', userId);
       } catch (e) {
+        console.log('🔑 Trying Supabase auth.getUser...');
         const { data: { user }, error: authError } = await supabase.auth.getUser(cleanToken);
         if (!authError && user) {
           userId = user.id;
+          console.log('🔑 Extracted userId from Supabase auth:', userId);
+        } else {
+          console.error('❌ Supabase auth error:', authError);
         }
       }
     } catch (error) {
-      console.error('Token decode error:', error);
+      console.error('❌ Token decode error:', error);
     }
     
-    if (!userId) return { userId: null, isAdmin: false };
+    if (!userId) {
+      console.warn('⚠️ Could not extract userId from token');
+      return { userId: null, isAdmin: false };
+    }
     
     // Get user role
-    const { data: userData } = await supabase
+    const { data: userData, error: userError } = await supabase
       .from('users')
       .select('id, role')
       .eq('id', userId)
       .single();
     
+    if (userError) {
+      console.error('❌ Error fetching user data:', userError);
+    }
+    
     const isAdmin = userData?.role === 'admin';
+    console.log(`👤 User ${userId} - role: ${userData?.role}, isAdmin: ${isAdmin}`);
     return { userId, isAdmin, userData };
   };
   
   // Helper function to check if user can edit tour
   const canEditTour = async (tourId, userId, isAdmin) => {
-    if (isAdmin) return true; // Admin can edit any tour
+    if (isAdmin) {
+      console.log(`✅ Admin access granted for tour ${tourId}`);
+      return true; // Admin can edit any tour
+    }
+    
+    if (!userId) {
+      console.warn(`⚠️ No userId provided for tour ${tourId}`);
+      return false;
+    }
     
     // Get tour owner
-    const { data: tour } = await supabase
+    const { data: tour, error: tourError } = await supabase
       .from('tours')
       .select('guide_id, creator_id, user_id, created_by')
       .eq('id', tourId)
       .single();
     
-    if (!tour) return false;
+    if (tourError) {
+      console.error(`❌ Error fetching tour ${tourId}:`, tourError);
+      return false;
+    }
     
-    const ownerId = tour.guide_id || tour.creator_id || tour.user_id || tour.created_by;
-    return ownerId === userId;
+    if (!tour) {
+      console.warn(`⚠️ Tour ${tourId} not found`);
+      return false;
+    }
+    
+    // Check ownership - handle null values properly
+    // Use the first non-null value, not just truthy (to handle empty strings, 0, etc.)
+    let ownerId = null;
+    if (tour.guide_id !== null && tour.guide_id !== undefined) {
+      ownerId = tour.guide_id;
+    } else if (tour.creator_id !== null && tour.creator_id !== undefined) {
+      ownerId = tour.creator_id;
+    } else if (tour.user_id !== null && tour.user_id !== undefined) {
+      ownerId = tour.user_id;
+    } else if (tour.created_by !== null && tour.created_by !== undefined) {
+      ownerId = tour.created_by;
+    }
+    
+    console.log(`🔐 Permission check for tour ${tourId}:`, {
+      userId,
+      ownerId,
+      guide_id: tour.guide_id,
+      creator_id: tour.creator_id,
+      user_id: tour.user_id,
+      created_by: tour.created_by,
+      match: ownerId === userId,
+      ownerIdType: typeof ownerId,
+      userIdType: typeof userId
+    });
+    
+    // Compare as strings to handle UUID comparison issues
+    const isOwner = ownerId && userId && String(ownerId) === String(userId);
+    
+    if (!isOwner) {
+      console.warn(`⚠️ Permission denied: userId ${userId} !== ownerId ${ownerId}`);
+    }
+    
+    return isOwner;
   };
 
   try {
@@ -192,6 +255,8 @@ export default async function handler(req, res) {
     if (req.method === 'PUT') {
       const { blockId, content, orderIndex } = req.body;
 
+      console.log(`📝 PUT request to update block ${blockId}`);
+
       if (!blockId) {
         return res.status(400).json({ error: 'blockId is required' });
       }
@@ -199,33 +264,50 @@ export default async function handler(req, res) {
       // Check authorization and permissions
       const authHeader = req.headers.authorization;
       if (!authHeader) {
+        console.warn('⚠️ No authorization header in PUT request');
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
-      const { userId, isAdmin } = await getUserFromToken(authHeader);
+      const { userId, isAdmin, userData } = await getUserFromToken(authHeader);
+      console.log(`🔐 PUT request - userId: ${userId}, isAdmin: ${isAdmin}`);
+      
       if (!userId) {
+        console.warn('⚠️ Could not extract userId from token');
         return res.status(401).json({ error: 'Invalid token' });
       }
 
       // Get tour_id from block to check permissions
-      const { data: existingBlock } = await supabase
+      const { data: existingBlock, error: blockError } = await supabase
         .from('tour_content_blocks')
         .select('tour_id')
         .eq('id', blockId)
         .single();
 
+      if (blockError) {
+        console.error('❌ Error fetching block:', blockError);
+        return res.status(404).json({ error: 'Block not found', details: blockError.message });
+      }
+
       if (!existingBlock) {
+        console.warn(`⚠️ Block ${blockId} not found`);
         return res.status(404).json({ error: 'Block not found' });
       }
+
+      console.log(`🔍 Block ${blockId} belongs to tour ${existingBlock.tour_id}`);
 
       // Check if user can edit this tour
       const canEdit = await canEditTour(existingBlock.tour_id, userId, isAdmin);
       if (!canEdit) {
+        console.error(`❌ Permission denied: User ${userId} cannot edit tour ${existingBlock.tour_id}`);
         return res.status(403).json({ 
           error: 'You can only edit your own tours',
-          isAdmin 
+          isAdmin,
+          userId,
+          tourId: existingBlock.tour_id
         });
       }
+
+      console.log(`✅ Permission granted: User ${userId} can edit tour ${existingBlock.tour_id}`);
 
       const updateData = {};
       if (content !== undefined) updateData.content = content;
@@ -261,6 +343,8 @@ export default async function handler(req, res) {
     if (req.method === 'DELETE') {
       const { blockId } = req.query;
 
+      console.log(`🗑️ DELETE request to delete block ${blockId}`);
+
       if (!blockId) {
         return res.status(400).json({ error: 'blockId is required' });
       }
@@ -268,33 +352,50 @@ export default async function handler(req, res) {
       // Check authorization and permissions
       const authHeader = req.headers.authorization;
       if (!authHeader) {
+        console.warn('⚠️ No authorization header in DELETE request');
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
       const { userId, isAdmin } = await getUserFromToken(authHeader);
+      console.log(`🔐 DELETE request - userId: ${userId}, isAdmin: ${isAdmin}`);
+      
       if (!userId) {
+        console.warn('⚠️ Could not extract userId from token');
         return res.status(401).json({ error: 'Invalid token' });
       }
 
       // Get tour_id from block to check permissions
-      const { data: existingBlock } = await supabase
+      const { data: existingBlock, error: blockError } = await supabase
         .from('tour_content_blocks')
         .select('tour_id')
         .eq('id', blockId)
         .single();
 
+      if (blockError) {
+        console.error('❌ Error fetching block:', blockError);
+        return res.status(404).json({ error: 'Block not found', details: blockError.message });
+      }
+
       if (!existingBlock) {
+        console.warn(`⚠️ Block ${blockId} not found`);
         return res.status(404).json({ error: 'Block not found' });
       }
+
+      console.log(`🔍 Block ${blockId} belongs to tour ${existingBlock.tour_id}`);
 
       // Check if user can edit this tour
       const canEdit = await canEditTour(existingBlock.tour_id, userId, isAdmin);
       if (!canEdit) {
+        console.error(`❌ Permission denied: User ${userId} cannot delete block from tour ${existingBlock.tour_id}`);
         return res.status(403).json({ 
           error: 'You can only edit your own tours',
-          isAdmin 
+          isAdmin,
+          userId,
+          tourId: existingBlock.tour_id
         });
       }
+
+      console.log(`✅ Permission granted: User ${userId} can delete block from tour ${existingBlock.tour_id}`);
 
       const { error } = await supabase
         .from('tour_content_blocks')
