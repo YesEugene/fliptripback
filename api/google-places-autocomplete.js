@@ -37,7 +37,11 @@ export default async function handler(req, res) {
 
     if (!process.env.GOOGLE_MAPS_KEY) {
       console.error('❌ GOOGLE_MAPS_KEY not configured');
-      return res.status(500).json({ error: 'Google Maps API key not configured' });
+      return res.status(500).json({ 
+        error: 'Google Maps API key not configured',
+        message: 'Please set GOOGLE_MAPS_KEY environment variable in Vercel backend settings. See GOOGLE_MAPS_KEY_SETUP.md for instructions.',
+        hint: 'Add GOOGLE_MAPS_KEY to your Vercel backend project Environment Variables'
+      });
     }
 
     console.log('✅ GOOGLE_MAPS_KEY configured, length:', process.env.GOOGLE_MAPS_KEY?.length);

@@ -19,3 +19,6 @@ SELECT
 FROM tours
 WHERE preview_media_url IS NOT NULL AND preview_media_url != '';
 
+
+
+

@@ -32,3 +32,6 @@ SELECT
 FROM tours
 WHERE status = 'approved';
 
+
+
+

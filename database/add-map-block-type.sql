@@ -27,3 +27,6 @@ BEGIN
   RAISE NOTICE '📍 Allowed block types: location, title, photo_text, text, slide, 3columns, photo, divider, map';
 END $$;
 
+
+
+

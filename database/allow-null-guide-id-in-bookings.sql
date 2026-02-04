@@ -42,3 +42,6 @@ COMMENT ON COLUMN tour_bookings.guide_id IS 'Гид, который провод
 
 
 
+
+
+
