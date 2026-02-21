@@ -196,52 +196,62 @@ export default async function handler(req, res) {
         });
       }
 
+      // Helper: attempt upsert, retry without new columns if they don't exist yet
+      const attemptSave = async (data, isInsert) => {
+        if (isInsert) {
+          data.id = userId;
+          data.created_at = new Date().toISOString();
+          const { data: row, error } = await supabase
+            .from('guides')
+            .insert(data)
+            .select()
+            .single();
+          return { row, error };
+        } else {
+          const { data: row, error } = await supabase
+            .from('guides')
+            .update(data)
+            .eq('id', userId)
+            .select()
+            .single();
+          return { row, error };
+        }
+      };
+
+      const isInsert = !existingGuide;
       let result;
-      if (existingGuide) {
-        // Update existing profile
-        // Table uses 'id' (not 'user_id') - id matches users.id
-        const updateData = { ...guideData };
-        
-        const { data: updatedGuide, error: updateError } = await supabase
-          .from('guides')
-          .update(updateData)
-          .eq('id', userId)
-          .select()
-          .single();
 
-        if (updateError) {
-          console.error('Profile update error:', updateError);
+      // First attempt — with all fields including city & interests
+      let { row, error: saveError } = await attemptSave({ ...guideData }, isInsert);
+
+      if (saveError) {
+        // If error is "column does not exist" (42703), retry without new columns
+        if (saveError.code === '42703' && (saveError.message?.includes('city') || saveError.message?.includes('interests'))) {
+          console.warn('⚠️ Columns city/interests do not exist in guides table, retrying without them');
+          const fallbackData = { ...guideData };
+          delete fallbackData.city;
+          delete fallbackData.interests;
+          const fallbackResult = await attemptSave(fallbackData, isInsert);
+          if (fallbackResult.error) {
+            console.error('Profile save error (fallback):', fallbackResult.error);
+            return res.status(500).json({
+              success: false,
+              message: 'Error saving profile',
+              error: fallbackResult.error.message
+            });
+          }
+          row = fallbackResult.row;
+        } else {
+          console.error('Profile save error:', saveError);
           return res.status(500).json({
             success: false,
-            message: 'Error updating profile',
-            error: updateError.message
+            message: isInsert ? 'Error creating profile' : 'Error updating profile',
+            error: saveError.message
           });
         }
-
-        result = updatedGuide;
-      } else {
-        // Create new profile
-        // Table uses 'id' (not 'user_id') - id matches users.id
-        guideData.id = userId;
-        guideData.created_at = new Date().toISOString();
-        
-        const { data: newGuide, error: insertError } = await supabase
-          .from('guides')
-          .insert(guideData)
-          .select()
-          .single();
-
-        if (insertError) {
-          console.error('Profile creation error:', insertError);
-          return res.status(500).json({
-            success: false,
-            message: 'Error creating profile',
-            error: insertError.message
-          });
-        }
-
-        result = newGuide;
       }
+
+      result = row;
 
       // Format response
       // Note: schema uses instagram, facebook, twitter, linkedin (not _url suffix)
