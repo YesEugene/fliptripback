@@ -405,6 +405,7 @@ export default async function handler(req, res) {
     
     // Extract highlights ("What's Inside This Walk")
     const highlights = tourData.highlights || {};
+    const previewImages = tourData.previewImages || [];
 
     // 1. Create main tour record
     const baseTourData = {
@@ -425,6 +426,7 @@ export default async function handler(req, res) {
       // Store highlights in draft_data
       draft_data: {
         highlights: highlights,
+        previewImages: previewImages,
         tourSettings: {
           selfGuided: tourData.selfGuided !== undefined ? tourData.selfGuided : true,
           withGuide: tourData.withGuide !== undefined ? tourData.withGuide : false,

@@ -326,7 +326,7 @@ export default async function handler(req, res) {
     }
 
     const tourData = req.body;
-    let { country, city, title, description, daily_plan, tags, meta, status, saveAsDraft, highlights } = tourData;
+    let { country, city, title, description, daily_plan, tags, meta, status, saveAsDraft, highlights, previewImages } = tourData;
     // status can be: 'draft', 'pending', 'approved', 'rejected'
     // If not provided, keep existing status or default to 'draft'
     // country is optional - can be empty or undefined
@@ -582,13 +582,25 @@ export default async function handler(req, res) {
         previewType: previewMediaType,
         additionalOptions,
         tourSettings: tourSettings, // CRITICAL: Always save tourSettings
+        highlights: highlights || {}, // "What's Inside This Walk" structured highlights
+        previewImages: previewImages || [], // Gallery images for preview carousel
         updated_at: new Date().toISOString()
       };
       
+      // Merge with existing draft_data to preserve fields not sent in this request
+      const existingDraft = existingTour?.draft_data || {};
+      const mergedDraftData = {
+        ...existingDraft,
+        ...draftData,
+        // Preserve highlights: use sent value if defined, otherwise keep existing
+        highlights: highlights !== undefined ? highlights : (existingDraft.highlights || {}),
+        previewImages: previewImages !== undefined ? previewImages : (existingDraft.previewImages || [])
+      };
+
       // CRITICAL: Also update preview_media_url in main table if preview is provided
       // This ensures preview images are available for homepage even for draft tours
       const updateDataForDraft = {
-        draft_data: draftData
+        draft_data: mergedDraftData
       };
       
       // If preview is provided, also save it to preview_media_url
@@ -754,6 +766,11 @@ export default async function handler(req, res) {
       } else if (existingTour?.draft_data?.highlights) {
         preservedDraftData.highlights = existingTour.draft_data.highlights;
       }
+      if (previewImages !== undefined) {
+        preservedDraftData.previewImages = previewImages;
+      } else if (existingTour?.draft_data?.previewImages) {
+        preservedDraftData.previewImages = existingTour.draft_data.previewImages;
+      }
       updateData.draft_data = preservedDraftData;
     }
     
@@ -815,7 +832,8 @@ export default async function handler(req, res) {
         preview: previewMediaUrl !== undefined ? previewMediaUrl : existingDraftData.preview,
         previewType: previewMediaUrl !== undefined ? previewMediaType : (existingDraftData.previewType || 'image'),
         // Preserve highlights ("What's Inside This Walk") - supports both object and array formats
-        highlights: highlights !== undefined ? highlights : (existingDraftData.highlights || {})
+        highlights: highlights !== undefined ? highlights : (existingDraftData.highlights || {}),
+        previewImages: previewImages !== undefined ? previewImages : (existingDraftData.previewImages || [])
       };
     }
 
