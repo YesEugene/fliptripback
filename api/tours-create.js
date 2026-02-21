@@ -404,7 +404,7 @@ export default async function handler(req, res) {
     const additionalOptions = tourData.additionalOptions || null;
     
     // Extract highlights ("What's Inside This Walk")
-    const highlights = tourData.highlights || [];
+    const highlights = tourData.highlights || {};
 
     // 1. Create main tour record
     const baseTourData = {

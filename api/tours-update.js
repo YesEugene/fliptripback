@@ -814,8 +814,8 @@ export default async function handler(req, res) {
         // CRITICAL: Also preserve preview in draft_data if it exists
         preview: previewMediaUrl !== undefined ? previewMediaUrl : existingDraftData.preview,
         previewType: previewMediaUrl !== undefined ? previewMediaType : (existingDraftData.previewType || 'image'),
-        // Preserve highlights ("What's Inside This Walk")
-        highlights: highlights !== undefined ? highlights : (existingDraftData.highlights || [])
+        // Preserve highlights ("What's Inside This Walk") - supports both object and array formats
+        highlights: highlights !== undefined ? highlights : (existingDraftData.highlights || {})
       };
     }
 
