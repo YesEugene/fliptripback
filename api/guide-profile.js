@@ -130,6 +130,8 @@ export default async function handler(req, res) {
         name: guideProfile.name || user.name || user.email?.split('@')[0] || '',
         avatar: guideProfile.avatar_url || guideProfile.avatar || '',
         bio: guideProfile.bio || '',
+        city: guideProfile.city || '',
+        interests: guideProfile.interests || '',
         socialLinks: {
           instagram: guideProfile.instagram || '',
           facebook: guideProfile.facebook || '',
@@ -155,6 +157,8 @@ export default async function handler(req, res) {
       const guideData = {
         name: profileData.name || user.email?.split('@')[0] || 'Guide',
         bio: profileData.bio || null,
+        city: profileData.city || null,
+        interests: profileData.interests || null,
         instagram: profileData.socialLinks?.instagram || null,
         facebook: profileData.socialLinks?.facebook || null,
         twitter: profileData.socialLinks?.twitter || null,
@@ -246,6 +250,8 @@ export default async function handler(req, res) {
         name: result.name || user.name || user.email?.split('@')[0] || '',
         avatar: result.avatar_url || result.avatar || '',
         bio: result.bio || '',
+        city: result.city || '',
+        interests: result.interests || '',
         socialLinks: {
           instagram: result.instagram || '',
           facebook: result.facebook || '',

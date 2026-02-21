@@ -394,7 +394,7 @@ export default async function handler(req, res) {
         // Note: guides.id = users.id (not user_id)
         const { data: guide } = await supabase
           .from('guides')
-          .select('id, name, avatar_url, bio')
+          .select('id, name, avatar_url, bio, city, interests')
           .eq('id', tour.guide_id)
           .maybeSingle();
         if (guide) {
@@ -797,7 +797,7 @@ export default async function handler(req, res) {
           // Note: guides.id = users.id (not user_id)
           const { data: guide } = await supabase
             .from('guides')
-            .select('id, name, avatar_url')
+            .select('id, name, avatar_url, city, interests')
             .eq('id', tour.guide_id)
             .maybeSingle();
           if (guide) {
