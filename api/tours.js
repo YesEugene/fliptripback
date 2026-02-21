@@ -389,15 +389,37 @@ export default async function handler(req, res) {
 
       // Load guide info separately if guide_id exists
       let guideInfo = null;
+      let authorOtherTours = [];
       if (tour.guide_id) {
         // Note: guides.id = users.id (not user_id)
         const { data: guide } = await supabase
           .from('guides')
-          .select('id, name, avatar_url')
+          .select('id, name, avatar_url, bio')
           .eq('id', tour.guide_id)
           .maybeSingle();
         if (guide) {
           guideInfo = guide;
+        }
+
+        // Load other published tours by the same guide (for "All trips from this author")
+        try {
+          const { data: otherTours } = await supabase
+            .from('tours')
+            .select('id, title, preview_media_url, draft_data')
+            .eq('guide_id', tour.guide_id)
+            .neq('id', tour.id)
+            .in('status', ['approved', 'published', 'active'])
+            .order('created_at', { ascending: false })
+            .limit(10);
+          if (otherTours) {
+            authorOtherTours = otherTours.map(t => ({
+              id: t.id,
+              title: t.draft_data?.title || t.title,
+              preview: t.draft_data?.preview || t.preview_media_url
+            }));
+          }
+        } catch (e) {
+          console.warn('⚠️ Could not load other tours by author:', e.message);
         }
       }
 
@@ -474,7 +496,9 @@ export default async function handler(req, res) {
         availability: availabilityInfo,
         daily_plan: convertTourToDailyPlan(tour),
         // Add guide info if available
-        guide: guideInfo
+        guide: guideInfo,
+        // Other tours by same author (for preview page)
+        authorOtherTours: authorOtherTours
       };
       
       // CRITICAL: Log what we're returning

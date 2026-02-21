@@ -326,7 +326,7 @@ export default async function handler(req, res) {
     }
 
     const tourData = req.body;
-    let { country, city, title, description, daily_plan, tags, meta, status, saveAsDraft } = tourData;
+    let { country, city, title, description, daily_plan, tags, meta, status, saveAsDraft, highlights } = tourData;
     // status can be: 'draft', 'pending', 'approved', 'rejected'
     // If not provided, keep existing status or default to 'draft'
     // country is optional - can be empty or undefined
@@ -748,6 +748,12 @@ export default async function handler(req, res) {
       
       // Only clear draft_data if it doesn't contain important settings
       // Otherwise, preserve tourSettings for future editing
+      // Also preserve highlights ("What's Inside This Walk")
+      if (highlights !== undefined) {
+        preservedDraftData.highlights = highlights;
+      } else if (existingTour?.draft_data?.highlights) {
+        preservedDraftData.highlights = existingTour.draft_data.highlights;
+      }
       updateData.draft_data = preservedDraftData;
     }
     
@@ -807,7 +813,9 @@ export default async function handler(req, res) {
         ...preservedDraftData,
         // CRITICAL: Also preserve preview in draft_data if it exists
         preview: previewMediaUrl !== undefined ? previewMediaUrl : existingDraftData.preview,
-        previewType: previewMediaUrl !== undefined ? previewMediaType : (existingDraftData.previewType || 'image')
+        previewType: previewMediaUrl !== undefined ? previewMediaType : (existingDraftData.previewType || 'image'),
+        // Preserve highlights ("What's Inside This Walk")
+        highlights: highlights !== undefined ? highlights : (existingDraftData.highlights || [])
       };
     }
 

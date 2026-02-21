@@ -403,6 +403,9 @@ export default async function handler(req, res) {
     // Extract Additional Options
     const additionalOptions = tourData.additionalOptions || null;
     
+    // Extract highlights ("What's Inside This Walk")
+    const highlights = tourData.highlights || [];
+
     // 1. Create main tour record
     const baseTourData = {
       [userColumnName]: userId,
@@ -418,8 +421,28 @@ export default async function handler(req, res) {
       preview_media_url: previewMediaUrl,
       preview_media_type: previewMediaType,
       is_published: false,
-      status: 'draft'
-      // verified: false - removed, column doesn't exist in schema
+      status: 'draft',
+      // Store highlights in draft_data
+      draft_data: {
+        highlights: highlights,
+        tourSettings: {
+          selfGuided: tourData.selfGuided !== undefined ? tourData.selfGuided : true,
+          withGuide: tourData.withGuide !== undefined ? tourData.withGuide : false,
+          price: {
+            pdfPrice: pricePdf,
+            guidedPrice: priceGuided,
+            currency: tourData.price?.currency || 'USD',
+            availableDates: availableDates || [],
+            meetingPoint: meetingPoint || '',
+            meetingTime: meetingTime || ''
+          },
+          additionalOptions: additionalOptions || {
+            platformOptions: ['insurance', 'accommodation'],
+            creatorOptions: {}
+          },
+          tags: tags || []
+        }
+      }
     };
     
     // Add default_group_size if provided
