@@ -197,3 +197,67 @@ export default async function handler(req, res) {
   }
 }
 
+/**
+ * Download a Google Place photo and cache it in Supabase Storage
+ * Returns the public Supabase URL, or null if caching fails
+ */
+async function cachePhotoInSupabase(placeId, photoReference) {
+  if (!supabase || !placeId || !photoReference) return null;
+
+  const fileName = `place-photos/${placeId}/${photoReference.substring(0, 40)}.jpg`;
+  const dirPath = `place-photos/${placeId}`;
+  const fileBaseName = `${photoReference.substring(0, 40)}.jpg`;
+
+  // Check if photo already exists in storage
+  try {
+    const { data: files } = await supabase.storage
+      .from('tour-assets')
+      .list(dirPath, { limit: 100 });
+
+    if (files && files.some(f => f.name === fileBaseName)) {
+      const { data: urlData } = supabase.storage
+        .from('tour-assets')
+        .getPublicUrl(fileName);
+      if (urlData?.publicUrl) {
+        console.log(`  ♻️ Photo already cached: ${fileBaseName}`);
+        return urlData.publicUrl;
+      }
+    }
+  } catch (e) {
+    // Storage bucket might not exist yet, continue to create
+  }
+
+  // Download photo from Google
+  const googlePhotoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photoReference}&key=${process.env.GOOGLE_MAPS_KEY}`;
+
+  const photoResponse = await fetch(googlePhotoUrl, { redirect: 'follow' });
+  if (!photoResponse.ok) {
+    console.warn(`  ❌ Failed to download photo from Google: ${photoResponse.status}`);
+    return null;
+  }
+
+  const photoBuffer = Buffer.from(await photoResponse.arrayBuffer());
+  const contentType = photoResponse.headers.get('content-type') || 'image/jpeg';
+
+  // Upload to Supabase Storage
+  const { error: uploadError } = await supabase.storage
+    .from('tour-assets')
+    .upload(fileName, photoBuffer, {
+      contentType,
+      upsert: true
+    });
+
+  if (uploadError) {
+    console.warn(`  ❌ Failed to upload photo to Supabase: ${uploadError.message}`);
+    return null;
+  }
+
+  // Get public URL
+  const { data: urlData } = supabase.storage
+    .from('tour-assets')
+    .getPublicUrl(fileName);
+
+  console.log(`  ✅ Cached photo: ${fileName}`);
+  return urlData?.publicUrl || null;
+}
+
