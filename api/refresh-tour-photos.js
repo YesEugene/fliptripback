@@ -156,11 +156,12 @@ export default async function handler(req, res) {
 function shouldRefreshPhotos(location) {
   if (!location) return false;
 
-  // If recently refreshed (within last hour), skip
+  // If recently refreshed (within last 30 days), skip
+  // Google Place photo references are stable for months — no need to refresh often
   if (location._photosRefreshedAt) {
     const refreshedAt = new Date(location._photosRefreshedAt);
-    const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
-    if (refreshedAt > hourAgo) return false;
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    if (refreshedAt > thirtyDaysAgo) return false;
   }
 
   return hasGooglePlacePhotos(location);
@@ -169,6 +170,7 @@ function shouldRefreshPhotos(location) {
 /**
  * Refresh photos for a single location
  * Uses multiple search strategies to find the place
+ * Downloads photos and caches them in Supabase Storage to avoid repeated Google API billing
  */
 async function refreshLocationPhotos(location) {
   if (!location) return null;
@@ -192,13 +194,13 @@ async function refreshLocationPhotos(location) {
 
   console.log(`✅ Using place_id: ${placeId} for "${locationName}"`);
 
-  // Fetch fresh place details
+  // Fetch fresh place details (only photos + place_id to minimize cost)
   const response = await googleMapsClient.placeDetails({
     params: {
       place_id: placeId,
       key: process.env.GOOGLE_MAPS_KEY,
       language: 'en',
-      fields: ['photos', 'place_id', 'name']
+      fields: ['photos', 'place_id']
     }
   });
 
@@ -214,18 +216,100 @@ async function refreshLocationPhotos(location) {
     return null;
   }
 
-  // Generate fresh photo URLs
-  const freshPhotos = place.photos.slice(0, 10).map(photo =>
-    `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photo.photo_reference}&key=${process.env.GOOGLE_MAPS_KEY}`
-  );
+  // Download photos from Google and cache in Supabase Storage
+  // This way each photo is fetched from Google only ONCE, then served free from Supabase
+  const photoRefs = place.photos.slice(0, 5); // Limit to 5 photos to save costs
+  const cachedPhotos = [];
 
-  console.log(`📸 Got ${freshPhotos.length} fresh photos for: "${locationName}" (Google name: "${place.name}")`);
+  for (const photoData of photoRefs) {
+    try {
+      const cachedUrl = await cachePhotoInSupabase(placeId, photoData.photo_reference);
+      if (cachedUrl) {
+        cachedPhotos.push(cachedUrl);
+      }
+    } catch (err) {
+      console.warn(`⚠️ Failed to cache photo for "${locationName}":`, err.message);
+      // Fallback: use direct Google URL (will still be billed per view)
+      cachedPhotos.push(
+        `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photoData.photo_reference}&key=${process.env.GOOGLE_MAPS_KEY}`
+      );
+    }
+  }
+
+  console.log(`📸 Got ${cachedPhotos.length} photos for: "${locationName}" (${cachedPhotos.filter(u => u.includes('supabase')).length} cached)`);
 
   return {
-    photos: freshPhotos,
-    photo: freshPhotos[0] || null,
+    photos: cachedPhotos,
+    photo: cachedPhotos[0] || null,
     place_id: placeId
   };
+}
+
+/**
+ * Download a Google Place photo and cache it in Supabase Storage
+ * Returns the public Supabase URL, or null if caching fails
+ */
+async function cachePhotoInSupabase(placeId, photoReference) {
+  if (!supabase || !placeId || !photoReference) return null;
+
+  const fileName = `place-photos/${placeId}/${photoReference.substring(0, 40)}.jpg`;
+
+  // Check if photo already exists in storage
+  const { data: existingFile } = await supabase.storage
+    .from('tour-assets')
+    .createSignedUrl(fileName, 60); // Just checking if it exists
+
+  // Try to get public URL first — if file exists, return it immediately
+  const { data: publicUrlData } = supabase.storage
+    .from('tour-assets')
+    .getPublicUrl(fileName);
+
+  if (publicUrlData?.publicUrl) {
+    // Verify file actually exists by checking with list
+    const dirPath = `place-photos/${placeId}`;
+    const fileBaseName = `${photoReference.substring(0, 40)}.jpg`;
+    const { data: files } = await supabase.storage
+      .from('tour-assets')
+      .list(dirPath, { limit: 100 });
+
+    if (files && files.some(f => f.name === fileBaseName)) {
+      console.log(`  ♻️ Photo already cached: ${fileBaseName}`);
+      return publicUrlData.publicUrl;
+    }
+  }
+
+  // Download photo from Google
+  const googlePhotoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photoReference}&key=${process.env.GOOGLE_MAPS_KEY}`;
+
+  const photoResponse = await fetch(googlePhotoUrl, { redirect: 'follow' });
+  if (!photoResponse.ok) {
+    console.warn(`  ❌ Failed to download photo from Google: ${photoResponse.status}`);
+    return null;
+  }
+
+  const photoBuffer = Buffer.from(await photoResponse.arrayBuffer());
+  const contentType = photoResponse.headers.get('content-type') || 'image/jpeg';
+
+  // Upload to Supabase Storage
+  const { error: uploadError } = await supabase.storage
+    .from('tour-assets')
+    .upload(fileName, photoBuffer, {
+      contentType,
+      upsert: true // Overwrite if exists
+    });
+
+  if (uploadError) {
+    console.warn(`  ❌ Failed to upload photo to Supabase: ${uploadError.message}`);
+    return null;
+  }
+
+  // Get public URL
+  const { data: urlData } = supabase.storage
+    .from('tour-assets')
+    .getPublicUrl(fileName);
+
+  console.log(`  ✅ Cached photo: ${fileName}`);
+  return urlData?.publicUrl || null;
 }
 
 /**

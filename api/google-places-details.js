@@ -1,7 +1,9 @@
 // Google Places Details API endpoint
 // Returns detailed information about a place by place_id
+// Photos are downloaded and cached in Supabase Storage to avoid repeated Google billing
 
 import { Client } from '@googlemaps/google-maps-services-js';
+import { supabase } from '../database/db.js';
 import cors from 'cors';
 
 const googleMapsClient = new Client({});
@@ -52,19 +54,20 @@ export default async function handler(req, res) {
         place_id: place_id,
         key: process.env.GOOGLE_MAPS_KEY,
         language: 'en',
+        // Optimized field selection to reduce Google API costs:
+        // Basic fields (free): name, formatted_address, geometry, place_id, types
+        // Atmosphere fields ($5/1000): rating, user_ratings_total, price_level  
+        // Photos (separate billing): photos
+        // Removed Contact fields ($3/1000 saved): website, international_phone_number, opening_hours, address_components
         fields: [
           'name',
           'formatted_address',
-          'address_components',
           'rating',
           'user_ratings_total',
           'price_level',
           'types',
           'geometry',
           'photos',
-          'website',
-          'international_phone_number',
-          'opening_hours',
           'place_id'
         ]
       }
@@ -92,20 +95,19 @@ export default async function handler(req, res) {
 
     const place = response.data.result;
 
-    // Extract city and country from address_components
+    // Extract city and country from formatted_address (no longer using address_components to save API costs)
     let cityName = null;
     let countryName = null;
     
-    if (place.address_components && Array.isArray(place.address_components)) {
-      for (const component of place.address_components) {
-        if (component.types.includes('locality')) {
-          cityName = component.long_name;
-        } else if (component.types.includes('administrative_area_level_1') && !cityName) {
-          // Fallback to administrative_area_level_1 if locality not found
-          cityName = component.long_name;
-        } else if (component.types.includes('country')) {
-          countryName = component.long_name;
-        }
+    if (place.formatted_address) {
+      const parts = place.formatted_address.split(',').map(p => p.trim());
+      if (parts.length >= 2) {
+        // Last part is usually the country
+        countryName = parts[parts.length - 1];
+        // Second to last is usually city or region
+        const cityPart = parts[parts.length - 2];
+        // Remove postal code if present
+        cityName = cityPart.replace(/^\d+\s*/, '').trim();
       }
     }
 
@@ -142,23 +144,44 @@ export default async function handler(req, res) {
         lat: place.geometry.location.lat,
         lng: place.geometry.location.lng
       } : null,
-      // Return array of photos (up to 10)
-      photos: place.photos && place.photos.length > 0
-        ? place.photos.slice(0, 10).map(photo => 
-            `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photo.photo_reference}&key=${process.env.GOOGLE_MAPS_KEY}`
-          )
-        : [],
-      // Keep photo_url for backward compatibility (first photo)
-      photo_url: place.photos && place.photos.length > 0 
-        ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${place.photos[0].photo_reference}&key=${process.env.GOOGLE_MAPS_KEY}`
-        : null,
-      website: place.website || null,
-      phone: place.international_phone_number || null,
-      opening_hours: place.opening_hours || null,
-      // City and country extracted from address_components
+      // Photos will be cached in Supabase Storage to avoid repeated Google billing
+      photos: [], // Will be populated below
+      photo_url: null, // Will be populated below
+      website: null, // No longer fetched from Google to save API costs (Contact fields removed)
+      phone: null,
+      opening_hours: null,
+      // City and country extracted from formatted_address
       city_name: cityName,
       country_name: countryName
     };
+
+    // Cache photos in Supabase Storage (download from Google once, serve free from Supabase)
+    if (place.photos && place.photos.length > 0) {
+      const photoRefs = place.photos.slice(0, 5); // Limit to 5 photos to reduce Google billing
+      const cachedPhotos = [];
+
+      for (const photoData of photoRefs) {
+        try {
+          const cachedUrl = await cachePhotoInSupabase(place.place_id, photoData.photo_reference);
+          if (cachedUrl) {
+            cachedPhotos.push(cachedUrl);
+          } else {
+            // Fallback to direct Google URL
+            cachedPhotos.push(
+              `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photoData.photo_reference}&key=${process.env.GOOGLE_MAPS_KEY}`
+            );
+          }
+        } catch (cacheErr) {
+          console.warn('⚠️ Photo caching failed, using direct URL:', cacheErr.message);
+          cachedPhotos.push(
+            `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photoData.photo_reference}&key=${process.env.GOOGLE_MAPS_KEY}`
+          );
+        }
+      }
+
+      formattedPlace.photos = cachedPhotos;
+      formattedPlace.photo_url = cachedPhotos[0] || null;
+    }
 
     return res.status(200).json({
       success: true,
