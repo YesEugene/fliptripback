@@ -23,7 +23,7 @@ export default async function handler(req, res) {
 
     // Optional: pass specific tourId, or process all tours
     const { tourId, limit: batchLimit } = req.body || {};
-    const maxBlocks = batchLimit || 50; // Process up to 50 blocks per call to avoid Vercel timeout
+    const maxBlocks = batchLimit || 3; // Process up to 3 blocks per call (Vercel 10s timeout)
 
     console.log(`🚀 Mass photo migration started (tourId=${tourId || 'ALL'}, limit=${maxBlocks})`);
 
@@ -193,7 +193,7 @@ async function migrateLocationPhotos(location) {
   let downloaded = 0;
   let cached = 0;
 
-  for (const photoUrl of photos.slice(0, 10)) { // Process up to 10 photos per location
+  for (const photoUrl of photos.slice(0, 5)) { // Process up to 5 photos per location (fast)
     if (!isGoogleUrl(photoUrl)) {
       // Already a Supabase URL or other non-Google URL — keep it
       migratedPhotos.push(photoUrl);
