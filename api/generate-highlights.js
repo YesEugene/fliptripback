@@ -38,6 +38,12 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Check OpenAI API key
+    if (!process.env.OPENAI_API_KEY) {
+      console.error('❌ OPENAI_API_KEY is not configured');
+      return res.status(503).json({ error: 'AI service is not configured. Please set OPENAI_API_KEY environment variable.' });
+    }
+
     // Auth check
     const authHeader = req.headers.authorization;
     if (!authHeader) {
