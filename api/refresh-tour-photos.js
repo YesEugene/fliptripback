@@ -228,11 +228,8 @@ async function refreshLocationPhotos(location) {
         cachedPhotos.push(cachedUrl);
       }
     } catch (err) {
-      console.warn(`⚠️ Failed to cache photo for "${locationName}":`, err.message);
-      // Fallback: use direct Google URL (will still be billed per view)
-      cachedPhotos.push(
-        `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photoData.photo_reference}&key=${process.env.GOOGLE_MAPS_KEY}`
-      );
+      // CRITICAL: Do NOT fallback to direct Google URL - costs ~$7/1000 loads!
+      console.warn(`Failed to cache photo for "${locationName}":`, err.message);
     }
   }
 

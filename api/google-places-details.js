@@ -1,6 +1,7 @@
 // Google Places Details API endpoint
 // Returns detailed information about a place by place_id
 // Photos are downloaded and cached in Supabase Storage to avoid repeated Google billing
+// COST OPTIMIZATION: Never store or return direct Google Photo URLs
 
 import { Client } from '@googlemaps/google-maps-services-js';
 import { supabase } from '../database/db.js';
@@ -39,7 +40,7 @@ export default async function handler(req, res) {
     }
 
     if (!process.env.GOOGLE_MAPS_KEY) {
-      console.error('❌ GOOGLE_MAPS_KEY not configured');
+      console.error('GOOGLE_MAPS_KEY not configured');
       return res.status(500).json({ 
         error: 'Google Maps API key not configured',
         message: 'Please set GOOGLE_MAPS_KEY environment variable in Vercel backend settings. See GOOGLE_MAPS_KEY_SETUP.md for instructions.',
@@ -113,20 +114,21 @@ export default async function handler(req, res) {
 
     // Calculate approximate cost based on price_level
     // price_level: 0 = free, 1 = inexpensive, 2 = moderate, 3 = expensive, 4 = very expensive
+    const euroSign = '\u20AC';
     const priceLevelMap = {
       0: 'Free',
-      1: '€',
-      2: '€€',
-      3: '€€€',
-      4: '€€€€'
+      1: euroSign,
+      2: euroSign + euroSign,
+      3: euroSign + euroSign + euroSign,
+      4: euroSign + euroSign + euroSign + euroSign
     };
 
     const approximateCostMap = {
       0: 'Free',
-      1: '€5-10',
-      2: '€10-30',
-      3: '€30-60',
-      4: '€60+'
+      1: euroSign + '5-10',
+      2: euroSign + '10-30',
+      3: euroSign + '30-60',
+      4: euroSign + '60+'
     };
 
     // Format response for frontend
@@ -166,16 +168,13 @@ export default async function handler(req, res) {
           if (cachedUrl) {
             cachedPhotos.push(cachedUrl);
           } else {
-            // Fallback to direct Google URL
-            cachedPhotos.push(
-              `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photoData.photo_reference}&key=${process.env.GOOGLE_MAPS_KEY}`
-            );
+            // CRITICAL: Do NOT fallback to direct Google URL - costs ~$7/1000 loads!
+            // Skip this photo. The frontend shows a placeholder for missing photos.
+            console.warn('Photo caching returned null, skipping (no Google URL fallback)');
           }
         } catch (cacheErr) {
-          console.warn('⚠️ Photo caching failed, using direct URL:', cacheErr.message);
-          cachedPhotos.push(
-            `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photoData.photo_reference}&key=${process.env.GOOGLE_MAPS_KEY}`
-          );
+          // CRITICAL: Do NOT fallback to direct Google URL - costs ~$7/1000 loads!
+          console.warn('Photo caching failed, skipping:', cacheErr.message);
         }
       }
 
@@ -204,9 +203,9 @@ export default async function handler(req, res) {
 async function cachePhotoInSupabase(placeId, photoReference) {
   if (!supabase || !placeId || !photoReference) return null;
 
-  const fileName = `place-photos/${placeId}/${photoReference.substring(0, 40)}.jpg`;
-  const dirPath = `place-photos/${placeId}`;
-  const fileBaseName = `${photoReference.substring(0, 40)}.jpg`;
+  const fileName = 'place-photos/' + placeId + '/' + photoReference.substring(0, 40) + '.jpg';
+  const dirPath = 'place-photos/' + placeId;
+  const fileBaseName = photoReference.substring(0, 40) + '.jpg';
 
   // Check if photo already exists in storage
   try {
@@ -219,7 +218,7 @@ async function cachePhotoInSupabase(placeId, photoReference) {
         .from('tour-assets')
         .getPublicUrl(fileName);
       if (urlData?.publicUrl) {
-        console.log(`  ♻️ Photo already cached: ${fileBaseName}`);
+        console.log('Photo already cached:', fileBaseName);
         return urlData.publicUrl;
       }
     }
@@ -227,12 +226,12 @@ async function cachePhotoInSupabase(placeId, photoReference) {
     // Storage bucket might not exist yet, continue to create
   }
 
-  // Download photo from Google
-  const googlePhotoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photoReference}&key=${process.env.GOOGLE_MAPS_KEY}`;
+  // Download photo from Google (one-time cost to cache in Supabase)
+  const googlePhotoUrl = 'https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=' + photoReference + '&key=' + process.env.GOOGLE_MAPS_KEY;
 
   const photoResponse = await fetch(googlePhotoUrl, { redirect: 'follow' });
   if (!photoResponse.ok) {
-    console.warn(`  ❌ Failed to download photo from Google: ${photoResponse.status}`);
+    console.warn('Failed to download photo from Google:', photoResponse.status);
     return null;
   }
 
@@ -248,7 +247,7 @@ async function cachePhotoInSupabase(placeId, photoReference) {
     });
 
   if (uploadError) {
-    console.warn(`  ❌ Failed to upload photo to Supabase: ${uploadError.message}`);
+    console.warn('Failed to upload photo to Supabase:', uploadError.message);
     return null;
   }
 
@@ -257,7 +256,6 @@ async function cachePhotoInSupabase(placeId, photoReference) {
     .from('tour-assets')
     .getPublicUrl(fileName);
 
-  console.log(`  ✅ Cached photo: ${fileName}`);
+  console.log('Cached photo:', fileName);
   return urlData?.publicUrl || null;
 }
-
