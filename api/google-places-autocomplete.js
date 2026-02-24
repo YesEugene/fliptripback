@@ -27,9 +27,9 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { query, location, radius } = req.body;
+    const { query, location, radius, city } = req.body;
 
-    console.log('🔍 Google Places Autocomplete request:', { query, location, radius });
+    console.log('🔍 Google Places Autocomplete request:', { query, location, radius, city });
 
     if (!query || typeof query !== 'string' || query.trim().length === 0) {
       return res.status(400).json({ error: 'Query parameter is required' });
@@ -49,14 +49,23 @@ export default async function handler(req, res) {
     // Call Google Places Autocomplete API directly via HTTP
     // The @googlemaps/google-maps-services-js library doesn't have placeAutocomplete method
     const autocompleteUrl = 'https://maps.googleapis.com/maps/api/place/autocomplete/json';
+    // Improve relevance: when city context exists, include it directly in input query.
+    const normalizedQuery = query.trim();
+    const normalizedCity = typeof city === 'string' ? city.trim() : '';
+    const inputWithCity = normalizedCity &&
+      !normalizedQuery.toLowerCase().includes(normalizedCity.toLowerCase())
+      ? `${normalizedQuery} ${normalizedCity}`
+      : normalizedQuery;
+
     const params = new URLSearchParams({
-      input: query.trim(),
+      input: inputWithCity,
       key: process.env.GOOGLE_MAPS_KEY,
       language: 'en'
     });
 
     // Add optional location bias if provided
-    if (location && typeof location === 'string') {
+    // location must be "lat,lng" for Google API; ignore invalid values
+    if (location && typeof location === 'string' && /^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(location.trim())) {
       params.append('location', location);
     }
     if (radius && typeof radius === 'number') {
