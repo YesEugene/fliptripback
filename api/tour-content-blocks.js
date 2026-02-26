@@ -150,6 +150,150 @@ export default async function handler(req, res) {
     return isOwner;
   };
 
+  const isValidUuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || ''));
+
+  const extractLocationCandidates = (content) => {
+    if (!content || typeof content !== 'object') return [];
+    const list = [];
+    const pushIfValid = (loc) => {
+      if (!loc || typeof loc !== 'object') return;
+      const name = (loc.title || loc.name || '').toString().trim();
+      if (!name) return;
+      list.push(loc);
+    };
+    pushIfValid(content.mainLocation || content);
+    if (Array.isArray(content.alternativeLocations)) {
+      content.alternativeLocations.forEach(pushIfValid);
+    }
+    return list;
+  };
+
+  const extractInterestIds = (location) => {
+    const interests = Array.isArray(location?.interests) ? location.interests : [];
+    return interests
+      .map((item) => {
+        if (typeof item === 'string' || typeof item === 'number') return item;
+        if (item && (item.id !== undefined && item.id !== null)) return item.id;
+        if (item && (item.interest_id !== undefined && item.interest_id !== null)) return item.interest_id;
+        return null;
+      })
+      .filter((id) => id !== null && id !== undefined && id !== '');
+  };
+
+  const syncLocationsFromLocationBlock = async ({ tourId, blockContent, userId }) => {
+    try {
+      const candidates = extractLocationCandidates(blockContent);
+      if (candidates.length === 0) return;
+
+      const { data: tourData } = await supabase
+        .from('tours')
+        .select('city_id')
+        .eq('id', tourId)
+        .maybeSingle();
+
+      const fallbackCityId = tourData?.city_id || null;
+
+      for (const loc of candidates) {
+        const name = (loc.title || loc.name || '').toString().trim();
+        const address = (loc.address || '').toString().trim() || null;
+        const cityId = loc.city_id || fallbackCityId || null;
+        const googlePlaceId = (loc.place_id || loc.google_place_id || '').toString().trim() || null;
+        const description = (loc.description || '').toString().trim() || null;
+        const recommendations = (loc.recommendations || '').toString().trim() || null;
+        const rawPriceLevel = loc.price_level ?? loc.priceLevel ?? null;
+        const parsedPriceLevel = rawPriceLevel !== null && rawPriceLevel !== undefined && rawPriceLevel !== ''
+          ? parseInt(rawPriceLevel, 10)
+          : 2;
+        const priceLevel = Number.isNaN(parsedPriceLevel) ? 2 : parsedPriceLevel;
+
+        if (!name || !cityId) {
+          // city_id is required for stable deduplication and DB integrity
+          continue;
+        }
+
+        let existingLocation = null;
+
+        if (googlePlaceId) {
+          const { data } = await supabase
+            .from('locations')
+            .select('id')
+            .eq('google_place_id', googlePlaceId)
+            .maybeSingle();
+          existingLocation = data || null;
+        }
+
+        if (!existingLocation) {
+          let query = supabase
+            .from('locations')
+            .select('id')
+            .eq('name', name)
+            .eq('city_id', cityId);
+
+          if (address) query = query.eq('address', address);
+          const { data } = await query.maybeSingle();
+          existingLocation = data || null;
+        }
+
+        const baseData = {
+          name,
+          city_id: cityId,
+          address,
+          description,
+          recommendations,
+          source: 'guide',
+          google_place_id: googlePlaceId,
+          price_level: priceLevel
+        };
+
+        if (existingLocation?.id) {
+          const updateData = { ...baseData };
+          if (isValidUuid(userId)) updateData.updated_by = userId;
+          await supabase
+            .from('locations')
+            .update(updateData)
+            .eq('id', existingLocation.id);
+
+          const interestIds = extractInterestIds(loc);
+          if (interestIds.length > 0) {
+            await supabase.from('location_interests').delete().eq('location_id', existingLocation.id);
+            await supabase.from('location_interests').insert(
+              interestIds.map((interestId) => ({
+                location_id: existingLocation.id,
+                interest_id: interestId
+              }))
+            );
+          }
+        } else {
+          const insertData = { ...baseData };
+          if (isValidUuid(userId)) {
+            insertData.created_by = userId;
+            insertData.updated_by = userId;
+          }
+
+          const { data: createdLocation } = await supabase
+            .from('locations')
+            .insert(insertData)
+            .select('id')
+            .single();
+
+          if (createdLocation?.id) {
+            const interestIds = extractInterestIds(loc);
+            if (interestIds.length > 0) {
+              await supabase.from('location_interests').insert(
+                interestIds.map((interestId) => ({
+                  location_id: createdLocation.id,
+                  interest_id: interestId
+                }))
+              );
+            }
+          }
+        }
+      }
+    } catch (syncError) {
+      console.warn('⚠️ Failed to sync locations from location block:', syncError?.message || syncError);
+    }
+  };
+
   try {
     // GET - Get all blocks for a tour
     if (req.method === 'GET') {
@@ -257,6 +401,14 @@ export default async function handler(req, res) {
         });
       }
 
+      if (blockType === 'location' && block?.content) {
+        await syncLocationsFromLocationBlock({
+          tourId,
+          blockContent: block.content,
+          userId
+        });
+      }
+
       return res.status(201).json({ success: true, block });
     }
 
@@ -288,7 +440,7 @@ export default async function handler(req, res) {
       // Get tour_id from block to check permissions
       const { data: existingBlock, error: blockError } = await supabase
         .from('tour_content_blocks')
-        .select('tour_id')
+        .select('tour_id, block_type')
         .eq('id', blockId)
         .single();
 
@@ -342,6 +494,14 @@ export default async function handler(req, res) {
         return res.status(500).json({ 
           error: 'Failed to update content block',
           details: error.message
+        });
+      }
+
+      if (content !== undefined && existingBlock?.block_type === 'location') {
+        await syncLocationsFromLocationBlock({
+          tourId: existingBlock.tour_id,
+          blockContent: content,
+          userId
         });
       }
 

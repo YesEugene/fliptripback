@@ -39,36 +39,41 @@ export default async function handler(req, res) {
 
     // Get counts from database
     const [
-      { count: toursCount },
-      { count: locationsCount },
       { count: creatorsCount },
       { count: usersCount },
       { count: generatedToursCount },
       { count: paymentsCount }
     ] = await Promise.all([
-      supabase.from('tours').select('*', { count: 'exact', head: true }),
-      supabase.from('locations').select('*', { count: 'exact', head: true }),
       supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'creator'),
       supabase.from('users').select('*', { count: 'exact', head: true }),
       supabase.from('generated_tours').select('*', { count: 'exact', head: true }),
       supabase.from('payments').select('*', { count: 'exact', head: true })
     ]);
 
-    // Get additional stats
-    const { count: verifiedLocationsCount } = await supabase
-      .from('locations')
-      .select('*', { count: 'exact', head: true })
-      .eq('verified', true);
-    
-    const { count: unverifiedLocationsCount } = await supabase
-      .from('locations')
-      .select('*', { count: 'exact', head: true })
-      .eq('verified', false);
-
-    // Get tours by status (approved, pending, draft, rejected)
+    // Get tours and compute status exactly like admin tours logic
     const { data: allTours } = await supabase
       .from('tours')
-      .select('status, verified');
+      .select('status, verified, is_published, source, default_format, draft_data');
+
+    const hasTourFormat = (tour) => {
+      if (tour?.default_format === 'self_guided' || tour?.default_format === 'with_guide') return true;
+      const settings = tour?.draft_data?.tourSettings;
+      return settings?.selfGuided === true || settings?.withGuide === true;
+    };
+
+    const normalizeTourStatus = (tour) => {
+      const raw = (tour?.status || '').toString().toLowerCase();
+      if (raw === 'approved' || raw === 'pending' || raw === 'draft' || raw === 'rejected') return raw;
+      if (raw === 'published' || raw === 'active') return 'approved';
+      if (tour?.is_published) return 'approved';
+      return 'draft';
+    };
+
+    const toursForAdmin = (allTours || []).filter((tour) => {
+      const isAiTour = tour?.source === 'user_generated';
+      if (isAiTour) return false;
+      return hasTourFormat(tour);
+    });
     
     const toursByStatus = {
       verified: 0,
@@ -78,21 +83,36 @@ export default async function handler(req, res) {
       draft: 0,
       rejected: 0
     };
-    if (allTours) {
-      allTours.forEach(tour => {
+    if (toursForAdmin.length > 0) {
+      toursForAdmin.forEach(tour => {
         // Legacy: verified/unverified
         if (tour.verified) {
           toursByStatus.verified++;
         } else {
           toursByStatus.unverified++;
         }
-        // New: status-based
-        const status = tour.status || 'draft';
+        // New: status-based with fallback for legacy rows
+        const status = normalizeTourStatus(tour);
         if (toursByStatus.hasOwnProperty(status)) {
           toursByStatus[status]++;
         }
       });
     }
+
+    const toursCount = toursForAdmin.length;
+
+    // Match admin-locations default filter:
+    // verified=true OR source in ('admin','guide')
+    const { data: dashboardLocations } = await supabase
+      .from('locations')
+      .select('verified, source');
+
+    const locationsForAdmin = (dashboardLocations || []).filter((loc) =>
+      loc?.verified === true || loc?.source === 'admin' || loc?.source === 'guide'
+    );
+    const locationsCount = locationsForAdmin.length;
+    const verifiedLocationsCount = locationsForAdmin.filter((loc) => loc?.verified === true).length;
+    const unverifiedLocationsCount = locationsForAdmin.filter((loc) => loc?.verified !== true).length;
     
     // Get users breakdown (guides, customers, admins)
     const { data: allUsers } = await supabase
@@ -307,7 +327,7 @@ export default async function handler(req, res) {
         counts: {
           users: usersCount || 0,
           guides: creatorsCount || 0, // creators = guides
-          tours: toursCount || 0,
+          tours: toursCount,
           locations: locationsCount || 0,
           itineraries: generatedToursCount || 0,
           planGenerations: generatedToursCount || 0
@@ -329,7 +349,7 @@ export default async function handler(req, res) {
           guided: totalGuidedSales
         },
         tours: {
-          total: toursCount || 0,
+          total: toursCount,
           verified: toursByStatus.verified,
           approved: toursByStatus.approved,
           pending: toursByStatus.pending,
