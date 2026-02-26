@@ -206,8 +206,7 @@ export default async function handler(req, res) {
           : 2;
         const priceLevel = Number.isNaN(parsedPriceLevel) ? 2 : parsedPriceLevel;
 
-        if (!name || !cityId) {
-          // city_id is required for stable deduplication and DB integrity
+        if (!name) {
           continue;
         }
 
@@ -226,8 +225,13 @@ export default async function handler(req, res) {
           let query = supabase
             .from('locations')
             .select('id')
-            .eq('name', name)
-            .eq('city_id', cityId);
+            .eq('name', name);
+
+          if (cityId) {
+            query = query.eq('city_id', cityId);
+          } else {
+            query = query.is('city_id', null);
+          }
 
           if (address) query = query.eq('address', address);
           const { data } = await query.maybeSingle();

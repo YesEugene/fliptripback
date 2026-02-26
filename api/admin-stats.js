@@ -51,9 +51,14 @@ export default async function handler(req, res) {
     ]);
 
     // Get tours and compute status exactly like admin tours logic
-    const { data: allTours } = await supabase
+    // Use select('*') to avoid breakage if legacy columns differ between environments.
+    const { data: allTours, error: allToursError } = await supabase
       .from('tours')
-      .select('status, verified, is_published, source, default_format, draft_data');
+      .select('*');
+
+    if (allToursError) {
+      throw new Error(`Failed to load tours for stats: ${allToursError.message}`);
+    }
 
     const hasTourFormat = (tour) => {
       if (tour?.default_format === 'self_guided' || tour?.default_format === 'with_guide') return true;
@@ -72,6 +77,9 @@ export default async function handler(req, res) {
     const toursForAdmin = (allTours || []).filter((tour) => {
       const isAiTour = tour?.source === 'user_generated';
       if (isAiTour) return false;
+      // Match admin experience: keep all non-draft moderation statuses even for legacy tours.
+      const normalizedStatus = normalizeTourStatus(tour);
+      if (normalizedStatus !== 'draft') return true;
       return hasTourFormat(tour);
     });
     
