@@ -161,18 +161,19 @@ export default async function handler(req, res) {
         query = query.or('source.is.null,source.neq.user_generated');
       }
 
-      // CRITICAL: Exclude tours without format selected
-      // Tours must have default_format set to 'self_guided' or 'with_guide' to appear in admin panel
-      // This prevents showing incomplete drafts that are still being worked on
-      query = query.or('default_format.eq.self_guided,default_format.eq.with_guide');
+      const isAiSourceFilter = source === 'user_generated';
 
-      // CRITICAL: Exclude draft tours from admin panel
-      // Draft tours are works in progress and should not be visible to admins
-      // Only show tours that have been submitted for moderation (pending, approved, rejected)
+      // Non-AI tabs: hide tours without selected format.
+      // AI tab: do not enforce format filter (generated tours often don't have it).
+      if (!isAiSourceFilter) {
+        query = query.or('default_format.eq.self_guided,default_format.eq.with_guide');
+      }
+
+      // Non-AI tabs: exclude drafts by default.
+      // AI tab: include all statuses unless status is explicitly requested.
       if (status) {
         query = query.eq('status', status);
-      } else {
-        // If no specific status filter, exclude drafts by default
+      } else if (!isAiSourceFilter) {
         query = query.neq('status', 'draft');
       }
 
@@ -211,25 +212,24 @@ export default async function handler(req, res) {
         }
       }
 
-      // Additional filter: Remove tours without format (including those with format only in draft_data)
-      // SQL filter above handles default_format, but we also need to check draft_data.tourSettings
-      const toursWithFormat = (tours || []).filter(tour => {
-        // Check default_format
-        if (tour.default_format === 'self_guided' || tour.default_format === 'with_guide') {
-          return true;
-        }
-        
-        // Check draft_data.tourSettings for tours created in Visualizer
-        if (tour.draft_data && tour.draft_data.tourSettings) {
-          const settings = tour.draft_data.tourSettings;
-          if (settings.selfGuided === true || settings.withGuide === true) {
+      // Additional non-AI filter: remove tours without format
+      // (including those with format only in draft_data.tourSettings).
+      const toursWithFormat = isAiSourceFilter
+        ? (tours || [])
+        : (tours || []).filter(tour => {
+          if (tour.default_format === 'self_guided' || tour.default_format === 'with_guide') {
             return true;
           }
-        }
-        
-        // Tour has no format - exclude from admin panel
-        return false;
-      });
+
+          if (tour.draft_data && tour.draft_data.tourSettings) {
+            const settings = tour.draft_data.tourSettings;
+            if (settings.selfGuided === true || settings.withGuide === true) {
+              return true;
+            }
+          }
+
+          return false;
+        });
 
       // Format tours for display
       const formattedTours = toursWithFormat.map(tour => ({
