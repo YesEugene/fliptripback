@@ -98,6 +98,124 @@ export default async function handler(req, res) {
         );
       }
 
+      // Build "source tour" mapping for each location.
+      // 1) Prefer normalized links through tour_items.location_id
+      // 2) Fallback to visualizer content blocks match by location name/address
+      const sourceTourByLocationId = new Map();
+      const locationIds = filteredLocations.map(loc => loc.id).filter(Boolean);
+
+      if (locationIds.length > 0) {
+        const { data: tourItemsLinked } = await supabase
+          .from('tour_items')
+          .select(`
+            location_id,
+            tour_block:tour_blocks(
+              tour_day:tour_days(
+                tour:tours(
+                  id,
+                  title,
+                  created_at
+                )
+              )
+            )
+          `)
+          .in('location_id', locationIds);
+
+        (tourItemsLinked || []).forEach((row) => {
+          const tour = row?.tour_block?.tour_day?.tour;
+          if (!tour?.id) return;
+          const existing = sourceTourByLocationId.get(row.location_id);
+          if (!existing) {
+            sourceTourByLocationId.set(row.location_id, {
+              id: tour.id,
+              title: tour.title || 'Untitled tour',
+              created_at: tour.created_at || null
+            });
+            return;
+          }
+          const existingTime = existing.created_at ? new Date(existing.created_at).getTime() : 0;
+          const candidateTime = tour.created_at ? new Date(tour.created_at).getTime() : 0;
+          if (candidateTime > existingTime) {
+            sourceTourByLocationId.set(row.location_id, {
+              id: tour.id,
+              title: tour.title || 'Untitled tour',
+              created_at: tour.created_at || null
+            });
+          }
+        });
+      }
+
+      // Fallback: match locations against visualizer location blocks by name/address
+      const unresolvedLocations = filteredLocations.filter(loc => !sourceTourByLocationId.has(loc.id));
+      if (unresolvedLocations.length > 0) {
+        const unresolvedByKey = new Map();
+        unresolvedLocations.forEach((loc) => {
+          const normalizedName = (loc.name || '').toString().trim().toLowerCase();
+          const normalizedAddress = (loc.address || '').toString().trim().toLowerCase();
+          if (!normalizedName) return;
+          unresolvedByKey.set(`${normalizedName}|${normalizedAddress}`, loc);
+          unresolvedByKey.set(`${normalizedName}|`, loc); // fallback for missing address
+        });
+
+        const { data: toursLite } = await supabase
+          .from('tours')
+          .select('id, title, created_at');
+        const tourMap = new Map((toursLite || []).map(t => [t.id, t]));
+
+        const { data: locationBlocks } = await supabase
+          .from('tour_content_blocks')
+          .select('tour_id, content')
+          .eq('block_type', 'location')
+          .limit(5000);
+
+        const toCandidateEntries = (content) => {
+          const entries = [];
+          const pushEntry = (loc) => {
+            if (!loc || typeof loc !== 'object') return;
+            const n = (loc.title || loc.name || '').toString().trim().toLowerCase();
+            if (!n) return;
+            const a = (loc.address || '').toString().trim().toLowerCase();
+            entries.push(`${n}|${a}`);
+            entries.push(`${n}|`);
+          };
+          pushEntry(content?.mainLocation || content);
+          if (Array.isArray(content?.alternativeLocations)) {
+            content.alternativeLocations.forEach(pushEntry);
+          }
+          return entries;
+        };
+
+        (locationBlocks || []).forEach((block) => {
+          const candidateKeys = toCandidateEntries(block.content || {});
+          if (candidateKeys.length === 0) return;
+          const tour = tourMap.get(block.tour_id);
+          if (!tour?.id) return;
+
+          candidateKeys.forEach((key) => {
+            const matchedLocation = unresolvedByKey.get(key);
+            if (!matchedLocation) return;
+            const existing = sourceTourByLocationId.get(matchedLocation.id);
+            if (!existing) {
+              sourceTourByLocationId.set(matchedLocation.id, {
+                id: tour.id,
+                title: tour.title || 'Untitled tour',
+                created_at: tour.created_at || null
+              });
+              return;
+            }
+            const existingTime = existing.created_at ? new Date(existing.created_at).getTime() : 0;
+            const candidateTime = tour.created_at ? new Date(tour.created_at).getTime() : 0;
+            if (candidateTime > existingTime) {
+              sourceTourByLocationId.set(matchedLocation.id, {
+                id: tour.id,
+                title: tour.title || 'Untitled tour',
+                created_at: tour.created_at || null
+              });
+            }
+          });
+        });
+      }
+
       // Format locations for display
       const formattedLocations = filteredLocations.map(location => ({
         id: location.id,
@@ -115,7 +233,9 @@ export default async function handler(req, res) {
         source: location.source || 'admin',
         google_place_id: location.google_place_id || null,
         interests: location.interests?.map(li => li.interest?.name).filter(Boolean) || [],
-        tags: location.tags?.map(lt => lt.tag?.name).filter(Boolean) || []
+        tags: location.tags?.map(lt => lt.tag?.name).filter(Boolean) || [],
+        source_tour_id: sourceTourByLocationId.get(location.id)?.id || null,
+        source_tour_title: sourceTourByLocationId.get(location.id)?.title || null
       }));
 
       return res.status(200).json({
