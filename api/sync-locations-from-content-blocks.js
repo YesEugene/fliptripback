@@ -72,7 +72,7 @@ export default async function handler(req, res) {
       return res.status(403).json({ success: false, error: 'Admin access required' });
     }
 
-    const { tourId, limit = 500 } = req.body || {};
+    const { tourId, limit = 500, pruneUnused = false } = req.body || {};
 
     let query = supabase
       .from('tour_content_blocks')
@@ -200,13 +200,69 @@ export default async function handler(req, res) {
       }
     }
 
+    let deleted = 0;
+
+    if (pruneUnused) {
+      const usedLocationIds = new Set();
+      const usedContentKeys = new Set();
+
+      const [{ data: linkedTourItems }, { data: allLocationBlocks }, { data: allLocations }] = await Promise.all([
+        supabase.from('tour_items').select('location_id').not('location_id', 'is', null),
+        supabase.from('tour_content_blocks').select('content').eq('block_type', 'location').limit(10000),
+        supabase.from('locations').select('id, name, address')
+      ]);
+
+      (linkedTourItems || []).forEach(item => {
+        if (item.location_id) usedLocationIds.add(item.location_id);
+      });
+
+      const normalize = (value) => (value || '').toString().trim().toLowerCase();
+      const addKey = (loc) => {
+        if (!loc || typeof loc !== 'object') return;
+        const name = normalize(loc.title || loc.name);
+        if (!name) return;
+        const address = normalize(loc.address);
+        usedContentKeys.add(`${name}|${address}`);
+        usedContentKeys.add(`${name}|`);
+      };
+
+      (allLocationBlocks || []).forEach(block => {
+        const content = block?.content || {};
+        addKey(content.mainLocation || content);
+        if (Array.isArray(content.alternativeLocations)) {
+          content.alternativeLocations.forEach(addKey);
+        }
+      });
+
+      const toDeleteIds = (allLocations || [])
+        .filter((loc) => {
+          if (usedLocationIds.has(loc.id)) return false;
+          const name = normalize(loc.name);
+          const address = normalize(loc.address);
+          return !(usedContentKeys.has(`${name}|${address}`) || usedContentKeys.has(`${name}|`));
+        })
+        .map((loc) => loc.id);
+
+      if (toDeleteIds.length > 0) {
+        const { error: deleteError } = await supabase
+          .from('locations')
+          .delete()
+          .in('id', toDeleteIds);
+
+        if (!deleteError) {
+          deleted = toDeleteIds.length;
+        }
+      }
+    }
+
     return res.status(200).json({
       success: true,
       stats: {
         processedBlocks: blocks.length,
         created,
         updated,
-        skipped
+        skipped,
+        deleted
       }
     });
   } catch (error) {

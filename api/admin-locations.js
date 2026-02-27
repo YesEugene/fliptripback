@@ -98,6 +98,51 @@ export default async function handler(req, res) {
         );
       }
 
+      // Keep only locations that are actually used in tours:
+      // 1) linked via normalized tour_items.location_id
+      // 2) referenced in visualizer location blocks by name/address (draft or published tours)
+      const usedLocationIds = new Set();
+      const { data: linkedTourItems } = await supabase
+        .from('tour_items')
+        .select('location_id')
+        .not('location_id', 'is', null);
+      (linkedTourItems || []).forEach(item => {
+        if (item.location_id) usedLocationIds.add(item.location_id);
+      });
+
+      const normalize = (value) => (value || '').toString().trim().toLowerCase();
+      const usedContentKeys = new Set();
+      const { data: locationBlocks } = await supabase
+        .from('tour_content_blocks')
+        .select('content')
+        .eq('block_type', 'location')
+        .limit(10000);
+
+      const addLocationKey = (loc) => {
+        if (!loc || typeof loc !== 'object') return;
+        const name = normalize(loc.title || loc.name);
+        if (!name) return;
+        const address = normalize(loc.address);
+        usedContentKeys.add(`${name}|${address}`);
+        usedContentKeys.add(`${name}|`); // fallback when address is missing/changed
+      };
+
+      (locationBlocks || []).forEach(block => {
+        const content = block?.content || {};
+        addLocationKey(content.mainLocation || content);
+        if (Array.isArray(content.alternativeLocations)) {
+          content.alternativeLocations.forEach(addLocationKey);
+        }
+      });
+
+      filteredLocations = filteredLocations.filter((location) => {
+        if (usedLocationIds.has(location.id)) return true;
+        const name = normalize(location.name);
+        if (!name) return false;
+        const address = normalize(location.address);
+        return usedContentKeys.has(`${name}|${address}`) || usedContentKeys.has(`${name}|`);
+      });
+
       // Build "source tour" mapping for each location.
       // 1) Prefer normalized links through tour_items.location_id
       // 2) Fallback to visualizer content blocks match by location name/address

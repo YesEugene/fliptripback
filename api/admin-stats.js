@@ -109,15 +109,59 @@ export default async function handler(req, res) {
 
     const toursCount = toursForAdmin.length;
 
-    // Match admin-locations default filter:
-    // verified=true OR source in ('admin','guide')
+    // Match admin-locations visibility and keep only locations used in tours
+    // (linked tour_items OR referenced in visualizer location blocks).
     const { data: dashboardLocations } = await supabase
       .from('locations')
-      .select('verified, source');
+      .select('id, name, address, verified, source');
 
-    const locationsForAdmin = (dashboardLocations || []).filter((loc) =>
-      loc?.verified === true || loc?.source === 'admin' || loc?.source === 'guide'
-    );
+    const normalize = (value) => (value || '').toString().trim().toLowerCase();
+    const usedLocationIds = new Set();
+    const usedContentKeys = new Set();
+
+    const [{ data: linkedTourItems }, { data: locationBlocks }] = await Promise.all([
+      supabase
+        .from('tour_items')
+        .select('location_id')
+        .not('location_id', 'is', null),
+      supabase
+        .from('tour_content_blocks')
+        .select('content')
+        .eq('block_type', 'location')
+        .limit(10000)
+    ]);
+
+    (linkedTourItems || []).forEach(item => {
+      if (item.location_id) usedLocationIds.add(item.location_id);
+    });
+
+    const addLocationKey = (loc) => {
+      if (!loc || typeof loc !== 'object') return;
+      const name = normalize(loc.title || loc.name);
+      if (!name) return;
+      const address = normalize(loc.address);
+      usedContentKeys.add(`${name}|${address}`);
+      usedContentKeys.add(`${name}|`);
+    };
+
+    (locationBlocks || []).forEach(block => {
+      const content = block?.content || {};
+      addLocationKey(content.mainLocation || content);
+      if (Array.isArray(content.alternativeLocations)) {
+        content.alternativeLocations.forEach(addLocationKey);
+      }
+    });
+
+    const locationsForAdmin = (dashboardLocations || []).filter((loc) => {
+      const visibleBySource = loc?.verified === true || loc?.source === 'admin' || loc?.source === 'guide';
+      if (!visibleBySource) return false;
+
+      if (usedLocationIds.has(loc.id)) return true;
+      const name = normalize(loc.name);
+      if (!name) return false;
+      const address = normalize(loc.address);
+      return usedContentKeys.has(`${name}|${address}`) || usedContentKeys.has(`${name}|`);
+    });
     const locationsCount = locationsForAdmin.length;
     const verifiedLocationsCount = locationsForAdmin.filter((loc) => loc?.verified === true).length;
     const unverifiedLocationsCount = locationsForAdmin.filter((loc) => loc?.verified !== true).length;
