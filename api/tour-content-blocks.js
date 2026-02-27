@@ -187,11 +187,14 @@ export default async function handler(req, res) {
 
       const { data: tourData } = await supabase
         .from('tours')
-        .select('city_id')
+        .select('city_id, source')
         .eq('id', tourId)
         .maybeSingle();
 
       const fallbackCityId = tourData?.city_id || null;
+      const locationSource = String(tourData?.source || '').toLowerCase() === 'user_generated'
+        ? 'ai'
+        : 'guide';
 
       for (const loc of candidates) {
         const name = (loc.title || loc.name || '').toString().trim();
@@ -244,7 +247,7 @@ export default async function handler(req, res) {
           address,
           description,
           recommendations,
-          source: 'guide',
+          source: locationSource,
           google_place_id: googlePlaceId,
           price_level: priceLevel
         };

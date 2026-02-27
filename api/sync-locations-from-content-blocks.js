@@ -94,16 +94,23 @@ export default async function handler(req, res) {
     const tourIds = [...new Set(blocks.map((b) => b.tour_id).filter(Boolean))];
     const { data: tours } = await supabase
       .from('tours')
-      .select('id, city_id')
+      .select('id, city_id, source')
       .in('id', tourIds);
-    const cityByTourId = new Map((tours || []).map((t) => [t.id, t.city_id || null]));
+    const tourMetaById = new Map((tours || []).map((t) => [t.id, {
+      city_id: t.city_id || null,
+      source: t.source || null
+    }]));
 
     let created = 0;
     let updated = 0;
     let skipped = 0;
 
     for (const block of blocks) {
-      const fallbackCityId = cityByTourId.get(block.tour_id) || null;
+      const tourMeta = tourMetaById.get(block.tour_id) || { city_id: null, source: null };
+      const fallbackCityId = tourMeta.city_id || null;
+      const locationSource = String(tourMeta.source || '').toLowerCase() === 'user_generated'
+        ? 'ai'
+        : 'guide';
       const candidates = extractLocationCandidates(block.content);
 
       for (const loc of candidates) {
@@ -155,7 +162,7 @@ export default async function handler(req, res) {
           address,
           description,
           recommendations,
-          source: 'guide',
+          source: locationSource,
           google_place_id: googlePlaceId,
           price_level: priceLevel
         };
