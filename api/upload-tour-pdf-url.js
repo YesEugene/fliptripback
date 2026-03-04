@@ -117,9 +117,16 @@ export default async function handler(req, res) {
       .from('tour-assets')
       .getPublicUrl(filePath);
 
+    const supabaseBaseUrl = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
+    const signedUrlRaw = signedData.signedUrl || '';
+    const uploadUrl = signedUrlRaw.startsWith('http')
+      ? signedUrlRaw
+      : `${supabaseBaseUrl}/storage/v1${signedUrlRaw.startsWith('/') ? '' : '/'}${signedUrlRaw}`;
+
     return res.status(200).json({
       success: true,
-      signedUrl: signedData.signedUrl,
+      signedUrl: signedUrlRaw,
+      uploadUrl,
       publicUrl: publicUrlData?.publicUrl || null,
       path: filePath
     });
