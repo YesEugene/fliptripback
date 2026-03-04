@@ -326,7 +326,7 @@ export default async function handler(req, res) {
     }
 
     const tourData = req.body;
-    let { country, city, title, description, daily_plan, tags, meta, status, saveAsDraft, highlights, previewImages } = tourData;
+    let { country, city, title, description, daily_plan, tags, meta, status, saveAsDraft, highlights, previewImages, tourPdfUrl } = tourData;
     
     console.log('📋 tours-update received:', {
       id,
@@ -591,6 +591,7 @@ export default async function handler(req, res) {
         },
         preview: previewMediaUrl,
         previewType: previewMediaType,
+        tourPdfUrl: tourPdfUrl || '',
         additionalOptions,
         tourSettings: tourSettings, // CRITICAL: Always save tourSettings
         highlights: highlights || {}, // "What's Inside This Walk" structured highlights
@@ -606,7 +607,8 @@ export default async function handler(req, res) {
         ...draftData,
         // Preserve highlights: use sent value if defined, otherwise keep existing
         highlights: highlights !== undefined ? highlights : (existingDraft.highlights || {}),
-        previewImages: previewImages !== undefined ? previewImages : (existingDraft.previewImages || [])
+        previewImages: previewImages !== undefined ? previewImages : (existingDraft.previewImages || []),
+        tourPdfUrl: tourPdfUrl !== undefined ? tourPdfUrl : (existingDraft.tourPdfUrl || '')
       };
       console.log('🔍 Draft merge result - mergedDraftData.highlights:', JSON.stringify(mergedDraftData.highlights));
 
@@ -784,6 +786,11 @@ export default async function handler(req, res) {
       } else if (existingTour?.draft_data?.previewImages) {
         preservedDraftData.previewImages = existingTour.draft_data.previewImages;
       }
+      if (tourPdfUrl !== undefined) {
+        preservedDraftData.tourPdfUrl = tourPdfUrl;
+      } else if (existingTour?.draft_data?.tourPdfUrl) {
+        preservedDraftData.tourPdfUrl = existingTour.draft_data.tourPdfUrl;
+      }
       updateData.draft_data = preservedDraftData;
     }
     
@@ -846,7 +853,8 @@ export default async function handler(req, res) {
         previewType: previewMediaUrl !== undefined ? previewMediaType : (existingDraftData.previewType || 'image'),
         // Preserve highlights ("What's Inside This Walk") - supports both object and array formats
         highlights: highlights !== undefined ? highlights : (existingDraftData.highlights || {}),
-        previewImages: previewImages !== undefined ? previewImages : (existingDraftData.previewImages || [])
+        previewImages: previewImages !== undefined ? previewImages : (existingDraftData.previewImages || []),
+        tourPdfUrl: tourPdfUrl !== undefined ? tourPdfUrl : (existingDraftData.tourPdfUrl || '')
       };
     }
 
