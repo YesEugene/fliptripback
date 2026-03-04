@@ -48,6 +48,32 @@ async function canEditTour(tourId, userId, isAdmin) {
   return String(ownerId || '') === String(userId || '');
 }
 
+async function ensureBucketAllowsPdf() {
+  try {
+    const { data: bucket, error: bucketError } = await supabase.storage.getBucket('tour-assets');
+    if (bucketError || !bucket) return;
+
+    const currentMime = Array.isArray(bucket.allowed_mime_types) ? bucket.allowed_mime_types : null;
+    const currentLimit = Number(bucket.file_size_limit || 0);
+    const requiredLimit = 50 * 1024 * 1024;
+
+    // If no mime restrictions, everything is already allowed.
+    const needsMimeUpdate = Array.isArray(currentMime) && !currentMime.includes('application/pdf');
+    const needsSizeUpdate = currentLimit > 0 && currentLimit < requiredLimit;
+
+    if (!needsMimeUpdate && !needsSizeUpdate) return;
+
+    const nextMime = currentMime ? [...new Set([...currentMime, 'application/pdf'])] : null;
+    await supabase.storage.updateBucket('tour-assets', {
+      public: bucket.public ?? true,
+      fileSizeLimit: Math.max(currentLimit || 0, requiredLimit),
+      allowedMimeTypes: nextMime || undefined
+    });
+  } catch (error) {
+    console.warn('⚠️ Could not ensure PDF mime in tour-assets bucket:', error?.message || error);
+  }
+}
+
 export default async function handler(req, res) {
   const origin = req.headers.origin;
   const allowedOrigins = [
@@ -101,6 +127,9 @@ export default async function handler(req, res) {
 
     const finalName = safeName.endsWith('.pdf') ? safeName : `${safeName}.pdf`;
     const filePath = `tour-pdfs/${tourId}/${Date.now()}-${finalName}`;
+
+    // Ensure storage bucket supports PDF uploads (some environments are image-only by default).
+    await ensureBucketAllowsPdf();
 
     const { data: signedData, error: signedError } = await supabase.storage
       .from('tour-assets')
