@@ -357,7 +357,7 @@ export default async function handler(req, res) {
         });
       }
 
-      // Get current max order_index for this tour
+      // Determine insertion index.
       let newOrderIndex = orderIndex;
       if (newOrderIndex === undefined || newOrderIndex === null) {
         const { data: existingBlocks } = await supabase
@@ -367,9 +367,31 @@ export default async function handler(req, res) {
           .order('order_index', { ascending: false })
           .limit(1);
 
-        newOrderIndex = existingBlocks && existingBlocks.length > 0 
-          ? existingBlocks[0].order_index + 1 
+        newOrderIndex = existingBlocks && existingBlocks.length > 0
+          ? existingBlocks[0].order_index + 1
           : 0;
+      }
+
+      // CRITICAL: When inserting at a specific position, shift all existing blocks
+      // at/after that index to keep a stable, collision-free order.
+      if (newOrderIndex !== undefined && newOrderIndex !== null) {
+        const { data: blocksToShift, error: shiftSelectError } = await supabase
+          .from('tour_content_blocks')
+          .select('id, order_index')
+          .eq('tour_id', tourId)
+          .gte('order_index', newOrderIndex)
+          .order('order_index', { ascending: false });
+
+        if (shiftSelectError) {
+          console.warn('⚠️ Failed to fetch blocks for order shift:', shiftSelectError?.message || shiftSelectError);
+        } else if (Array.isArray(blocksToShift) && blocksToShift.length > 0) {
+          for (const existing of blocksToShift) {
+            await supabase
+              .from('tour_content_blocks')
+              .update({ order_index: (existing.order_index || 0) + 1 })
+              .eq('id', existing.id);
+          }
+        }
       }
 
       // Create default content based on block type
