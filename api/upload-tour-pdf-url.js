@@ -119,9 +119,14 @@ export default async function handler(req, res) {
 
     const supabaseBaseUrl = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
     const signedUrlRaw = signedData.signedUrl || '';
+    const normalizedRelativeSignedUrl = signedUrlRaw.startsWith('/')
+      ? signedUrlRaw
+      : `/${signedUrlRaw}`;
     const uploadUrl = signedUrlRaw.startsWith('http')
       ? signedUrlRaw
-      : `${supabaseBaseUrl}/storage/v1${signedUrlRaw.startsWith('/') ? '' : '/'}${signedUrlRaw}`;
+      : normalizedRelativeSignedUrl.startsWith('/storage/v1/')
+        ? `${supabaseBaseUrl}${normalizedRelativeSignedUrl}`
+        : `${supabaseBaseUrl}/storage/v1${normalizedRelativeSignedUrl}`;
 
     return res.status(200).json({
       success: true,
