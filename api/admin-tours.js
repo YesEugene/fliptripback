@@ -255,6 +255,9 @@ export default async function handler(req, res) {
         verified: tour.verified || false,
         isPublished: tour.is_published || false,
         exploreWideCard: Boolean(tour?.draft_data?.exploreWideCard),
+        exploreOrder: Number.isFinite(Number(tour?.draft_data?.exploreOrder))
+          ? Number(tour.draft_data.exploreOrder)
+          : null,
         tags: tour.tour_tags?.map(tt => tt.tag?.name).filter(Boolean) || [],
         createdAt: tour.created_at,
         updatedAt: tour.updated_at
@@ -297,10 +300,9 @@ export default async function handler(req, res) {
       }
 
       const tourData = req.body;
-      const { title, description, city, cityId, status, isPublished, tags, previewMediaUrl, exploreWideCard } = tourData;
+      const { title, description, city, cityId, status, isPublished, tags, previewMediaUrl, exploreWideCard, exploreOrder } = tourData;
       const isExploreWideOnlyUpdate = (
-        Object.keys(tourData || {}).length === 1 &&
-        Object.prototype.hasOwnProperty.call(tourData || {}, 'exploreWideCard')
+        Object.keys(tourData || {}).every((key) => ['exploreWideCard', 'exploreOrder'].includes(key))
       );
 
       // Validate required fields
@@ -345,7 +347,7 @@ export default async function handler(req, res) {
         updateData.preview_media_url = previewMediaUrl || null;
       }
 
-      if (exploreWideCard !== undefined) {
+      if (exploreWideCard !== undefined || exploreOrder !== undefined) {
         const { data: existingTour, error: existingTourError } = await supabase
           .from('tours')
           .select('draft_data')
@@ -360,9 +362,18 @@ export default async function handler(req, res) {
           ? existingTour.draft_data
           : {};
 
+        const nextDraftData = { ...currentDraftData };
+        if (exploreWideCard !== undefined) {
+          nextDraftData.exploreWideCard = Boolean(exploreWideCard);
+        }
+
+        const parsedOrder = Number(exploreOrder);
+        if (exploreOrder !== undefined) {
+          nextDraftData.exploreOrder = Number.isFinite(parsedOrder) && parsedOrder > 0 ? Math.floor(parsedOrder) : null;
+        }
+
         updateData.draft_data = {
-          ...currentDraftData,
-          exploreWideCard: Boolean(exploreWideCard)
+          ...nextDraftData
         };
       }
 
