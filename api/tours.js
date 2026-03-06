@@ -531,6 +531,7 @@ export default async function handler(req, res) {
       city, 
       format, 
       interests, 
+      summary,
       audience,
       duration,
       languages,
@@ -545,7 +546,29 @@ export default async function handler(req, res) {
     // Build select query - include location_interests only if filtering by interests
     // CRITICAL: Explicitly include preview_media_url and preview_media_type
     // When using * with nested queries, Supabase may not return all fields
-    const baseSelect = `
+    const summaryMode = summary === '1' || summary === 'true';
+
+    const baseSelect = summaryMode
+      ? `
+      id,
+      guide_id,
+      city_id,
+      title,
+      description,
+      draft_data,
+      source,
+      default_format,
+      status,
+      created_at,
+      updated_at,
+      preview_media_url,
+      preview_media_type,
+      city:cities(name),
+      tour_tags(
+        tag:tags(id, name)
+      )
+    `
+      : `
       *,
       preview_media_url,
       preview_media_type,

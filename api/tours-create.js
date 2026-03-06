@@ -392,7 +392,9 @@ export default async function handler(req, res) {
     console.log(`📋 Tour format: ${format} (from: ${rawFormat}, withGuide: ${tourData.withGuide})`);
     const pricePdf = tourData.price?.pdfPrice || 16.00;
     const priceGuided = tourData.price?.guidedPrice || null;
-    const previewMediaUrl = tourData.preview || null;
+    const previewOriginal = tourData.previewOriginal || tourData.preview || null;
+    const previewCropped = tourData.preview || null;
+    const previewMediaUrl = previewOriginal;
     const previewMediaType = tourData.previewType || 'image';
     
     // Extract With Guide data
@@ -425,6 +427,8 @@ export default async function handler(req, res) {
       status: 'draft',
       // Store highlights in draft_data
       draft_data: {
+        preview: previewCropped,
+        previewOriginal: previewOriginal,
         highlights: highlights,
         previewImages: previewImages,
         shortDescription: shortDescription || '',

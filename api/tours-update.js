@@ -488,9 +488,13 @@ export default async function handler(req, res) {
     console.log(`📋 Final tour format: ${format} (from: ${rawFormat}, withGuide: ${tourData.withGuide}, selfGuided: ${tourData.selfGuided})`);
     const pricePdf = tourData.price?.pdfPrice || 16.00;
     const priceGuided = tourData.price?.guidedPrice || null;
-    // CRITICAL: Only update preview_media_url if preview is explicitly provided
-    // If preview is not provided (undefined), keep existing value in database
-    const previewMediaUrl = tourData.preview !== undefined ? tourData.preview : undefined;
+    // Keep two variants:
+    // - previewOriginal: original proportions for homepage cards
+    // - preview (cropped): used on itinerary/preview header
+    // Backward compatibility: if previewOriginal isn't provided, fallback to preview.
+    const previewOriginalUrl = tourData.previewOriginal !== undefined ? tourData.previewOriginal : undefined;
+    const previewCroppedUrl = tourData.preview !== undefined ? tourData.preview : undefined;
+    const previewMediaUrl = previewOriginalUrl !== undefined ? previewOriginalUrl : previewCroppedUrl;
     const previewMediaType = tourData.previewType || 'image';
     
     // Extract With Guide data
@@ -590,7 +594,8 @@ export default async function handler(req, res) {
           availableDates,
           defaultGroupSize
         },
-        preview: previewMediaUrl,
+        preview: previewCroppedUrl,
+        previewOriginal: previewOriginalUrl !== undefined ? previewOriginalUrl : existingTour?.draft_data?.previewOriginal,
         previewType: previewMediaType,
         tourPdfUrl: tourPdfUrl || '',
         additionalOptions,
@@ -698,7 +703,8 @@ export default async function handler(req, res) {
             updateData.default_group_size = draft.price.defaultGroupSize;
           }
         }
-        if (draft.preview) updateData.preview_media_url = draft.preview;
+        if (draft.previewOriginal) updateData.preview_media_url = draft.previewOriginal;
+        else if (draft.preview) updateData.preview_media_url = draft.preview;
         if (draft.previewType) updateData.preview_media_type = draft.previewType;
         
         // Recalculate duration from draft daily_plan
@@ -798,6 +804,11 @@ export default async function handler(req, res) {
       } else if (existingTour?.draft_data?.shortDescription) {
         preservedDraftData.shortDescription = existingTour.draft_data.shortDescription;
       }
+      if (previewOriginalUrl !== undefined) {
+        preservedDraftData.previewOriginal = previewOriginalUrl;
+      } else if (existingTour?.draft_data?.previewOriginal) {
+        preservedDraftData.previewOriginal = existingTour.draft_data.previewOriginal;
+      }
       updateData.draft_data = preservedDraftData;
     }
     
@@ -856,8 +867,13 @@ export default async function handler(req, res) {
         ...existingDraftData,
         ...preservedDraftData,
         // CRITICAL: Also preserve preview in draft_data if it exists
-        preview: previewMediaUrl !== undefined ? previewMediaUrl : existingDraftData.preview,
-        previewType: previewMediaUrl !== undefined ? previewMediaType : (existingDraftData.previewType || 'image'),
+        preview: previewCroppedUrl !== undefined ? previewCroppedUrl : existingDraftData.preview,
+        previewOriginal: previewOriginalUrl !== undefined
+          ? previewOriginalUrl
+          : (existingDraftData.previewOriginal || existingDraftData.preview),
+        previewType: (previewOriginalUrl !== undefined || previewCroppedUrl !== undefined)
+          ? previewMediaType
+          : (existingDraftData.previewType || 'image'),
         // Preserve highlights ("What's Inside This Walk") - supports both object and array formats
         highlights: highlights !== undefined ? highlights : (existingDraftData.highlights || {}),
         previewImages: previewImages !== undefined ? previewImages : (existingDraftData.previewImages || []),
