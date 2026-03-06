@@ -540,8 +540,7 @@ export default async function handler(req, res) {
       offset = 0
     } = req.query;
 
-    console.log('🔍 Loading tours from database...');
-    console.log('📋 Query params:', { city, format, interests, limit, offset });
+    console.log('🔍 Loading tours from database...', { city, format, hasInterestsFilter: !!interests, limit, offset });
     
     // Build select query - include location_interests only if filtering by interests
     // CRITICAL: Explicitly include preview_media_url and preview_media_type
@@ -638,27 +637,6 @@ export default async function handler(req, res) {
     }
 
     const { data: tours, error } = await query;
-
-    console.log('📊 Query result:', {
-      count: tours?.length || 0,
-      error: error?.message || null,
-      errorCode: error?.code || null
-    });
-    
-    // DEBUG: Check first tour immediately after query to see raw data
-    if (tours && tours.length > 0) {
-      const firstTourRaw = tours[0];
-      console.log('🔍 FIRST TOUR RAW FROM QUERY:', {
-        id: firstTourRaw.id,
-        title: firstTourRaw.title?.substring(0, 50),
-        hasPreviewMediaUrlKey: 'preview_media_url' in firstTourRaw,
-        preview_media_url_value: firstTourRaw.preview_media_url,
-        preview_media_url_type: typeof firstTourRaw.preview_media_url,
-        preview_media_type: firstTourRaw.preview_media_type,
-        allKeys: Object.keys(firstTourRaw).sort(),
-        previewKeys: Object.keys(firstTourRaw).filter(k => k.toLowerCase().includes('preview') || k.toLowerCase().includes('media'))
-      });
-    }
 
     if (error) {
       console.error('❌ Database query error:', error);
@@ -778,73 +756,50 @@ export default async function handler(req, res) {
       );
     }
 
-    // Load guide info for all tours
-    const toursWithGuides = await Promise.all(
-      filteredTours.map(async (tour) => {
-        // DEBUG: Log what we got from database
-        console.log('🔍 Tour from DB:', {
-          id: tour.id,
-          title: tour.title?.substring(0, 50),
-          preview_media_url: tour.preview_media_url ? tour.preview_media_url.substring(0, 100) : 'NULL/UNDEFINED',
-          preview_media_type: tour.preview_media_type,
-          hasPreviewMediaUrl: !!tour.preview_media_url,
-          previewMediaUrlType: typeof tour.preview_media_url,
-          allKeys: Object.keys(tour).filter(k => k.includes('preview'))
-        });
-        
-        let guideInfo = null;
-        if (tour.guide_id) {
-          // Note: guides.id = users.id (not user_id)
-          const { data: guide } = await supabase
-            .from('guides')
-            .select('id, name, avatar_url, city, interests')
-            .eq('id', tour.guide_id)
-            .maybeSingle();
-          if (guide) {
-            guideInfo = guide;
-          }
-        }
-        
-        // CRITICAL: Use preview_media_url directly from tour object
-        // Don't fallback to tour.preview as it might not exist
-        // Handle both null and empty string cases
-        let previewMediaUrl = null;
-        if (tour.preview_media_url && tour.preview_media_url.trim() !== '') {
-          previewMediaUrl = tour.preview_media_url;
-        }
-        
-        // Format tour similar to single tour response
-        const formattedTour = {
-          ...tour,
-          guide: guideInfo,
-          daily_plan: [], // Would need to load full structure for this
-          // Map preview_media_url to preview for backward compatibility
-          preview: previewMediaUrl,
-          preview_media_url: previewMediaUrl, // Use direct value, no fallback
-          previewType: tour.preview_media_type || 'image',
-          // Map format for backward compatibility
-          format: tour.default_format === 'with_guide' ? 'guided' : (tour.default_format || 'self-guided'),
-          withGuide: tour.default_format === 'with_guide',
-          // Extract city name from city object if it exists
-          city: tour.city?.name || tour.city || null
-        };
-        
-        // DEBUG: Log what we're returning
-        console.log('📤 Formatted tour:', {
-          id: formattedTour.id,
-          title: formattedTour.title?.substring(0, 50),
-          preview_media_url: formattedTour.preview_media_url ? formattedTour.preview_media_url.substring(0, 100) : 'NULL',
-          preview: formattedTour.preview ? formattedTour.preview.substring(0, 100) : 'NULL'
-        });
-        
-        return formattedTour;
-      })
-    );
+    // Load all guides in one query instead of N+1 requests
+    const guideIds = Array.from(new Set((filteredTours || []).map(t => t.guide_id).filter(Boolean)));
+    let guidesById = new Map();
+    if (guideIds.length > 0) {
+      const { data: guidesData, error: guidesError } = await supabase
+        .from('guides')
+        .select('id, name, avatar_url, city, interests')
+        .in('id', guideIds);
+      if (guidesError) {
+        console.warn('⚠️ Failed to batch load guides:', guidesError.message);
+      } else if (Array.isArray(guidesData)) {
+        guidesById = new Map(guidesData.map(g => [String(g.id), g]));
+      }
+    }
+
+    const toursWithGuides = filteredTours.map((tour) => {
+      const guideInfo = tour.guide_id ? (guidesById.get(String(tour.guide_id)) || null) : null;
+
+      // Use preview_media_url directly from tour object
+      const previewMediaUrl =
+        (typeof tour.preview_media_url === 'string' && tour.preview_media_url.trim() !== '')
+          ? tour.preview_media_url
+          : null;
+
+      return {
+        ...tour,
+        guide: guideInfo,
+        daily_plan: [], // Kept empty for list endpoint
+        preview: previewMediaUrl,
+        preview_media_url: previewMediaUrl,
+        previewType: tour.preview_media_type || 'image',
+        format: tour.default_format === 'with_guide' ? 'guided' : (tour.default_format || 'self-guided'),
+        withGuide: tour.default_format === 'with_guide',
+        city: tour.city?.name || tour.city || null
+      };
+    });
 
     // Convert to legacy format
     const formattedTours = toursWithGuides;
 
     console.log(`✅ Returning ${formattedTours.length} formatted tours`);
+
+    // CDN-friendly cache for public tours list; keeps homepage snappy without sacrificing freshness.
+    res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
 
     return res.status(200).json({
       success: true,
