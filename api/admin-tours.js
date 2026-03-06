@@ -254,6 +254,7 @@ export default async function handler(req, res) {
         status: tour.status || 'draft',
         verified: tour.verified || false,
         isPublished: tour.is_published || false,
+        exploreWideCard: Boolean(tour?.draft_data?.exploreWideCard),
         tags: tour.tour_tags?.map(tt => tt.tag?.name).filter(Boolean) || [],
         createdAt: tour.created_at,
         updatedAt: tour.updated_at
@@ -296,10 +297,14 @@ export default async function handler(req, res) {
       }
 
       const tourData = req.body;
-      const { title, description, city, cityId, status, isPublished, tags, previewMediaUrl } = tourData;
+      const { title, description, city, cityId, status, isPublished, tags, previewMediaUrl, exploreWideCard } = tourData;
+      const isExploreWideOnlyUpdate = (
+        Object.keys(tourData || {}).length === 1 &&
+        Object.prototype.hasOwnProperty.call(tourData || {}, 'exploreWideCard')
+      );
 
       // Validate required fields
-      if (!title) {
+      if (!isExploreWideOnlyUpdate && !title) {
         setCorsHeaders();
         return res.status(400).json({
           success: false,
@@ -323,12 +328,14 @@ export default async function handler(req, res) {
       }
 
       // Build update data
-      const updateData = {
-        title,
-        description: description || null,
-        status: status || 'draft',
-        is_published: isPublished !== undefined ? isPublished : false
-      };
+      const updateData = {};
+
+      if (!isExploreWideOnlyUpdate) {
+        updateData.title = title;
+        updateData.description = description || null;
+        updateData.status = status || 'draft';
+        updateData.is_published = isPublished !== undefined ? isPublished : false;
+      }
 
       if (finalCityId) {
         updateData.city_id = finalCityId;
@@ -336,6 +343,27 @@ export default async function handler(req, res) {
 
       if (previewMediaUrl !== undefined) {
         updateData.preview_media_url = previewMediaUrl || null;
+      }
+
+      if (exploreWideCard !== undefined) {
+        const { data: existingTour, error: existingTourError } = await supabase
+          .from('tours')
+          .select('draft_data')
+          .eq('id', id)
+          .maybeSingle();
+
+        if (existingTourError) {
+          throw existingTourError;
+        }
+
+        const currentDraftData = (existingTour && typeof existingTour.draft_data === 'object' && existingTour.draft_data !== null)
+          ? existingTour.draft_data
+          : {};
+
+        updateData.draft_data = {
+          ...currentDraftData,
+          exploreWideCard: Boolean(exploreWideCard)
+        };
       }
 
       // Update tour
