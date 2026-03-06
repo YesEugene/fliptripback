@@ -109,7 +109,7 @@ export default async function handler(req, res) {
 
     const prompt = `You are writing preview cards for a self-guided walking tour. Based on the tour content below:
 1) generate exactly 3 short highlight descriptions,
-2) generate ONE short homepage card sentence.
+2) generate ONE short homepage card description with exactly two short sentences.
 
 TOUR CONTENT:
 ${tourSummary}
@@ -120,10 +120,11 @@ RULES:
 - Do NOT mention specific numbers of locations (that's handled separately)
 - Do NOT mention maps or PDFs (that's handled separately)
 - Do NOT mention "self-guided" or "walking tour"
-- Homepage sentence length: maximum 100-120 characters
-- Homepage sentence style: vivid, engaging, no formal tone, focus on one unique hook
-- Homepage sentence format: start directly with action or intrigue, never "This tour offers..."
-- Homepage sentence language: ${language}
+- Homepage description must contain exactly 2 short sentences
+- Homepage total length: about 140-180 characters (never exceed 180)
+- Homepage style: vivid, engaging, no formal tone, focus on one unique hook
+- Homepage format: start directly with action or intrigue, never "This tour offers..."
+- Homepage language: ${language}
 
 Generate these 3 specific highlights:
 
@@ -137,7 +138,7 @@ Also suggest an appropriate emoji (single emoji) for each highlight.
 
 Return ONLY valid JSON, no markdown:
 {
-  "shortDescription": "Follow the footsteps of the Three Musketeers through hidden old-Paris alleys.",
+  "shortDescription": "Follow the footsteps of the Three Musketeers through hidden old-Paris alleys. Discover the cafés and courtyards where their legends still echo.",
   "bullet3": { "icon": "⚔️", "text": "The real Paris of Athos, Porthos, Aramis, and d'Artagnan" },
   "bullet4": { "icon": "🏛", "text": "Historical context at every stop" },
   "bullet5": { "icon": "☕", "text": "Atmospheric cafés and bistros along the way" }
@@ -178,7 +179,7 @@ Return ONLY valid JSON, no markdown:
     const shortDescription = String(parsed.shortDescription || '')
       .replace(/\s+/g, ' ')
       .trim()
-      .slice(0, 120);
+      .slice(0, 180);
 
     return res.status(200).json({
       success: true,
