@@ -326,7 +326,7 @@ export default async function handler(req, res) {
     }
 
     const tourData = req.body;
-    let { country, city, title, description, daily_plan, tags, meta, status, saveAsDraft, highlights, previewImages, tourPdfUrl } = tourData;
+    let { country, city, title, description, shortDescription, daily_plan, tags, meta, status, saveAsDraft, highlights, previewImages, tourPdfUrl } = tourData;
     
     console.log('📋 tours-update received:', {
       id,
@@ -576,6 +576,7 @@ export default async function handler(req, res) {
         city,
         title,
         description,
+        shortDescription: shortDescription || '',
         daily_plan,
         tags,
         meta,
@@ -608,7 +609,8 @@ export default async function handler(req, res) {
         // Preserve highlights: use sent value if defined, otherwise keep existing
         highlights: highlights !== undefined ? highlights : (existingDraft.highlights || {}),
         previewImages: previewImages !== undefined ? previewImages : (existingDraft.previewImages || []),
-        tourPdfUrl: tourPdfUrl !== undefined ? tourPdfUrl : (existingDraft.tourPdfUrl || '')
+        tourPdfUrl: tourPdfUrl !== undefined ? tourPdfUrl : (existingDraft.tourPdfUrl || ''),
+        shortDescription: shortDescription !== undefined ? shortDescription : (existingDraft.shortDescription || '')
       };
       console.log('🔍 Draft merge result - mergedDraftData.highlights:', JSON.stringify(mergedDraftData.highlights));
 
@@ -791,6 +793,11 @@ export default async function handler(req, res) {
       } else if (existingTour?.draft_data?.tourPdfUrl) {
         preservedDraftData.tourPdfUrl = existingTour.draft_data.tourPdfUrl;
       }
+      if (shortDescription !== undefined) {
+        preservedDraftData.shortDescription = shortDescription;
+      } else if (existingTour?.draft_data?.shortDescription) {
+        preservedDraftData.shortDescription = existingTour.draft_data.shortDescription;
+      }
       updateData.draft_data = preservedDraftData;
     }
     
@@ -854,7 +861,8 @@ export default async function handler(req, res) {
         // Preserve highlights ("What's Inside This Walk") - supports both object and array formats
         highlights: highlights !== undefined ? highlights : (existingDraftData.highlights || {}),
         previewImages: previewImages !== undefined ? previewImages : (existingDraftData.previewImages || []),
-        tourPdfUrl: tourPdfUrl !== undefined ? tourPdfUrl : (existingDraftData.tourPdfUrl || '')
+        tourPdfUrl: tourPdfUrl !== undefined ? tourPdfUrl : (existingDraftData.tourPdfUrl || ''),
+        shortDescription: shortDescription !== undefined ? shortDescription : (existingDraftData.shortDescription || '')
       };
     }
 

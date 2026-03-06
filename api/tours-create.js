@@ -142,7 +142,7 @@ export default async function handler(req, res) {
     }
 
     const tourData = req.body;
-    const { country, city, title, description, daily_plan, tags, meta } = tourData;
+    const { country, city, title, description, shortDescription, daily_plan, tags, meta } = tourData;
     // country is optional - can be empty or undefined
 
     console.log('📥 Tour creation request:', {
@@ -427,6 +427,7 @@ export default async function handler(req, res) {
       draft_data: {
         highlights: highlights,
         previewImages: previewImages,
+        shortDescription: shortDescription || '',
         tourSettings: {
           selfGuided: tourData.selfGuided !== undefined ? tourData.selfGuided : true,
           withGuide: tourData.withGuide !== undefined ? tourData.withGuide : false,
