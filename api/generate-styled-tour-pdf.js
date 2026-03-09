@@ -307,37 +307,29 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
   const logoUrl = 'https://raw.githubusercontent.com/YesEugene/fliptripfront/main/src/assets/FlipTripLogo.svg';
 
   const mapHtml = (layout?.includeMap === false || !mapUrl) ? '' : `
-    <section class="ft-page">
-      <div class="ft-page-inner">
-        <section class="ft-section">
-          <h2 class="ft-headline">Route map</h2>
-          <img class="ft-map" src="${htmlEscape(mapUrl)}" alt="Tour route map"/>
-        </section>
-      </div>
+    <section class="ft-section ft-section-block">
+      <h2 class="ft-headline">Route map</h2>
+      <img class="ft-map" src="${htmlEscape(mapUrl)}" alt="Tour route map"/>
     </section>
   `;
 
   const locationsHtml = locations.length === 0 ? '' : `
-    <section class="ft-page">
-      <div class="ft-page-inner">
-        <section class="ft-section">
-          <h2 class="ft-headline">Locations</h2>
-          <ol class="ft-locations">
-            ${locations.map((loc) => `
-              <li>
-                <span class="name">${htmlEscape(loc.name || '')}</span>
-                ${loc.address ? `<span class="address">${htmlEscape(loc.address)}</span>` : ''}
-              </li>
-            `).join('')}
-          </ol>
-        </section>
-      </div>
+    <section class="ft-section ft-section-block">
+      <h2 class="ft-headline">Locations</h2>
+      <ol class="ft-locations">
+        ${locations.map((loc) => `
+          <li>
+            <span class="name">${htmlEscape(loc.name || '')}</span>
+            ${loc.address ? `<span class="address">${htmlEscape(loc.address)}</span>` : ''}
+          </li>
+        `).join('')}
+      </ol>
     </section>
   `;
 
   const sectionsHtml = sections.map((section) => {
     if (section.type === 'heading') {
-      return `<section class="ft-section ft-heading-block"><h2 class="ft-headline">${htmlEscape(section.title || '')}</h2></section>`;
+      return `<section class="ft-section ft-section-block ft-heading-block" data-keep-with-next="true"><h2 class="ft-headline">${htmlEscape(section.title || '')}</h2></section>`;
     }
 
     const titleHtml = section.title ? `<h3>${htmlEscape(section.title)}</h3>` : '';
@@ -361,30 +353,23 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
     ` : '';
     const photoGrid = !section.photos?.length ? '' : (isLocation ? `
       <div class="ft-location-photos">
-        <div class="ft-location-photo-layout">
-          <img class="ft-location-main-photo" src="${htmlEscape(section.photos[0])}" alt="${htmlEscape(section.title || 'Location photo')}"/>
+        <div class="ft-location-photo-layout ft-adaptive-grid">
+          <img class="ft-main-photo" src="${htmlEscape(section.photos[0])}" alt="${htmlEscape(section.title || 'Location photo')}"/>
           ${section.photos.length > 1 ? `
-          <div class="ft-location-side-grid">
-            <div class="ft-location-side-col">
-              ${section.photos[1] ? `<img src="${htmlEscape(section.photos[1])}" alt="${htmlEscape(section.title || 'Location photo 2')}"/>` : ''}
-              ${section.photos[3] ? `<img src="${htmlEscape(section.photos[3])}" alt="${htmlEscape(section.title || 'Location photo 4')}"/>` : ''}
+            <div class="ft-thumb-stack">
+              ${section.photos.slice(1, 5).map((src, i) => `<img class="ft-thumb-photo" src="${htmlEscape(src)}" alt="${htmlEscape(section.title || `Location photo ${i + 2}`)}"/>`).join('')}
             </div>
-            <div class="ft-location-side-col">
-              ${section.photos[2] ? `<img src="${htmlEscape(section.photos[2])}" alt="${htmlEscape(section.title || 'Location photo 3')}"/>` : ''}
-              ${section.photos[4] ? `<img src="${htmlEscape(section.photos[4])}" alt="${htmlEscape(section.title || 'Location photo 5')}"/>` : ''}
-            </div>
-          </div>
           ` : ''}
         </div>
       </div>
     ` : `
-      <div class="ft-photo-grid ${section.photos.length > 1 ? 'has-many' : ''}">
-        ${section.photos.map((src, i) => `<img src="${htmlEscape(src)}" alt="${htmlEscape(section.title || `Tour image ${i + 1}`)}"/>`).join('')}
+      <div class="ft-photo-grid ft-adaptive-grid ${section.photos.length > 1 ? 'has-many' : ''}">
+        ${section.photos.map((src, i) => `<img class="${i === 0 ? 'ft-main-photo' : 'ft-thumb-photo'}" src="${htmlEscape(src)}" alt="${htmlEscape(section.title || `Tour image ${i + 1}`)}"/>`).join('')}
       </div>
     `);
 
     return `
-      <section class="ft-section ${isLocation ? 'ft-location-section' : ''}">
+      <section class="ft-section ft-section-block ${isLocation ? 'ft-location-section' : ''}">
         ${photoGrid}
         ${titleHtml}
         ${addressHtml}
@@ -490,7 +475,7 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
       }
       h2 {
         margin: 0 0 12px;
-        font-size: 27px;
+        font-size: 42px;
         line-height: 1.2;
       }
       .ft-headline {
@@ -506,7 +491,7 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
         font-weight: 700;
       }
       .ft-location-section h3 {
-        font-size: 29px;
+        font-size: 30px;
       }
       .ft-address {
         color: ${cfg.muted};
@@ -557,55 +542,40 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
         display: block;
         background: #f3f4f6;
       }
-      .ft-photo-grid {
+      .ft-photo-grid,
+      .ft-location-photo-layout {
         display: grid;
-        grid-template-columns: 2fr 1fr;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 10px;
         margin-bottom: 12px;
+        align-items: start;
       }
-      .ft-photo-grid img {
+      .ft-photo-grid img,
+      .ft-location-photo-layout img {
         width: 100%;
         height: auto;
         object-fit: contain;
         display: block;
         background: #f3f4f6;
-      }
-      .ft-photo-grid img:first-child {
-        grid-row: span 2;
       }
       .ft-location-photos {
         margin: 12px 0;
       }
-      .ft-location-photo-layout {
-        display: grid;
-        grid-template-columns: 250px 1fr;
-        gap: 12px;
-        align-items: start;
+      .ft-adaptive-grid .ft-main-photo {
+        grid-column: span 2;
       }
-      .ft-location-main-photo {
-        width: 250px;
-        height: auto;
-        object-fit: contain;
-        display: block;
-        background: #f3f4f6;
-      }
-      .ft-location-side-grid {
+      .ft-adaptive-grid .ft-thumb-stack {
+        grid-column: span 2;
         display: grid;
-        grid-template-columns: 1fr 1fr;
-        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 10px;
       }
-      .ft-location-side-col {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
+      .ft-adaptive-grid.is-landscape .ft-main-photo {
+        grid-column: 1 / -1;
       }
-      .ft-location-side-col img {
-        width: 100%;
-        height: auto;
-        object-fit: contain;
-        display: block;
-        background: #f3f4f6;
+      .ft-adaptive-grid.is-landscape .ft-thumb-stack {
+        grid-column: 1 / -1;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
       }
       .ft-recommend-box {
         margin-top: 10px;
@@ -657,14 +627,84 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
           ${aboutTripParagraphs.length ? `<div class="ft-cover-about">${aboutTripParagraphs.map((p) => `<p>${htmlEscape(p)}</p>`).join('')}</div>` : ''}
         </div>
       </section>
-      <section class="ft-page">
-        <div class="ft-page-inner">
-          ${sectionsHtml}
-        </div>
-      </section>
-      ${mapHtml}
-      ${locationsHtml}
+      <div id="ft-content-pages"></div>
+      <div id="ft-flow-source" style="display:none;">
+        ${sectionsHtml}
+        ${mapHtml}
+        ${locationsHtml}
+      </div>
     </div>
+    <script>
+      (function () {
+        const CONTENT_MAX_HEIGHT = 1190;
+        const source = document.getElementById('ft-flow-source');
+        const pagesRoot = document.getElementById('ft-content-pages');
+        if (!source || !pagesRoot) return;
+
+        const blocks = Array.from(source.children);
+        const createPage = () => {
+          const page = document.createElement('section');
+          page.className = 'ft-page';
+          const inner = document.createElement('div');
+          inner.className = 'ft-page-inner';
+          page.appendChild(inner);
+          pagesRoot.appendChild(page);
+          return inner;
+        };
+
+        const fits = (inner) => inner.scrollHeight <= CONTENT_MAX_HEIGHT;
+        let inner = createPage();
+
+        for (let i = 0; i < blocks.length; i += 1) {
+          const block = blocks[i].cloneNode(true);
+          const keepWithNext = block.dataset.keepWithNext === 'true' && i + 1 < blocks.length;
+
+          if (keepWithNext) {
+            const next = blocks[i + 1].cloneNode(true);
+            inner.appendChild(block);
+            inner.appendChild(next);
+            if (!fits(inner) && inner.children.length > 2) {
+              inner.removeChild(next);
+              inner.removeChild(block);
+              inner = createPage();
+              inner.appendChild(block);
+              inner.appendChild(next);
+            }
+            i += 1;
+            continue;
+          }
+
+          inner.appendChild(block);
+          if (!fits(inner) && inner.children.length > 1) {
+            inner.removeChild(block);
+            inner = createPage();
+            inner.appendChild(block);
+          }
+        }
+
+        const allImages = Array.from(document.querySelectorAll('img'));
+        const waiters = allImages.map((img) => {
+          if (img.complete) return Promise.resolve();
+          return new Promise((resolve) => {
+            img.addEventListener('load', resolve, { once: true });
+            img.addEventListener('error', resolve, { once: true });
+          });
+        });
+
+        Promise.all(waiters).then(() => {
+          document.querySelectorAll('.ft-adaptive-grid').forEach((grid) => {
+            const main = grid.querySelector('.ft-main-photo');
+            if (!main) return;
+            const w = main.naturalWidth || 0;
+            const h = main.naturalHeight || 0;
+            if (w >= h && w > 0) {
+              grid.classList.add('is-landscape');
+            }
+          });
+          window.__FT_PDF_LAYOUT_READY = true;
+        });
+      })();
+    </script>
   </body>
 </html>`;
 }
@@ -689,6 +729,7 @@ async function renderStyledPdfViaHtml({ tour, blocks, template = 'classic', layo
   try {
     const page = await browser.newPage({ viewport: { width: 1240, height: 1754 } });
     await page.setContent(html, { waitUntil: 'networkidle' });
+    await page.waitForFunction(() => window.__FT_PDF_LAYOUT_READY === true, { timeout: 5000 }).catch(() => null);
     await page.emulateMedia({ media: 'screen' });
     const pdfBuffer = await page.pdf({
       format: 'A4',
