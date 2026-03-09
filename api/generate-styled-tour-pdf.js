@@ -279,6 +279,19 @@ function extractContentSectionsForHtml(blocks = []) {
       const price = cleanRichText(main?.priceLevel || main?.price_level || main?.price || '');
       const paragraphs = [description].filter(Boolean);
       const photos = normalizePhotoList(main?.photos || main?.photo).slice(0, 6);
+      const alternatives = Array.isArray(content.alternativeLocations)
+        ? content.alternativeLocations
+            .filter((alt) => alt && typeof alt === 'object')
+            .map((alt) => ({
+              title: cleanRichText(alt.title || alt.name || ''),
+              address: cleanRichText(alt.address || ''),
+              description: cleanRichText(alt.description || ''),
+              rating: String(alt.rating ?? '').trim(),
+              price: cleanRichText(alt.priceLevel || alt.price_level || alt.price || ''),
+              photos: normalizePhotoList(alt.photos || alt.photo).slice(0, 1)
+            }))
+            .filter((alt) => alt.title || alt.description || alt.address)
+        : [];
       if (title || paragraphs.length > 0 || recommendations || photos.length > 0) {
         sections.push({
           type: 'location',
@@ -289,9 +302,45 @@ function extractContentSectionsForHtml(blocks = []) {
           useColumns: description.length > 1050,
           recommendations,
           rating,
-          price
+          price,
+          alternatives
         });
       }
+      return;
+    }
+
+    if (type === '3columns') {
+      const columns = Array.isArray(content.columns) ? content.columns : [];
+      const items = columns
+        .map((col) => {
+          if (!col || typeof col !== 'object') return null;
+          return {
+            photo: normalizePhotoList(col.photo || col.photos || col.image)[0] || '',
+            text: cleanRichText(col.text || '')
+          };
+        })
+        .filter(Boolean)
+        .filter((item) => item.photo || item.text);
+      if (items.length > 0) {
+        sections.push({
+          type: 'three_columns',
+          items
+        });
+      }
+      return;
+    }
+
+    if (type === 'photo') {
+      const photos = normalizePhotoList(content.photos || content.photo);
+      const caption = cleanRichText(content.caption || '');
+      if (photos.length > 0 || caption) {
+        sections.push({
+          type: 'photo',
+          photos,
+          caption
+        });
+      }
+      return;
     }
   });
 
@@ -340,8 +389,41 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
       ? section.paragraphs.map((p) => `<p>${htmlEscape(p)}</p>`).join('')
       : '';
     const isPhotoText = section.type === 'photo_text';
+    const isThreeColumns = section.type === 'three_columns';
+    const isPhotoBlock = section.type === 'photo';
     const textWrapClass = section.useColumns && !isPhotoText ? 'ft-text columns' : 'ft-text';
     const isLocation = section.type === 'location';
+
+    if (isThreeColumns) {
+      return `
+        <section class="ft-section ft-section-block">
+          <div class="ft-three-columns-grid">
+            ${(section.items || []).map((item) => `
+              <div class="ft-three-col-item">
+                ${item.photo ? `<img class="ft-three-col-photo" src="${htmlEscape(item.photo)}" alt="Three column image"/>` : ''}
+                ${item.text ? `<p class="ft-three-col-text">${htmlEscape(item.text)}</p>` : ''}
+              </div>
+            `).join('')}
+          </div>
+        </section>
+      `;
+    }
+
+    if (isPhotoBlock) {
+      const mainPhoto = section.photos?.[0] || '';
+      const extraPhotos = (section.photos || []).slice(1, 4);
+      return `
+        <section class="ft-section ft-section-block">
+          ${mainPhoto ? `<img class="ft-photo-block-main" src="${htmlEscape(mainPhoto)}" alt="Photo block"/>` : ''}
+          ${extraPhotos.length > 0 ? `
+            <div class="ft-photo-block-row">
+              ${extraPhotos.map((src) => `<img class="ft-photo-block-thumb" src="${htmlEscape(src)}" alt="Photo block extra"/>`).join('')}
+            </div>
+          ` : ''}
+          ${section.caption ? `<p class="ft-photo-block-caption">${htmlEscape(section.caption)}</p>` : ''}
+        </section>
+      `;
+    }
     const locationMetaHtml = isLocation && (section.rating || section.price) ? `
       <div class="ft-location-meta">
         ${section.rating ? `<span>★ ${htmlEscape(section.rating)}</span>` : ''}
@@ -352,6 +434,21 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
       <div class="ft-recommend-box">
         <div class="ft-recommend-title">Author also recommends</div>
         <p>${htmlEscape(section.recommendations)}</p>
+      </div>
+    ` : '';
+    const alternativesHtml = isLocation && Array.isArray(section.alternatives) && section.alternatives.length > 0 ? `
+      <div class="ft-alt-locations-block">
+        <div class="ft-alt-locations-title">Author also recommends</div>
+        <div class="ft-alt-locations-grid">
+          ${section.alternatives.map((alt) => `
+            <article class="ft-alt-location-card">
+              <h4>${htmlEscape(alt.title || '')}</h4>
+              ${alt.address ? `<div class="ft-alt-location-address">📍 ${htmlEscape(alt.address)}</div>` : ''}
+              ${(alt.rating || alt.price) ? `<div class="ft-alt-location-meta">${alt.rating ? `⭐ ${htmlEscape(alt.rating)}` : ''}${alt.rating && alt.price ? '   ' : ''}${alt.price ? `💰 ${htmlEscape(alt.price)}` : ''}</div>` : ''}
+              ${alt.description ? `<p>${htmlEscape(alt.description)}</p>` : ''}
+            </article>
+          `).join('')}
+        </div>
       </div>
     ` : '';
     const photoGrid = !section.photos?.length ? '' : (isLocation ? `
@@ -399,6 +496,7 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
           ${paragraphs}
         </div>
         ${recommendationsHtml}
+        ${alternativesHtml}
       </section>
     `;
   }).join('');
@@ -487,7 +585,7 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
         line-height: 1.5;
       }
       .ft-section {
-        margin-top: 12px;
+        margin-top: 24px;
         break-inside: avoid;
         page-break-inside: avoid;
       }
@@ -617,7 +715,7 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
         line-height: 1.5;
       }
       .ft-photo-text-block {
-        margin-top: 22px;
+        margin-top: 24px;
       }
       .ft-photo-text-layout {
         display: grid;
@@ -649,6 +747,78 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
       }
       .ft-photo-text-block.photo-on-left .ft-photo-text-layout .ft-text {
         order: 2;
+      }
+      .ft-three-columns-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+      }
+      .ft-three-col-photo {
+        width: 100%;
+        aspect-ratio: 1.55 / 1;
+        object-fit: cover;
+        display: block;
+        background: #f3f4f6;
+        margin-bottom: 8px;
+      }
+      .ft-three-col-text {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.45;
+      }
+      .ft-photo-block-main {
+        width: 100%;
+        max-height: 420px;
+        object-fit: cover;
+        display: block;
+        background: #f3f4f6;
+      }
+      .ft-photo-block-row {
+        margin-top: 10px;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .ft-photo-block-thumb {
+        width: 100%;
+        aspect-ratio: 1.6 / 1;
+        object-fit: cover;
+        display: block;
+        background: #f3f4f6;
+      }
+      .ft-photo-block-caption {
+        margin: 10px 0 0;
+        font-size: 13px;
+        line-height: 1.45;
+      }
+      .ft-alt-locations-block {
+        margin-top: 16px;
+      }
+      .ft-alt-locations-title {
+        margin-bottom: 10px;
+        font-size: 14px;
+        text-transform: uppercase;
+        font-weight: 700;
+      }
+      .ft-alt-locations-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        background: #e8f5e9;
+        border-radius: 10px;
+        padding: 12px;
+      }
+      .ft-alt-location-card h4 {
+        margin: 0 0 6px;
+        font-size: 16px;
+        text-transform: uppercase;
+      }
+      .ft-alt-location-address,
+      .ft-alt-location-meta,
+      .ft-alt-location-card p {
+        margin: 0 0 6px;
+        font-size: 12px;
+        line-height: 1.4;
       }
       @media print {
         body {
