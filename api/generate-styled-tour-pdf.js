@@ -172,6 +172,351 @@ function templateConfig(template = 'classic') {
   return { accent: '#2563EB', muted: '#4B5563' };
 }
 
+function htmlEscape(value = '') {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function normalizePhotoList(value) {
+  const arr = Array.isArray(value) ? value : (value ? [value] : []);
+  return arr
+    .map((item) => (typeof item === 'string' ? item.trim() : ''))
+    .filter((item) => item && (item.startsWith('http://') || item.startsWith('https://') || item.startsWith('data:image/')));
+}
+
+function extractContentSectionsForHtml(blocks = []) {
+  const sections = [];
+  let headingIndex = 1;
+
+  (blocks || []).forEach((block) => {
+    const type = block?.block_type;
+    const content = block?.content || {};
+
+    if (type === 'heading') {
+      const title = String(content.text || content.title || '').trim();
+      if (title) {
+        sections.push({ type: 'heading', title, paragraphs: [], photos: [] });
+      }
+      return;
+    }
+
+    if (type === 'text') {
+      const text = String(content.text || '').trim();
+      if (!text) return;
+      const paragraphs = text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+      sections.push({
+        type: 'text',
+        title: null,
+        paragraphs,
+        useColumns: text.length > 900,
+        photos: []
+      });
+      return;
+    }
+
+    if (type === 'photo_text' || type === 'fullwidth_image') {
+      const title = String(content.title || '').trim();
+      const text = String(content.text || content.caption || '').trim();
+      const paragraphs = text ? text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean) : [];
+      sections.push({
+        type: 'photo_text',
+        title: title || `Section ${headingIndex++}`,
+        paragraphs,
+        photos: normalizePhotoList(content.photos || content.photo).slice(0, 4),
+        useColumns: text.length > 700
+      });
+      return;
+    }
+
+    if (type === 'location') {
+      const main = content.mainLocation || content;
+      const title = String(main?.title || main?.name || '').trim();
+      const address = String(main?.address || '').trim();
+      const description = String(main?.description || '').trim();
+      const recommendations = String(main?.recommendations || '').trim();
+      const paragraphs = [description, recommendations].filter(Boolean);
+      const photos = normalizePhotoList(main?.photos || main?.photo).slice(0, 6);
+      if (title || paragraphs.length > 0 || photos.length > 0) {
+        sections.push({
+          type: 'location',
+          title: title || `Location ${headingIndex++}`,
+          address,
+          paragraphs,
+          photos,
+          useColumns: description.length > 700
+        });
+      }
+    }
+  });
+
+  return sections;
+}
+
+function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, mapUrl = null, locations = [] }) {
+  const cfg = templateConfig(template);
+  const draft = (tour?.draft_data && typeof tour.draft_data === 'object') ? tour.draft_data : {};
+  const title = String(draft.title || tour?.title || 'FlipTrip Guide').trim();
+  const city = String(tour?.city?.name || '').trim();
+  const subtitle = String(layout?.subtitle || draft.shortDescription || tour?.description || '').trim();
+  const previewImage = String(draft.previewOriginal || draft.preview || tour?.preview_media_url || '').trim();
+  const highlights = draft.highlights || {};
+  const highlightTexts = [highlights.text3, highlights.text4, highlights.text5].filter(Boolean).map((x) => String(x).trim());
+  const sections = extractContentSectionsForHtml(blocks);
+
+  const highlightHtml = (layout?.includeHighlights === false || highlightTexts.length === 0) ? '' : `
+    <section class="ft-section">
+      <h2>What's inside this walk</h2>
+      <ol class="ft-highlights">
+        ${highlightTexts.map((line) => `<li>${htmlEscape(line)}</li>`).join('')}
+      </ol>
+    </section>
+  `;
+
+  const mapHtml = (layout?.includeMap === false || !mapUrl) ? '' : `
+    <section class="ft-section">
+      <h2>Route map</h2>
+      <img class="ft-map" src="${htmlEscape(mapUrl)}" alt="Tour route map"/>
+    </section>
+  `;
+
+  const locationsHtml = locations.length === 0 ? '' : `
+    <section class="ft-section">
+      <h2>Locations</h2>
+      <ol class="ft-locations">
+        ${locations.map((loc) => `
+          <li>
+            <span class="name">${htmlEscape(loc.name || '')}</span>
+            ${loc.address ? `<span class="address">${htmlEscape(loc.address)}</span>` : ''}
+          </li>
+        `).join('')}
+      </ol>
+    </section>
+  `;
+
+  const sectionsHtml = sections.map((section) => {
+    if (section.type === 'heading') {
+      return `<section class="ft-section"><h2>${htmlEscape(section.title || '')}</h2></section>`;
+    }
+
+    const titleHtml = section.title ? `<h3>${htmlEscape(section.title)}</h3>` : '';
+    const addressHtml = section.address ? `<div class="ft-address">${htmlEscape(section.address)}</div>` : '';
+    const photoGrid = section.photos?.length ? `
+      <div class="ft-photo-grid ${section.photos.length > 1 ? 'has-many' : ''}">
+        ${section.photos.map((src, i) => `<img src="${htmlEscape(src)}" alt="${htmlEscape(section.title || `Tour image ${i + 1}`)}"/>`).join('')}
+      </div>
+    ` : '';
+    const paragraphs = section.paragraphs?.length
+      ? section.paragraphs.map((p) => `<p>${htmlEscape(p)}</p>`).join('')
+      : '';
+    const textWrapClass = section.useColumns ? 'ft-text columns' : 'ft-text';
+
+    return `
+      <section class="ft-section">
+        ${titleHtml}
+        ${addressHtml}
+        ${photoGrid}
+        <div class="${textWrapClass}">
+          ${paragraphs}
+        </div>
+      </section>
+    `;
+  }).join('');
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      @page { size: A4; margin: 12mm; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        color: #111827;
+        background: #fff;
+      }
+      .ft-wrap { width: 100%; }
+      .ft-header {
+        border-bottom: 1px solid #e5e7eb;
+        padding-bottom: 14px;
+        margin-bottom: 18px;
+      }
+      .ft-logo {
+        color: ${cfg.accent};
+        font-weight: 700;
+        font-size: 16px;
+        letter-spacing: 0.06em;
+        margin-bottom: 8px;
+      }
+      .ft-city {
+        color: ${cfg.muted};
+        font-size: 12px;
+        margin-bottom: 4px;
+      }
+      h1 {
+        margin: 0;
+        font-size: 44px;
+        line-height: 1.08;
+        font-weight: 700;
+      }
+      .ft-subtitle {
+        margin-top: 10px;
+        color: ${cfg.muted};
+        font-size: 16px;
+        line-height: 1.35;
+      }
+      .ft-hero {
+        width: 100%;
+        max-height: 280px;
+        object-fit: cover;
+        display: block;
+        margin-top: 16px;
+      }
+      .ft-section {
+        margin-top: 20px;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      h2 {
+        margin: 0 0 10px;
+        font-size: 24px;
+        line-height: 1.2;
+      }
+      h3 {
+        margin: 0 0 8px;
+        font-size: 20px;
+        line-height: 1.25;
+      }
+      .ft-address {
+        color: ${cfg.muted};
+        font-size: 12px;
+        margin-bottom: 10px;
+      }
+      .ft-text p {
+        margin: 0 0 10px;
+        font-size: 14px;
+        line-height: 1.55;
+        orphans: 3;
+        widows: 3;
+      }
+      .ft-text.columns {
+        column-count: 2;
+        column-gap: 20px;
+      }
+      .ft-highlights {
+        margin: 0;
+        padding-left: 22px;
+      }
+      .ft-highlights li {
+        margin-bottom: 8px;
+        font-size: 14px;
+        line-height: 1.45;
+      }
+      .ft-locations {
+        margin: 0;
+        padding-left: 22px;
+      }
+      .ft-locations li {
+        margin-bottom: 6px;
+      }
+      .ft-locations .name {
+        display: block;
+        font-size: 15px;
+        font-weight: 600;
+      }
+      .ft-locations .address {
+        display: block;
+        color: ${cfg.muted};
+        font-size: 12px;
+      }
+      .ft-map {
+        width: 100%;
+        max-height: 280px;
+        object-fit: cover;
+        display: block;
+      }
+      .ft-photo-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+      .ft-photo-grid img {
+        width: 100%;
+        height: 150px;
+        object-fit: cover;
+        display: block;
+      }
+      .ft-photo-grid img:first-child {
+        grid-row: span 2;
+        height: 308px;
+      }
+      .ft-photo-grid:not(.has-many) img:first-child {
+        grid-row: auto;
+        height: 250px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="ft-wrap">
+      <header class="ft-header">
+        <div class="ft-logo">FLIPTRIP</div>
+        ${city ? `<div class="ft-city">${htmlEscape(city)}</div>` : ''}
+        <h1>${htmlEscape(title)}</h1>
+        ${subtitle ? `<div class="ft-subtitle">${htmlEscape(subtitle)}</div>` : ''}
+        ${previewImage ? `<img class="ft-hero" src="${htmlEscape(previewImage)}" alt="${htmlEscape(title)}"/>` : ''}
+      </header>
+      ${highlightHtml}
+      ${mapHtml}
+      ${locationsHtml}
+      ${sectionsHtml}
+    </div>
+  </body>
+</html>`;
+}
+
+async function renderStyledPdfViaHtml({ tour, blocks, template = 'classic', layout = {} }) {
+  const locations = extractLocationsFromBlocks(blocks);
+  const mapUrl = layout?.includeMap === false ? null : await buildMapboxStaticUrl(locations, template);
+  const html = buildStyledPdfHtml({ tour, blocks, template, layout, mapUrl, locations });
+
+  const [{ default: chromium }, { default: playwright }] = await Promise.all([
+    import('@sparticuz/chromium'),
+    import('playwright-core')
+  ]);
+
+  const executablePath = await chromium.executablePath();
+  const browser = await playwright.chromium.launch({
+    args: chromium.args,
+    executablePath,
+    headless: true
+  });
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1240, height: 1754 } });
+    await page.setContent(html, { waitUntil: 'networkidle' });
+    await page.emulateMedia({ media: 'screen' });
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: {
+        top: '12mm',
+        right: '12mm',
+        bottom: '12mm',
+        left: '12mm'
+      }
+    });
+    return Buffer.from(pdfBuffer);
+  } finally {
+    await browser.close();
+  }
+}
+
 function ensurePageSpace(doc, y, minSpace = 90) {
   if (y + minSpace <= doc.page.height - doc.page.margins.bottom) return y;
   doc.addPage();
@@ -388,7 +733,15 @@ export default async function handler(req, res) {
       return res.status(500).json({ success: false, error: 'Failed to load tour blocks' });
     }
 
-    const pdfBuffer = await renderStyledPdf({ tour, blocks: blocks || [], template, layout });
+    let pdfBuffer = null;
+    let renderMode = 'html';
+    try {
+      pdfBuffer = await renderStyledPdfViaHtml({ tour, blocks: blocks || [], template, layout });
+    } catch (htmlRenderError) {
+      console.warn('⚠️ HTML PDF render failed, fallback to PDFKit:', htmlRenderError?.message || htmlRenderError);
+      renderMode = 'pdfkit-fallback';
+      pdfBuffer = await renderStyledPdf({ tour, blocks: blocks || [], template, layout });
+    }
     await ensureBucketAllowsPdf();
 
     const safeTitle = sanitizeFileName(tour.title || 'fliptrip-tour');
@@ -422,6 +775,7 @@ export default async function handler(req, res) {
       success: true,
       pdfUrl: publicUrl,
       template,
+      renderMode,
       locationsCount: extractLocationsFromBlocks(blocks || []).length
     });
   } catch (error) {
