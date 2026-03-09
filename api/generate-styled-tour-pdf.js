@@ -155,16 +155,26 @@ function fallbackCityCenter(input = '') {
   return null;
 }
 
+function normalizeMapboxStyle(style = '') {
+  const raw = String(style || '').trim();
+  if (!raw) return '';
+  if (raw.startsWith('mapbox://styles/')) {
+    return raw.replace('mapbox://styles/', '');
+  }
+  return raw.replace(/^\/+/, '');
+}
+
 async function buildMapboxStaticUrl(locations = [], template = 'classic', options = {}) {
   const token = getMapboxToken();
   if (!token) return null;
 
   const styleByTemplate = {
-    classic: 'mapbox/light-v11',
-    magazine: 'mapbox/streets-v12',
-    minimal: 'mapbox/light-v11'
+    classic: normalizeMapboxStyle(process.env.MAPBOX_STYLE_CLASSIC) || 'mapbox/light-v11',
+    magazine: normalizeMapboxStyle(process.env.MAPBOX_STYLE_MAGAZINE) || 'mapbox/streets-v12',
+    minimal: normalizeMapboxStyle(process.env.MAPBOX_STYLE_MINIMAL) || 'mapbox/light-v11'
   };
   const style = styleByTemplate[template] || styleByTemplate.classic;
+  const pinColor = String(process.env.MAPBOX_PIN_COLOR || 'e74c3c').replace('#', '');
 
   const withCoords = locations.filter((loc) => Number.isFinite(loc.lat) && Number.isFinite(loc.lng));
   const withoutCoords = locations.filter((loc) => !Number.isFinite(loc.lat) || !Number.isFinite(loc.lng));
@@ -187,7 +197,7 @@ async function buildMapboxStaticUrl(locations = [], template = 'classic', option
     if (cityQuery) {
       const cityGeocoded = await geocodeLocationWithMapbox({ name: cityQuery }, token);
       if (cityGeocoded && Number.isFinite(cityGeocoded.lat) && Number.isFinite(cityGeocoded.lng)) {
-        return `https://api.mapbox.com/styles/v1/${style}/static/${cityGeocoded.lng},${cityGeocoded.lat},11/1200x620?access_token=${token}`;
+        return `https://api.mapbox.com/styles/v1/${style}/static/pin-l+${pinColor}(${cityGeocoded.lng},${cityGeocoded.lat})/${cityGeocoded.lng},${cityGeocoded.lat},11/1200x620?access_token=${token}`;
       }
     }
 
@@ -200,11 +210,11 @@ async function buildMapboxStaticUrl(locations = [], template = 'classic', option
     ].join(' ');
     const preset = fallbackCityCenter(citySignal);
     if (!preset) return null;
-    return `https://api.mapbox.com/styles/v1/${style}/static/${preset.lng},${preset.lat},${preset.zoom}/1200x620?access_token=${token}`;
+    return `https://api.mapbox.com/styles/v1/${style}/static/pin-l+${pinColor}(${preset.lng},${preset.lat})/${preset.lng},${preset.lat},${preset.zoom}/1200x620?access_token=${token}`;
   }
 
   const pins = finalCoords
-    .map((loc) => `pin-s+e74c3c(${loc.lng},${loc.lat})`)
+    .map((loc) => `pin-s+${pinColor}(${loc.lng},${loc.lat})`)
     .join(',');
 
   let routeOverlay = '';
