@@ -107,7 +107,27 @@ function extractLocationsFromBlocks(blocks = []) {
   return Array.from(map.values());
 }
 
-function buildMapboxStaticUrl(locations = [], template = 'classic') {
+async function geocodeLocationWithMapbox(location, token) {
+  const query = location?.address || location?.name;
+  if (!query) return null;
+  const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?limit=1&language=en&access_token=${token}`;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const data = await response.json();
+    const first = data?.features?.[0];
+    if (!first?.center || first.center.length < 2) return null;
+    return {
+      ...location,
+      lng: Number(first.center[0]),
+      lat: Number(first.center[1])
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function buildMapboxStaticUrl(locations = [], template = 'classic') {
   const token = process.env.MAPBOX_TOKEN || process.env.MAPBOX_ACCESS_TOKEN || '';
   if (!token) return null;
 
@@ -118,10 +138,24 @@ function buildMapboxStaticUrl(locations = [], template = 'classic') {
   };
   const style = styleByTemplate[template] || styleByTemplate.classic;
 
-  const withCoords = locations.filter((loc) => Number.isFinite(loc.lat) && Number.isFinite(loc.lng)).slice(0, 20);
-  if (withCoords.length === 0) return null;
+  const withCoords = locations.filter((loc) => Number.isFinite(loc.lat) && Number.isFinite(loc.lng));
+  const withoutCoords = locations.filter((loc) => !Number.isFinite(loc.lat) || !Number.isFinite(loc.lng));
+  let resolved = [...withCoords];
 
-  const overlays = withCoords
+  if (resolved.length < 3 && withoutCoords.length > 0) {
+    const geocodeCandidates = withoutCoords.slice(0, 8);
+    for (const candidate of geocodeCandidates) {
+      const geocoded = await geocodeLocationWithMapbox(candidate, token);
+      if (geocoded && Number.isFinite(geocoded.lat) && Number.isFinite(geocoded.lng)) {
+        resolved.push(geocoded);
+      }
+    }
+  }
+
+  const finalCoords = resolved.slice(0, 20);
+  if (finalCoords.length === 0) return null;
+
+  const overlays = finalCoords
     .map((loc) => `pin-s+e74c3c(${loc.lng},${loc.lat})`)
     .join(',');
 
@@ -138,10 +172,76 @@ function templateConfig(template = 'classic') {
   return { accent: '#2563EB', muted: '#4B5563' };
 }
 
+function ensurePageSpace(doc, y, minSpace = 90) {
+  if (y + minSpace <= doc.page.height - doc.page.margins.bottom) return y;
+  doc.addPage();
+  return 50;
+}
+
+function paragraph(doc, text, { x, y, width, fontSize = 11, color = '#111827', lineGap = 2 }) {
+  const safe = String(text || '').trim();
+  if (!safe) return y;
+  doc.fillColor(color).fontSize(fontSize).text(safe, x, y, { width, lineGap });
+  return y + doc.heightOfString(safe, { width, lineGap }) + 8;
+}
+
+function heading(doc, text, { x, y, width, fontSize = 18, color = '#111827' }) {
+  const safe = String(text || '').trim();
+  if (!safe) return y;
+  doc.fillColor(color).fontSize(fontSize).text(safe, x, y, { width });
+  return y + doc.heightOfString(safe, { width }) + 8;
+}
+
+function extractBlockNarrativeSections(blocks = []) {
+  const sections = [];
+  (blocks || []).forEach((block) => {
+    const content = block?.content || {};
+    const type = block?.block_type;
+
+    if (type === 'text') {
+      const text = String(content.text || '').trim();
+      if (text) sections.push({ type: 'text', title: null, text });
+      return;
+    }
+
+    if (type === 'heading') {
+      const title = String(content.text || content.title || '').trim();
+      if (title) sections.push({ type: 'heading', title, text: null });
+      return;
+    }
+
+    if (type === 'location') {
+      const main = content.mainLocation || content;
+      const title = String(main?.title || main?.name || '').trim();
+      const address = String(main?.address || '').trim();
+      const description = String(main?.description || '').trim();
+      const recommendations = String(main?.recommendations || '').trim();
+      if (title || description || recommendations) {
+        sections.push({
+          type: 'location',
+          title,
+          address,
+          text: [description, recommendations].filter(Boolean).join('\n\n')
+        });
+      }
+      return;
+    }
+
+    if (type === 'photo_text' || type === 'fullwidth_image') {
+      const title = String(content.title || '').trim();
+      const text = String(content.text || content.caption || '').trim();
+      if (title || text) sections.push({ type: 'text', title, text });
+      return;
+    }
+  });
+  return sections;
+}
+
 async function renderStyledPdf({ tour, blocks, template = 'classic', layout = {} }) {
   const cfg = templateConfig(template);
   const locations = extractLocationsFromBlocks(blocks);
-  const mapUrl = layout?.includeMap === false ? null : buildMapboxStaticUrl(locations, template);
+  const sections = extractBlockNarrativeSections(blocks);
+  const mapUrl = layout?.includeMap === false ? null : await buildMapboxStaticUrl(locations, template);
   const mapImageBuffer = mapUrl
     ? await fetch(mapUrl).then(async (resp) => (resp.ok ? Buffer.from(await resp.arrayBuffer()) : null)).catch(() => null)
     : null;
@@ -169,44 +269,68 @@ async function renderStyledPdf({ tour, blocks, template = 'classic', layout = {}
   doc.fillColor(cfg.accent).fontSize(13).text('FLIPTRIP', 44, y);
   y += 22;
   doc.fillColor('#111827').fontSize(28).text(title, 44, y, { width: pageWidth });
-  y += 42;
+  y += doc.heightOfString(title, { width: pageWidth }) + 10;
   doc.fillColor(cfg.muted).fontSize(13).text(subtitle, 44, y, { width: pageWidth, lineGap: 2 });
-  y += 48;
+  y += doc.heightOfString(subtitle, { width: pageWidth, lineGap: 2 }) + 14;
 
   if (mapImageBuffer) {
+    y = ensurePageSpace(doc, y, 240);
     doc.roundedRect(44, y, pageWidth, 220, 10).strokeColor('#E5E7EB').stroke();
     doc.image(mapImageBuffer, 44, y, { fit: [pageWidth, 220] });
     y += 236;
   }
 
   if (layout?.includeHighlights !== false && highlightTexts.length > 0) {
+    y = ensurePageSpace(doc, y, 120);
     doc.fillColor('#111827').fontSize(16).text('What’s inside this walk', 44, y);
     y += 26;
     highlightTexts.forEach((line, index) => {
+      y = ensurePageSpace(doc, y, 36);
       doc.fillColor(cfg.accent).fontSize(12).text(`${index + 1}.`, 44, y + 2);
       doc.fillColor('#1F2937').fontSize(12).text(line, 62, y, { width: pageWidth - 18, lineGap: 2 });
-      y += 22 + Math.max(0, Math.ceil(line.length / 95) * 7);
+      y += doc.heightOfString(line, { width: pageWidth - 18, lineGap: 2 }) + 8;
     });
     y += 8;
   }
 
+  y = ensurePageSpace(doc, y, 70);
   doc.fillColor('#111827').fontSize(16).text('Locations', 44, y);
   y += 24;
 
   locations.forEach((loc, index) => {
-    if (y > 770) {
-      doc.addPage();
-      y = 50;
-    }
+    y = ensurePageSpace(doc, y, 44);
     doc.fillColor(cfg.accent).fontSize(12).text(`${index + 1}.`, 44, y + 1);
     doc.fillColor('#111827').fontSize(12).text(loc.name, 62, y, { width: pageWidth - 20 });
-    y += 16;
+    y += doc.heightOfString(loc.name, { width: pageWidth - 20 }) + 2;
     if (loc.address) {
       doc.fillColor('#6B7280').fontSize(10).text(loc.address, 62, y, { width: pageWidth - 20 });
-      y += 16;
+      y += doc.heightOfString(loc.address, { width: pageWidth - 20 }) + 2;
     }
     y += 4;
   });
+
+  if (sections.length > 0) {
+    y = ensurePageSpace(doc, y, 90);
+    y += 6;
+    y = heading(doc, 'Guide content', { x: 44, y, width: pageWidth, fontSize: 16, color: '#111827' });
+
+    sections.slice(0, 120).forEach((section) => {
+      y = ensurePageSpace(doc, y, 80);
+      if (section.type === 'heading') {
+        y = heading(doc, section.title, { x: 44, y, width: pageWidth, fontSize: 20, color: '#111827' });
+        return;
+      }
+      if (section.title) {
+        y = heading(doc, section.title, { x: 44, y, width: pageWidth, fontSize: 14, color: '#111827' });
+      }
+      if (section.address) {
+        y = paragraph(doc, section.address, { x: 44, y, width: pageWidth, fontSize: 10, color: '#6B7280' });
+      }
+      if (section.text) {
+        y = paragraph(doc, section.text, { x: 44, y, width: pageWidth, fontSize: 11, color: '#1F2937', lineGap: 2 });
+      }
+    });
+  }
 
   doc.end();
   await endPromise;
