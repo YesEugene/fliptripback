@@ -297,7 +297,10 @@ async function buildMapboxStaticUrl(locations = [], template = 'classic', option
   }
 
   const pins = finalCoords
-    .map((loc) => `pin-s+${pinColor}(${loc.lng},${loc.lat})`)
+    .map((loc, index) => {
+      const markerNumber = String(index + 1);
+      return `pin-s-${markerNumber}+${pinColor}(${loc.lng},${loc.lat})`;
+    })
     .join(',');
 
   let routeOverlay = '';
