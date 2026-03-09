@@ -1100,23 +1100,25 @@ async function renderStyledPdfViaHtml({ tour, blocks, template = 'classic', layo
   });
   const html = buildStyledPdfHtml({ tour, blocks, template, layout, mapUrl, locations });
 
-  const [{ default: chromium }, { default: playwright }] = await Promise.all([
+  const [{ default: chromium }, puppeteer] = await Promise.all([
     import('@sparticuz/chromium'),
-    import('playwright-core')
+    import('puppeteer-core')
   ]);
 
   const executablePath = await chromium.executablePath();
-  const browser = await playwright.chromium.launch({
-    args: chromium.args,
+  const browser = await puppeteer.launch({
+    args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'],
     executablePath,
-    headless: true
+    headless: true,
+    defaultViewport: { width: 1240, height: 1754 },
+    ignoreHTTPSErrors: true
   });
 
   try {
-    const page = await browser.newPage({ viewport: { width: 1240, height: 1754 } });
-    await page.setContent(html, { waitUntil: 'networkidle' });
-    await page.waitForFunction(() => window.__FT_PDF_LAYOUT_READY === true, { timeout: 5000 }).catch(() => null);
-    await page.emulateMedia({ media: 'screen' });
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'networkidle0' });
+    await page.waitForFunction('window.__FT_PDF_LAYOUT_READY === true', { timeout: 8000 }).catch(() => null);
+    await page.emulateMediaType('screen');
     const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
