@@ -226,7 +226,6 @@ function paragraphsFromRichText(raw = '') {
 
 function extractContentSectionsForHtml(blocks = []) {
   const sections = [];
-  let headingIndex = 1;
 
   (blocks || []).forEach((block) => {
     const type = block?.block_type;
@@ -260,7 +259,7 @@ function extractContentSectionsForHtml(blocks = []) {
       const combined = paragraphs.join('\n\n');
       sections.push({
         type: 'photo_text',
-        title: title || `Section ${headingIndex++}`,
+        title: title || null,
         paragraphs,
         photos: normalizePhotoList(content.photos || content.photo).slice(0, 4),
         useColumns: combined.length > 950
@@ -281,7 +280,7 @@ function extractContentSectionsForHtml(blocks = []) {
       if (title || paragraphs.length > 0 || recommendations || photos.length > 0) {
         sections.push({
           type: 'location',
-          title: title || `Location ${headingIndex++}`,
+          title: title || null,
           address,
           paragraphs,
           photos,
@@ -338,7 +337,7 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
 
   const sectionsHtml = sections.map((section) => {
     if (section.type === 'heading') {
-      return `<section class="ft-section"><h2 class="ft-headline">${htmlEscape(section.title || '')}</h2></section>`;
+      return `<section class="ft-section ft-heading-block"><h2 class="ft-headline">${htmlEscape(section.title || '')}</h2></section>`;
     }
 
     const titleHtml = section.title ? `<h3>${htmlEscape(section.title)}</h3>` : '';
@@ -385,19 +384,15 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
     `);
 
     return `
-      <section class="ft-page">
-        <div class="ft-page-inner">
-          <section class="ft-section ${isLocation ? 'ft-location-section' : ''}">
-            ${photoGrid}
-            ${titleHtml}
-            ${addressHtml}
-            ${locationMetaHtml}
-            <div class="${textWrapClass}">
-              ${paragraphs}
-            </div>
-            ${recommendationsHtml}
-          </section>
+      <section class="ft-section ${isLocation ? 'ft-location-section' : ''}">
+        ${photoGrid}
+        ${titleHtml}
+        ${addressHtml}
+        ${locationMetaHtml}
+        <div class="${textWrapClass}">
+          ${paragraphs}
         </div>
+        ${recommendationsHtml}
       </section>
     `;
   }).join('');
@@ -489,6 +484,9 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
         margin-top: 12px;
         break-inside: avoid;
         page-break-inside: avoid;
+      }
+      .ft-heading-block {
+        margin-top: 30px;
       }
       h2 {
         margin: 0 0 12px;
@@ -659,7 +657,11 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
           ${aboutTripParagraphs.length ? `<div class="ft-cover-about">${aboutTripParagraphs.map((p) => `<p>${htmlEscape(p)}</p>`).join('')}</div>` : ''}
         </div>
       </section>
-      ${sectionsHtml}
+      <section class="ft-page">
+        <div class="ft-page-inner">
+          ${sectionsHtml}
+        </div>
+      </section>
       ${mapHtml}
       ${locationsHtml}
     </div>
