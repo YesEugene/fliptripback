@@ -257,12 +257,14 @@ function extractContentSectionsForHtml(blocks = []) {
       const title = cleanRichText(content.title || '');
       const paragraphs = paragraphsFromRichText(content.text || content.caption || '');
       const combined = paragraphs.join('\n\n');
+      const alignment = String(content.alignment || 'left').toLowerCase() === 'right' ? 'right' : 'left';
       sections.push({
         type: 'photo_text',
         title: title || null,
         paragraphs,
         photos: normalizePhotoList(content.photos || content.photo).slice(0, 4),
-        useColumns: combined.length > 950
+        useColumns: combined.length > 950,
+        alignment
       });
       return;
     }
@@ -337,7 +339,8 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
     const paragraphs = section.paragraphs?.length
       ? section.paragraphs.map((p) => `<p>${htmlEscape(p)}</p>`).join('')
       : '';
-    const textWrapClass = section.useColumns ? 'ft-text columns' : 'ft-text';
+    const isPhotoText = section.type === 'photo_text';
+    const textWrapClass = section.useColumns && !isPhotoText ? 'ft-text columns' : 'ft-text';
     const isLocation = section.type === 'location';
     const locationMetaHtml = isLocation && (section.rating || section.price) ? `
       <div class="ft-location-meta">
@@ -367,6 +370,24 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
         ${section.photos.map((src, i) => `<img class="${i === 0 ? 'ft-main-photo' : 'ft-thumb-photo'}" src="${htmlEscape(src)}" alt="${htmlEscape(section.title || `Tour image ${i + 1}`)}"/>`).join('')}
       </div>
     `);
+
+    if (isPhotoText) {
+      const sideImage = section.photos?.[0] || '';
+      const imageHtml = sideImage
+        ? `<div class="ft-photo-text-image-wrap"><img class="ft-photo-text-image" src="${htmlEscape(sideImage)}" alt="${htmlEscape(section.title || 'Photo block image')}"/></div>`
+        : '';
+      return `
+        <section class="ft-section ft-section-block ft-photo-text-block ${section.alignment === 'right' ? 'photo-on-right' : 'photo-on-left'}">
+          ${titleHtml}
+          <div class="ft-photo-text-layout">
+            ${imageHtml}
+            <div class="${textWrapClass}">
+              ${paragraphs}
+            </div>
+          </div>
+        </section>
+      `;
+    }
 
     return `
       <section class="ft-section ft-section-block ${isLocation ? 'ft-location-section' : ''}">
@@ -595,10 +616,44 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
         font-size: 13px;
         line-height: 1.5;
       }
+      .ft-photo-text-block {
+        margin-top: 22px;
+      }
+      .ft-photo-text-layout {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+        align-items: start;
+      }
+      .ft-photo-text-image-wrap {
+        grid-column: span 2;
+      }
+      .ft-photo-text-image {
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        object-fit: cover;
+        display: block;
+        background: #f3f4f6;
+      }
+      .ft-photo-text-layout .ft-text {
+        grid-column: span 2;
+      }
+      .ft-photo-text-block.photo-on-right .ft-photo-text-image-wrap {
+        order: 2;
+      }
+      .ft-photo-text-block.photo-on-right .ft-photo-text-layout .ft-text {
+        order: 1;
+      }
+      .ft-photo-text-block.photo-on-left .ft-photo-text-image-wrap {
+        order: 1;
+      }
+      .ft-photo-text-block.photo-on-left .ft-photo-text-layout .ft-text {
+        order: 2;
+      }
       @media print {
         body {
           padding: 0;
-          background: #fff;
+          background: #FCFBF9;
         }
         .ft-book {
           width: auto;
