@@ -357,7 +357,7 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
   const sections = extractContentSectionsForHtml(blocks);
   const logoUrl = 'https://raw.githubusercontent.com/YesEugene/fliptripfront/main/src/assets/FlipTripLogo.svg';
 
-  const mapHtml = (layout?.includeMap === false || !mapUrl) ? '' : `
+  const mapHtml = !mapUrl ? '' : `
     <section class="ft-section ft-section-block">
       <h2 class="ft-headline">Route map</h2>
       <img class="ft-map" src="${htmlEscape(mapUrl)}" alt="Tour route map"/>
@@ -933,7 +933,7 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
 
 async function renderStyledPdfViaHtml({ tour, blocks, template = 'classic', layout = {} }) {
   const locations = extractLocationsFromBlocks(blocks);
-  const mapUrl = layout?.includeMap === false ? null : await buildMapboxStaticUrl(locations, template);
+  const mapUrl = await buildMapboxStaticUrl(locations, template);
   const html = buildStyledPdfHtml({ tour, blocks, template, layout, mapUrl, locations });
 
   const [{ default: chromium }, { default: playwright }] = await Promise.all([
@@ -1038,7 +1038,7 @@ async function renderStyledPdf({ tour, blocks, template = 'classic', layout = {}
   const cfg = templateConfig(template);
   const locations = extractLocationsFromBlocks(blocks);
   const sections = extractBlockNarrativeSections(blocks);
-  const mapUrl = layout?.includeMap === false ? null : await buildMapboxStaticUrl(locations, template);
+  const mapUrl = await buildMapboxStaticUrl(locations, template);
   const mapImageBuffer = mapUrl
     ? await fetch(mapUrl).then(async (resp) => (resp.ok ? Buffer.from(await resp.arrayBuffer()) : null)).catch(() => null)
     : null;
