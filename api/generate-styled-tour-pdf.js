@@ -184,7 +184,14 @@ function htmlEscape(value = '') {
 function normalizePhotoList(value) {
   const arr = Array.isArray(value) ? value : (value ? [value] : []);
   return arr
-    .map((item) => (typeof item === 'string' ? item.trim() : ''))
+    .map((item) => {
+      if (typeof item === 'string') return item.trim();
+      if (item && typeof item === 'object') {
+        const candidate = item.url || item.src || item.image || item.photo || '';
+        return typeof candidate === 'string' ? candidate.trim() : '';
+      }
+      return '';
+    })
     .filter((item) => item && (item.startsWith('http://') || item.startsWith('https://') || item.startsWith('data:image/')));
 }
 
@@ -225,7 +232,7 @@ function extractContentSectionsForHtml(blocks = []) {
     const type = block?.block_type;
     const content = block?.content || {};
 
-    if (type === 'heading') {
+    if (type === 'heading' || type === 'title') {
       const title = cleanRichText(content.text || content.title || '');
       if (title) {
         sections.push({ type: 'heading', title, paragraphs: [], photos: [] });
@@ -294,13 +301,11 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
   const cfg = templateConfig(template);
   const draft = (tour?.draft_data && typeof tour.draft_data === 'object') ? tour.draft_data : {};
   const title = cleanRichText(draft.title || tour?.title || 'FlipTrip Guide');
-  const city = cleanRichText(tour?.city?.name || '');
   const subtitle = cleanRichText(layout?.subtitle || draft.shortDescription || tour?.description || '');
+  const aboutTripParagraphs = paragraphsFromRichText(draft.description || tour?.description || '');
   const previewImage = String(draft.previewOriginal || draft.preview || tour?.preview_media_url || '').trim();
   const sections = extractContentSectionsForHtml(blocks);
-  const coverPillsHtml = city
-    ? `<div class="ft-pill-row"><span class="ft-pill">${htmlEscape(city)}</span></div>`
-    : '';
+  const logoUrl = 'https://raw.githubusercontent.com/YesEugene/fliptripfront/main/src/assets/FlipTripLogo.svg';
 
   const mapHtml = (layout?.includeMap === false || !mapUrl) ? '' : `
     <section class="ft-page">
@@ -357,12 +362,21 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
     ` : '';
     const photoGrid = !section.photos?.length ? '' : (isLocation ? `
       <div class="ft-location-photos">
-        <img class="ft-location-main-photo" src="${htmlEscape(section.photos[0])}" alt="${htmlEscape(section.title || 'Location photo')}"/>
-        ${section.photos.length > 1 ? `
-          <div class="ft-location-thumbs">
-            ${section.photos.slice(1).map((src, i) => `<img src="${htmlEscape(src)}" alt="${htmlEscape(section.title || `Location photo ${i + 2}`)}"/>`).join('')}
+        <div class="ft-location-photo-layout">
+          <img class="ft-location-main-photo" src="${htmlEscape(section.photos[0])}" alt="${htmlEscape(section.title || 'Location photo')}"/>
+          ${section.photos.length > 1 ? `
+          <div class="ft-location-side-grid">
+            <div class="ft-location-side-col">
+              ${section.photos[1] ? `<img src="${htmlEscape(section.photos[1])}" alt="${htmlEscape(section.title || 'Location photo 2')}"/>` : ''}
+              ${section.photos[3] ? `<img src="${htmlEscape(section.photos[3])}" alt="${htmlEscape(section.title || 'Location photo 4')}"/>` : ''}
+            </div>
+            <div class="ft-location-side-col">
+              ${section.photos[2] ? `<img src="${htmlEscape(section.photos[2])}" alt="${htmlEscape(section.title || 'Location photo 3')}"/>` : ''}
+              ${section.photos[4] ? `<img src="${htmlEscape(section.photos[4])}" alt="${htmlEscape(section.title || 'Location photo 5')}"/>` : ''}
+            </div>
           </div>
-        ` : ''}
+          ` : ''}
+        </div>
       </div>
     ` : `
       <div class="ft-photo-grid ${section.photos.length > 1 ? 'has-many' : ''}">
@@ -374,10 +388,10 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
       <section class="ft-page">
         <div class="ft-page-inner">
           <section class="ft-section ${isLocation ? 'ft-location-section' : ''}">
+            ${photoGrid}
             ${titleHtml}
             ${addressHtml}
             ${locationMetaHtml}
-            ${photoGrid}
             <div class="${textWrapClass}">
               ${paragraphs}
             </div>
@@ -430,23 +444,15 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
         text-align: center;
         padding-top: 30px;
       }
-      .ft-logo {
-        color: ${cfg.accent};
-        font-weight: 700;
-        font-size: 18px;
-        letter-spacing: 0.08em;
+      .ft-logo-mark {
+        width: 92px;
+        height: auto;
+        display: block;
         margin-bottom: 14px;
-      }
-      .ft-city {
-        color: ${cfg.muted};
-        font-size: 13px;
-        margin-bottom: 6px;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
       }
       h1 {
         margin: 0;
-        font-size: 60px;
+        font-size: 51px;
         line-height: 1.04;
         font-weight: 700;
         text-transform: uppercase;
@@ -460,24 +466,6 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
         line-height: 1.4;
         max-width: 640px;
       }
-      .ft-pill-row {
-        margin-top: 20px;
-        display: flex;
-        justify-content: center;
-      }
-      .ft-pill {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: 4px 10px;
-        height: 24px;
-        border-radius: 12px;
-        border: 1px solid #e2ddd5;
-        background: #f4f2ee;
-        font-size: 12px;
-        line-height: 1;
-        color: #1f2937;
-      }
       .ft-hero {
         width: 100%;
         max-width: 760px;
@@ -486,6 +474,16 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
         display: block;
         margin-top: 26px;
         background: #f3f4f6;
+      }
+      .ft-cover-about {
+        margin-top: 20px;
+        max-width: 760px;
+        text-align: left;
+      }
+      .ft-cover-about p {
+        margin: 0 0 12px;
+        font-size: 15px;
+        line-height: 1.5;
       }
       .ft-section {
         margin-top: 12px;
@@ -580,20 +578,31 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
       .ft-location-photos {
         margin: 12px 0;
       }
+      .ft-location-photo-layout {
+        display: grid;
+        grid-template-columns: 250px 1fr;
+        gap: 12px;
+        align-items: start;
+      }
       .ft-location-main-photo {
-        width: 100%;
+        width: 250px;
         height: auto;
         object-fit: contain;
         display: block;
         background: #f3f4f6;
       }
-      .ft-location-thumbs {
-        margin-top: 10px;
+      .ft-location-side-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
         display: grid;
         gap: 10px;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
       }
-      .ft-location-thumbs img {
+      .ft-location-side-col {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .ft-location-side-col img {
         width: 100%;
         height: auto;
         object-fit: contain;
@@ -643,12 +652,11 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
     <div class="ft-book">
       <section class="ft-page ft-cover">
         <div class="ft-page-inner">
-          <div class="ft-logo">FLIPTRIP</div>
-          ${city ? `<div class="ft-city">${htmlEscape(city)}</div>` : ''}
+          <img class="ft-logo-mark" src="${logoUrl}" alt="FlipTrip"/>
           <h1>${htmlEscape(title)}</h1>
           ${subtitle ? `<div class="ft-subtitle">${htmlEscape(subtitle)}</div>` : ''}
-          ${coverPillsHtml}
           ${previewImage ? `<img class="ft-hero" src="${htmlEscape(previewImage)}" alt="${htmlEscape(title)}"/>` : ''}
+          ${aboutTripParagraphs.length ? `<div class="ft-cover-about">${aboutTripParagraphs.map((p) => `<p>${htmlEscape(p)}</p>`).join('')}</div>` : ''}
         </div>
       </section>
       ${sectionsHtml}
