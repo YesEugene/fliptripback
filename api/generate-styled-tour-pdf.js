@@ -138,6 +138,23 @@ function getMapboxToken() {
   );
 }
 
+function fallbackCityCenter(input = '') {
+  const text = String(input || '').toLowerCase();
+  const presets = [
+    { keys: ['paris'], center: { lng: 2.3522, lat: 48.8566, zoom: 11 } },
+    { keys: ['rome', 'roma'], center: { lng: 12.4964, lat: 41.9028, zoom: 11 } },
+    { keys: ['barcelona'], center: { lng: 2.1734, lat: 41.3851, zoom: 11 } },
+    { keys: ['london'], center: { lng: -0.1276, lat: 51.5072, zoom: 11 } },
+    { keys: ['madrid'], center: { lng: -3.7038, lat: 40.4168, zoom: 11 } },
+    { keys: ['lisbon', 'lisboa'], center: { lng: -9.1393, lat: 38.7223, zoom: 11 } },
+    { keys: ['berlin'], center: { lng: 13.405, lat: 52.52, zoom: 11 } }
+  ];
+  for (const preset of presets) {
+    if (preset.keys.some((k) => text.includes(k))) return preset.center;
+  }
+  return null;
+}
+
 async function buildMapboxStaticUrl(locations = [], template = 'classic', options = {}) {
   const token = getMapboxToken();
   if (!token) return null;
@@ -166,10 +183,24 @@ async function buildMapboxStaticUrl(locations = [], template = 'classic', option
   const finalCoords = resolved.slice(0, 20);
   if (finalCoords.length === 0) {
     const cityQuery = String(options?.cityName || '').trim();
-    if (!cityQuery) return null;
-    const cityGeocoded = await geocodeLocationWithMapbox({ name: cityQuery }, token);
-    if (!cityGeocoded || !Number.isFinite(cityGeocoded.lat) || !Number.isFinite(cityGeocoded.lng)) return null;
-    return `https://api.mapbox.com/styles/v1/${style}/static/${cityGeocoded.lng},${cityGeocoded.lat},11/1200x620?access_token=${token}`;
+
+    if (cityQuery) {
+      const cityGeocoded = await geocodeLocationWithMapbox({ name: cityQuery }, token);
+      if (cityGeocoded && Number.isFinite(cityGeocoded.lat) && Number.isFinite(cityGeocoded.lng)) {
+        return `https://api.mapbox.com/styles/v1/${style}/static/${cityGeocoded.lng},${cityGeocoded.lat},11/1200x620?access_token=${token}`;
+      }
+    }
+
+    // Hard fallback if geocoding fails/unavailable: use known city presets by text signals.
+    const citySignal = [
+      cityQuery,
+      ...locations.map((l) => `${l?.name || ''} ${l?.address || ''}`),
+      String(options?.tourTitle || ''),
+      String(options?.tourDescription || '')
+    ].join(' ');
+    const preset = fallbackCityCenter(citySignal);
+    if (!preset) return null;
+    return `https://api.mapbox.com/styles/v1/${style}/static/${preset.lng},${preset.lat},${preset.zoom}/1200x620?access_token=${token}`;
   }
 
   const pins = finalCoords
@@ -968,7 +999,9 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
 async function renderStyledPdfViaHtml({ tour, blocks, template = 'classic', layout = {} }) {
   const locations = extractLocationsFromBlocks(blocks);
   const mapUrl = await buildMapboxStaticUrl(locations, template, {
-    cityName: tour?.city?.name || ''
+    cityName: tour?.city?.name || '',
+    tourTitle: tour?.title || tour?.draft_data?.title || '',
+    tourDescription: tour?.description || tour?.draft_data?.description || ''
   });
   const html = buildStyledPdfHtml({ tour, blocks, template, layout, mapUrl, locations });
 
@@ -1075,7 +1108,9 @@ async function renderStyledPdf({ tour, blocks, template = 'classic', layout = {}
   const locations = extractLocationsFromBlocks(blocks);
   const sections = extractBlockNarrativeSections(blocks);
   const mapUrl = await buildMapboxStaticUrl(locations, template, {
-    cityName: tour?.city?.name || ''
+    cityName: tour?.city?.name || '',
+    tourTitle: tour?.title || tour?.draft_data?.title || '',
+    tourDescription: tour?.description || tour?.draft_data?.description || ''
   });
   const mapImageBuffer = mapUrl
     ? await fetch(mapUrl).then(async (resp) => (resp.ok ? Buffer.from(await resp.arrayBuffer()) : null)).catch(() => null)
@@ -1226,7 +1261,9 @@ export default async function handler(req, res) {
     if (previewHtml) {
       const locations = extractLocationsFromBlocks(blocks || []);
       const mapUrl = await buildMapboxStaticUrl(locations, template, {
-        cityName: tour?.city?.name || ''
+        cityName: tour?.city?.name || '',
+        tourTitle: tour?.title || tour?.draft_data?.title || '',
+        tourDescription: tour?.description || tour?.draft_data?.description || ''
       });
       const html = buildStyledPdfHtml({
         tour,
@@ -1248,7 +1285,9 @@ export default async function handler(req, res) {
 
     const locationsForMap = extractLocationsFromBlocks(blocks || []);
     const mapPreviewUrl = await buildMapboxStaticUrl(locationsForMap, template, {
-      cityName: tour?.city?.name || ''
+      cityName: tour?.city?.name || '',
+      tourTitle: tour?.title || tour?.draft_data?.title || '',
+      tourDescription: tour?.description || tour?.draft_data?.description || ''
     });
     const mapIncluded = !!mapPreviewUrl;
     const mapIssue = mapIncluded
