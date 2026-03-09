@@ -431,6 +431,9 @@ export default async function handler(req, res) {
         previewOriginal: previewOriginal,
         highlights: highlights,
         previewImages: previewImages,
+        tourPdfUrl: tourData.tourPdfUrl || '',
+        pdfTemplate: tourData.pdfTemplate || 'classic',
+        pdfLayout: (tourData.pdfLayout && typeof tourData.pdfLayout === 'object') ? tourData.pdfLayout : {},
         shortDescription: shortDescription || '',
         tourSettings: {
           selfGuided: tourData.selfGuided !== undefined ? tourData.selfGuided : true,

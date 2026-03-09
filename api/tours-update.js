@@ -326,7 +326,7 @@ export default async function handler(req, res) {
     }
 
     const tourData = req.body;
-    let { country, city, title, description, shortDescription, daily_plan, tags, meta, status, saveAsDraft, highlights, previewImages, tourPdfUrl } = tourData;
+    let { country, city, title, description, shortDescription, daily_plan, tags, meta, status, saveAsDraft, highlights, previewImages, tourPdfUrl, pdfTemplate, pdfLayout } = tourData;
     
     console.log('📋 tours-update received:', {
       id,
@@ -598,6 +598,8 @@ export default async function handler(req, res) {
         previewOriginal: previewOriginalUrl !== undefined ? previewOriginalUrl : existingTour?.draft_data?.previewOriginal,
         previewType: previewMediaType,
         tourPdfUrl: tourPdfUrl || '',
+        pdfTemplate: pdfTemplate || existingTour?.draft_data?.pdfTemplate || 'classic',
+        pdfLayout: (pdfLayout && typeof pdfLayout === 'object') ? pdfLayout : (existingTour?.draft_data?.pdfLayout || {}),
         additionalOptions,
         tourSettings: tourSettings, // CRITICAL: Always save tourSettings
         highlights: highlights || {}, // "What's Inside This Walk" structured highlights
@@ -615,7 +617,9 @@ export default async function handler(req, res) {
         highlights: highlights !== undefined ? highlights : (existingDraft.highlights || {}),
         previewImages: previewImages !== undefined ? previewImages : (existingDraft.previewImages || []),
         tourPdfUrl: tourPdfUrl !== undefined ? tourPdfUrl : (existingDraft.tourPdfUrl || ''),
-        shortDescription: shortDescription !== undefined ? shortDescription : (existingDraft.shortDescription || '')
+        shortDescription: shortDescription !== undefined ? shortDescription : (existingDraft.shortDescription || ''),
+        pdfTemplate: pdfTemplate !== undefined ? pdfTemplate : (existingDraft.pdfTemplate || 'classic'),
+        pdfLayout: pdfLayout !== undefined ? pdfLayout : (existingDraft.pdfLayout || {})
       };
       console.log('🔍 Draft merge result - mergedDraftData.highlights:', JSON.stringify(mergedDraftData.highlights));
 
@@ -799,6 +803,16 @@ export default async function handler(req, res) {
       } else if (existingTour?.draft_data?.tourPdfUrl) {
         preservedDraftData.tourPdfUrl = existingTour.draft_data.tourPdfUrl;
       }
+      if (pdfTemplate !== undefined) {
+        preservedDraftData.pdfTemplate = pdfTemplate;
+      } else if (existingTour?.draft_data?.pdfTemplate) {
+        preservedDraftData.pdfTemplate = existingTour.draft_data.pdfTemplate;
+      }
+      if (pdfLayout !== undefined) {
+        preservedDraftData.pdfLayout = pdfLayout;
+      } else if (existingTour?.draft_data?.pdfLayout) {
+        preservedDraftData.pdfLayout = existingTour.draft_data.pdfLayout;
+      }
       if (shortDescription !== undefined) {
         preservedDraftData.shortDescription = shortDescription;
       } else if (existingTour?.draft_data?.shortDescription) {
@@ -878,7 +892,9 @@ export default async function handler(req, res) {
         highlights: highlights !== undefined ? highlights : (existingDraftData.highlights || {}),
         previewImages: previewImages !== undefined ? previewImages : (existingDraftData.previewImages || []),
         tourPdfUrl: tourPdfUrl !== undefined ? tourPdfUrl : (existingDraftData.tourPdfUrl || ''),
-        shortDescription: shortDescription !== undefined ? shortDescription : (existingDraftData.shortDescription || '')
+        shortDescription: shortDescription !== undefined ? shortDescription : (existingDraftData.shortDescription || ''),
+        pdfTemplate: pdfTemplate !== undefined ? pdfTemplate : (existingDraftData.pdfTemplate || 'classic'),
+        pdfLayout: pdfLayout !== undefined ? pdfLayout : (existingDraftData.pdfLayout || {})
       };
     }
 
