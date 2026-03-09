@@ -72,27 +72,65 @@ async function ensureBucketAllowsPdf() {
   }
 }
 
+function parseNumericCoordinate(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function extractLatLngFromLocation(loc = {}) {
+  if (!loc || typeof loc !== 'object') return { lat: null, lng: null };
+
+  let lat = parseNumericCoordinate(loc.lat ?? loc.latitude);
+  let lng = parseNumericCoordinate(loc.lng ?? loc.longitude ?? loc.lon);
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    lat = parseNumericCoordinate(loc?.location?.lat ?? loc?.location?.latitude ?? loc?.position?.lat);
+    lng = parseNumericCoordinate(loc?.location?.lng ?? loc?.location?.longitude ?? loc?.position?.lng ?? loc?.position?.lon);
+  }
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    lat = parseNumericCoordinate(loc?.coordinates?.lat ?? loc?.coordinates?.latitude);
+    lng = parseNumericCoordinate(loc?.coordinates?.lng ?? loc?.coordinates?.longitude ?? loc?.coordinates?.lon);
+  }
+
+  // Support array coordinates: [lng, lat] (GeoJSON) or [lat, lng]
+  if ((!Number.isFinite(lat) || !Number.isFinite(lng)) && Array.isArray(loc?.coordinates) && loc.coordinates.length >= 2) {
+    const c0 = parseNumericCoordinate(loc.coordinates[0]);
+    const c1 = parseNumericCoordinate(loc.coordinates[1]);
+    if (Number.isFinite(c0) && Number.isFinite(c1)) {
+      if (Math.abs(c0) <= 90 && Math.abs(c1) <= 180) {
+        lat = c0;
+        lng = c1;
+      } else {
+        lng = c0;
+        lat = c1;
+      }
+    }
+  }
+
+  // Google LatLng literal-like payloads
+  if ((!Number.isFinite(lat) || !Number.isFinite(lng)) && loc?.geometry?.location) {
+    lat = parseNumericCoordinate(loc.geometry.location.lat);
+    lng = parseNumericCoordinate(loc.geometry.location.lng);
+  }
+
+  return {
+    lat: Number.isFinite(lat) ? lat : null,
+    lng: Number.isFinite(lng) ? lng : null
+  };
+}
+
 function extractLocationsFromBlocks(blocks = []) {
   const all = [];
   const pushLoc = (loc) => {
     if (!loc || typeof loc !== 'object') return;
     const name = String(loc.title || loc.name || '').trim();
     const address = String(loc.address || '').trim();
-    const lat = Number(
-      loc.lat ??
-      loc.latitude ??
-      loc?.location?.lat ??
-      loc?.coordinates?.lat
-    );
-    const lng = Number(
-      loc.lng ??
-      loc.longitude ??
-      loc?.location?.lng ??
-      loc?.coordinates?.lng
-    );
-    if (!name) return;
+    const { lat, lng } = extractLatLngFromLocation(loc);
+    if (!name && !address) return;
     all.push({
-      name,
+      name: name || address || 'Location',
       address,
       lat: Number.isFinite(lat) ? lat : null,
       lng: Number.isFinite(lng) ? lng : null
@@ -139,6 +177,29 @@ async function geocodeLocationWithMapbox(location, token) {
       ...location,
       lng: Number(first.center[0]),
       lat: Number(first.center[1])
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function geocodeLocationWithGoogle(location, googleKey) {
+  const query = location?.address || location?.name;
+  if (!query || !googleKey) return null;
+  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${googleKey}`;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const data = await response.json();
+    const first = Array.isArray(data?.results) ? data.results[0] : null;
+    const geo = first?.geometry?.location;
+    const lat = parseNumericCoordinate(geo?.lat);
+    const lng = parseNumericCoordinate(geo?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    return {
+      ...location,
+      lat,
+      lng
     };
   } catch {
     return null;
@@ -193,15 +254,19 @@ async function buildMapboxStaticUrl(locations = [], template = 'classic', option
   };
   const style = styleByTemplate[template] || styleByTemplate.classic;
   const pinColor = String(process.env.MAPBOX_PIN_COLOR || 'e74c3c').replace('#', '');
+  const googleMapsKey = String(process.env.GOOGLE_MAPS_KEY || '').trim();
 
   const withCoords = locations.filter((loc) => Number.isFinite(loc.lat) && Number.isFinite(loc.lng));
   const withoutCoords = locations.filter((loc) => !Number.isFinite(loc.lat) || !Number.isFinite(loc.lng));
   let resolved = [...withCoords];
 
   if (resolved.length < 3 && withoutCoords.length > 0) {
-    const geocodeCandidates = withoutCoords.slice(0, 8);
+    const geocodeCandidates = withoutCoords.slice(0, 20);
     for (const candidate of geocodeCandidates) {
-      const geocoded = await geocodeLocationWithMapbox(candidate, token);
+      let geocoded = await geocodeLocationWithMapbox(candidate, token);
+      if (!geocoded && googleMapsKey) {
+        geocoded = await geocodeLocationWithGoogle(candidate, googleMapsKey);
+      }
       if (geocoded && Number.isFinite(geocoded.lat) && Number.isFinite(geocoded.lng)) {
         resolved.push(geocoded);
       }
