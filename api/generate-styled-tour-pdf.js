@@ -78,8 +78,18 @@ function extractLocationsFromBlocks(blocks = []) {
     if (!loc || typeof loc !== 'object') return;
     const name = String(loc.title || loc.name || '').trim();
     const address = String(loc.address || '').trim();
-    const lat = Number(loc.lat ?? loc.latitude ?? loc?.coordinates?.lat);
-    const lng = Number(loc.lng ?? loc.longitude ?? loc?.coordinates?.lng);
+    const lat = Number(
+      loc.lat ??
+      loc.latitude ??
+      loc?.location?.lat ??
+      loc?.coordinates?.lat
+    );
+    const lng = Number(
+      loc.lng ??
+      loc.longitude ??
+      loc?.location?.lng ??
+      loc?.coordinates?.lng
+    );
     if (!name) return;
     all.push({
       name,
@@ -90,6 +100,14 @@ function extractLocationsFromBlocks(blocks = []) {
   };
 
   blocks.forEach((block) => {
+    // Use map block locations as canonical source when available:
+    // these points are already synchronized in the visualizer.
+    if (block.block_type === 'map') {
+      const mapLocations = Array.isArray(block?.content?.locations) ? block.content.locations : [];
+      mapLocations.forEach(pushLoc);
+      return;
+    }
+
     if (block.block_type !== 'location') return;
     const content = block.content || {};
     pushLoc(content.mainLocation || content);
