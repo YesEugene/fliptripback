@@ -138,7 +138,7 @@ function getMapboxToken() {
   );
 }
 
-async function buildMapboxStaticUrl(locations = [], template = 'classic') {
+async function buildMapboxStaticUrl(locations = [], template = 'classic', options = {}) {
   const token = getMapboxToken();
   if (!token) return null;
 
@@ -164,7 +164,13 @@ async function buildMapboxStaticUrl(locations = [], template = 'classic') {
   }
 
   const finalCoords = resolved.slice(0, 20);
-  if (finalCoords.length === 0) return null;
+  if (finalCoords.length === 0) {
+    const cityQuery = String(options?.cityName || '').trim();
+    if (!cityQuery) return null;
+    const cityGeocoded = await geocodeLocationWithMapbox({ name: cityQuery }, token);
+    if (!cityGeocoded || !Number.isFinite(cityGeocoded.lat) || !Number.isFinite(cityGeocoded.lng)) return null;
+    return `https://api.mapbox.com/styles/v1/${style}/static/${cityGeocoded.lng},${cityGeocoded.lat},11/1200x620?access_token=${token}`;
+  }
 
   const pins = finalCoords
     .map((loc) => `pin-s+e74c3c(${loc.lng},${loc.lat})`)
@@ -961,7 +967,9 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
 
 async function renderStyledPdfViaHtml({ tour, blocks, template = 'classic', layout = {} }) {
   const locations = extractLocationsFromBlocks(blocks);
-  const mapUrl = await buildMapboxStaticUrl(locations, template);
+  const mapUrl = await buildMapboxStaticUrl(locations, template, {
+    cityName: tour?.city?.name || ''
+  });
   const html = buildStyledPdfHtml({ tour, blocks, template, layout, mapUrl, locations });
 
   const [{ default: chromium }, { default: playwright }] = await Promise.all([
@@ -1066,7 +1074,9 @@ async function renderStyledPdf({ tour, blocks, template = 'classic', layout = {}
   const cfg = templateConfig(template);
   const locations = extractLocationsFromBlocks(blocks);
   const sections = extractBlockNarrativeSections(blocks);
-  const mapUrl = await buildMapboxStaticUrl(locations, template);
+  const mapUrl = await buildMapboxStaticUrl(locations, template, {
+    cityName: tour?.city?.name || ''
+  });
   const mapImageBuffer = mapUrl
     ? await fetch(mapUrl).then(async (resp) => (resp.ok ? Buffer.from(await resp.arrayBuffer()) : null)).catch(() => null)
     : null;
@@ -1215,7 +1225,9 @@ export default async function handler(req, res) {
 
     if (previewHtml) {
       const locations = extractLocationsFromBlocks(blocks || []);
-      const mapUrl = layout?.includeMap === false ? null : await buildMapboxStaticUrl(locations, template);
+      const mapUrl = await buildMapboxStaticUrl(locations, template, {
+        cityName: tour?.city?.name || ''
+      });
       const html = buildStyledPdfHtml({
         tour,
         blocks: blocks || [],
@@ -1228,12 +1240,16 @@ export default async function handler(req, res) {
         success: true,
         previewHtml: html,
         template,
+        mapIncluded: !!mapUrl,
+        mapIssue: mapUrl ? null : (!getMapboxToken() ? 'Mapbox token is missing in backend environment (MAPBOX_ACCESS_TOKEN).' : 'Could not build map from route points or city center.'),
         locationsCount: locations.length
       });
     }
 
     const locationsForMap = extractLocationsFromBlocks(blocks || []);
-    const mapPreviewUrl = await buildMapboxStaticUrl(locationsForMap, template);
+    const mapPreviewUrl = await buildMapboxStaticUrl(locationsForMap, template, {
+      cityName: tour?.city?.name || ''
+    });
     const mapIncluded = !!mapPreviewUrl;
     const mapIssue = mapIncluded
       ? null
