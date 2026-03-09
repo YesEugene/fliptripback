@@ -424,12 +424,7 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
         </section>
       `;
     }
-    const locationMetaHtml = isLocation && (section.rating || section.price) ? `
-      <div class="ft-location-meta">
-        ${section.rating ? `<span>★ ${htmlEscape(section.rating)}</span>` : ''}
-        ${section.price ? `<span>${htmlEscape(section.price)}</span>` : ''}
-      </div>
-    ` : '';
+    const locationMetaHtml = '';
     const recommendationsHtml = isLocation && section.recommendations ? `
       <div class="ft-recommend-box">
         <div class="ft-recommend-title">Author also recommends</div>
@@ -568,11 +563,9 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
       .ft-hero {
         width: 100%;
         max-width: 760px;
-        max-height: 420px;
-        object-fit: contain;
+        height: auto;
         display: block;
         margin-top: 26px;
-        background: #f3f4f6;
       }
       .ft-cover-about {
         margin-top: 20px;
@@ -597,6 +590,9 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
         font-size: 42px;
         line-height: 1.2;
       }
+      .ft-heading-block h2 {
+        font-size: 30px;
+      }
       .ft-headline {
         text-transform: uppercase;
         letter-spacing: 0.02em;
@@ -613,9 +609,10 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
         font-size: 30px;
       }
       .ft-address {
-        color: ${cfg.muted};
+        color: #3E85FC;
         font-size: 14px;
-        margin-bottom: 8px;
+        margin-bottom: 15px;
+        font-weight: 500;
       }
       .ft-location-meta {
         display: flex;
