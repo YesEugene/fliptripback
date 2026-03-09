@@ -127,8 +127,19 @@ async function geocodeLocationWithMapbox(location, token) {
   }
 }
 
+function getMapboxToken() {
+  return (
+    process.env.MAPBOX_TOKEN ||
+    process.env.MAPBOX_ACCESS_TOKEN ||
+    process.env.MAPBOX_PUBLIC_TOKEN ||
+    process.env.MAPBOX_SECRET_TOKEN ||
+    process.env.VITE_MAPBOX_TOKEN ||
+    ''
+  );
+}
+
 async function buildMapboxStaticUrl(locations = [], template = 'classic') {
-  const token = process.env.MAPBOX_TOKEN || process.env.MAPBOX_ACCESS_TOKEN || '';
+  const token = getMapboxToken();
   if (!token) return null;
 
   const styleByTemplate = {
@@ -155,11 +166,28 @@ async function buildMapboxStaticUrl(locations = [], template = 'classic') {
   const finalCoords = resolved.slice(0, 20);
   if (finalCoords.length === 0) return null;
 
-  const overlays = finalCoords
+  const pins = finalCoords
     .map((loc) => `pin-s+e74c3c(${loc.lng},${loc.lat})`)
     .join(',');
 
-  return `https://api.mapbox.com/styles/v1/${style}/static/${overlays}/auto/1200x620?padding=70,70,70,70&access_token=${token}`;
+  let routeOverlay = '';
+  if (finalCoords.length >= 2) {
+    const routeFeature = {
+      type: 'Feature',
+      geometry: {
+        type: 'LineString',
+        coordinates: finalCoords.map((loc) => [loc.lng, loc.lat])
+      },
+      properties: {
+        'stroke': '#1D4ED8',
+        'stroke-width': 3.5,
+        'stroke-opacity': 0.85
+      }
+    };
+    routeOverlay = `geojson(${encodeURIComponent(JSON.stringify(routeFeature))}),`;
+  }
+
+  return `https://api.mapbox.com/styles/v1/${style}/static/${routeOverlay}${pins}/auto/1200x620?padding=70,70,70,70&access_token=${token}`;
 }
 
 function templateConfig(template = 'classic') {
@@ -1204,6 +1232,15 @@ export default async function handler(req, res) {
       });
     }
 
+    const locationsForMap = extractLocationsFromBlocks(blocks || []);
+    const mapPreviewUrl = await buildMapboxStaticUrl(locationsForMap, template);
+    const mapIncluded = !!mapPreviewUrl;
+    const mapIssue = mapIncluded
+      ? null
+      : (!getMapboxToken()
+          ? 'Mapbox token is missing in backend environment (MAPBOX_ACCESS_TOKEN).'
+          : 'Mapbox map could not be generated from locations.');
+
     let pdfBuffer = null;
     let renderMode = 'html';
     try {
@@ -1247,7 +1284,9 @@ export default async function handler(req, res) {
       pdfUrl: publicUrl,
       template,
       renderMode,
-      locationsCount: extractLocationsFromBlocks(blocks || []).length
+      mapIncluded,
+      mapIssue,
+      locationsCount: locationsForMap.length
     });
   } catch (error) {
     console.error('❌ generate-styled-tour-pdf error:', error);
