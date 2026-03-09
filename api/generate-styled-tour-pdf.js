@@ -708,7 +708,7 @@ export default async function handler(req, res) {
   try {
     if (!supabase) return res.status(500).json({ success: false, error: 'Database not configured' });
 
-    const { tourId, template = 'classic', layout = {} } = req.body || {};
+    const { tourId, template = 'classic', layout = {}, previewHtml = false } = req.body || {};
     if (!tourId) return res.status(400).json({ success: false, error: 'tourId is required' });
 
     const { userId, isAdmin } = await getUserFromToken(req.headers.authorization);
@@ -731,6 +731,25 @@ export default async function handler(req, res) {
       .order('order_index', { ascending: true });
     if (blocksErr) {
       return res.status(500).json({ success: false, error: 'Failed to load tour blocks' });
+    }
+
+    if (previewHtml) {
+      const locations = extractLocationsFromBlocks(blocks || []);
+      const mapUrl = layout?.includeMap === false ? null : await buildMapboxStaticUrl(locations, template);
+      const html = buildStyledPdfHtml({
+        tour,
+        blocks: blocks || [],
+        template,
+        layout,
+        mapUrl,
+        locations
+      });
+      return res.status(200).json({
+        success: true,
+        previewHtml: html,
+        template,
+        locationsCount: locations.length
+      });
     }
 
     let pdfBuffer = null;
