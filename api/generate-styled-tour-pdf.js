@@ -811,10 +811,9 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
       }
       .ft-map {
         width: 100%;
-        max-height: 340px;
-        object-fit: contain;
+        height: auto;
         display: block;
-        background: #f3f4f6;
+        background: transparent;
       }
       .ft-photo-grid,
       .ft-location-photo-layout {
