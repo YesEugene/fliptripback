@@ -1047,6 +1047,36 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
           };
 
           const fits = (inner) => inner.scrollHeight <= CONTENT_MAX_HEIGHT;
+          const tryCropLocationImagesToFit = (inner, block) => {
+            if (!block || !block.classList || !block.classList.contains('ft-location-section')) return false;
+
+            const mainPhoto = block.querySelector('.ft-main-photo');
+            const thumbPhotos = Array.from(block.querySelectorAll('.ft-thumb-photo'));
+            if (!mainPhoto && thumbPhotos.length === 0) return false;
+
+            let mainHeight = 320;
+            let thumbHeight = 140;
+
+            const applyHeights = () => {
+              if (mainPhoto) {
+                mainPhoto.style.height = String(mainHeight) + 'px';
+                mainPhoto.style.objectFit = 'cover';
+              }
+              thumbPhotos.forEach((img) => {
+                img.style.height = String(thumbHeight) + 'px';
+                img.style.objectFit = 'cover';
+              });
+            };
+
+            applyHeights();
+            while (!fits(inner) && (mainHeight > 170 || thumbHeight > 80)) {
+              if (mainHeight > 170) mainHeight -= 24;
+              if (thumbHeight > 80) thumbHeight -= 12;
+              applyHeights();
+            }
+
+            return fits(inner);
+          };
           let inner = createPage();
 
           for (let i = 0; i < blocks.length; i += 1) {
@@ -1073,6 +1103,9 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
               inner.removeChild(block);
               inner = createPage();
               inner.appendChild(block);
+            }
+            if (!fits(inner)) {
+              tryCropLocationImagesToFit(inner, block);
             }
           }
 
