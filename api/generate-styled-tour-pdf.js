@@ -188,6 +188,35 @@ function normalizePhotoList(value) {
     .filter((item) => item && (item.startsWith('http://') || item.startsWith('https://') || item.startsWith('data:image/')));
 }
 
+function cleanRichText(raw = '') {
+  const source = String(raw || '');
+  if (!source) return '';
+  return source
+    .replace(/<\s*br\s*\/?>/gi, '\n')
+    .replace(/<\/\s*(div|p|li|h1|h2|h3|h4|h5|h6)\s*>/gi, '\n')
+    .replace(/<\s*li[^>]*>/gi, '• ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, '\'')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/\r/g, '')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function paragraphsFromRichText(raw = '') {
+  const cleaned = cleanRichText(raw);
+  if (!cleaned) return [];
+  return cleaned
+    .split(/\n{2,}/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
 function extractContentSectionsForHtml(blocks = []) {
   const sections = [];
   let headingIndex = 1;
@@ -197,7 +226,7 @@ function extractContentSectionsForHtml(blocks = []) {
     const content = block?.content || {};
 
     if (type === 'heading') {
-      const title = String(content.text || content.title || '').trim();
+      const title = cleanRichText(content.text || content.title || '');
       if (title) {
         sections.push({ type: 'heading', title, paragraphs: [], photos: [] });
       }
@@ -205,49 +234,54 @@ function extractContentSectionsForHtml(blocks = []) {
     }
 
     if (type === 'text') {
-      const text = String(content.text || '').trim();
-      if (!text) return;
-      const paragraphs = text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+      const paragraphs = paragraphsFromRichText(content.text || '');
+      if (!paragraphs.length) return;
+      const combined = paragraphs.join('\n\n');
       sections.push({
         type: 'text',
         title: null,
         paragraphs,
-        useColumns: text.length > 900,
+        useColumns: combined.length > 1200,
         photos: []
       });
       return;
     }
 
     if (type === 'photo_text' || type === 'fullwidth_image') {
-      const title = String(content.title || '').trim();
-      const text = String(content.text || content.caption || '').trim();
-      const paragraphs = text ? text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean) : [];
+      const title = cleanRichText(content.title || '');
+      const paragraphs = paragraphsFromRichText(content.text || content.caption || '');
+      const combined = paragraphs.join('\n\n');
       sections.push({
         type: 'photo_text',
         title: title || `Section ${headingIndex++}`,
         paragraphs,
         photos: normalizePhotoList(content.photos || content.photo).slice(0, 4),
-        useColumns: text.length > 700
+        useColumns: combined.length > 950
       });
       return;
     }
 
     if (type === 'location') {
       const main = content.mainLocation || content;
-      const title = String(main?.title || main?.name || '').trim();
-      const address = String(main?.address || '').trim();
-      const description = String(main?.description || '').trim();
-      const recommendations = String(main?.recommendations || '').trim();
-      const paragraphs = [description, recommendations].filter(Boolean);
+      const title = cleanRichText(main?.title || main?.name || '');
+      const address = cleanRichText(main?.address || '');
+      const description = cleanRichText(main?.description || '');
+      const recommendations = cleanRichText(main?.recommendations || '');
+      const rating = String(main?.rating ?? '').trim();
+      const price = cleanRichText(main?.priceLevel || main?.price_level || main?.price || '');
+      const paragraphs = [description].filter(Boolean);
       const photos = normalizePhotoList(main?.photos || main?.photo).slice(0, 6);
-      if (title || paragraphs.length > 0 || photos.length > 0) {
+      if (title || paragraphs.length > 0 || recommendations || photos.length > 0) {
         sections.push({
           type: 'location',
           title: title || `Location ${headingIndex++}`,
           address,
           paragraphs,
           photos,
-          useColumns: description.length > 700
+          useColumns: description.length > 1050,
+          recommendations,
+          rating,
+          price
         });
       }
     }
@@ -259,22 +293,11 @@ function extractContentSectionsForHtml(blocks = []) {
 function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, mapUrl = null, locations = [] }) {
   const cfg = templateConfig(template);
   const draft = (tour?.draft_data && typeof tour.draft_data === 'object') ? tour.draft_data : {};
-  const title = String(draft.title || tour?.title || 'FlipTrip Guide').trim();
-  const city = String(tour?.city?.name || '').trim();
-  const subtitle = String(layout?.subtitle || draft.shortDescription || tour?.description || '').trim();
+  const title = cleanRichText(draft.title || tour?.title || 'FlipTrip Guide');
+  const city = cleanRichText(tour?.city?.name || '');
+  const subtitle = cleanRichText(layout?.subtitle || draft.shortDescription || tour?.description || '');
   const previewImage = String(draft.previewOriginal || draft.preview || tour?.preview_media_url || '').trim();
-  const highlights = draft.highlights || {};
-  const highlightTexts = [highlights.text3, highlights.text4, highlights.text5].filter(Boolean).map((x) => String(x).trim());
   const sections = extractContentSectionsForHtml(blocks);
-
-  const highlightHtml = (layout?.includeHighlights === false || highlightTexts.length === 0) ? '' : `
-    <section class="ft-section">
-      <h2>What's inside this walk</h2>
-      <ol class="ft-highlights">
-        ${highlightTexts.map((line) => `<li>${htmlEscape(line)}</li>`).join('')}
-      </ol>
-    </section>
-  `;
 
   const mapHtml = (layout?.includeMap === false || !mapUrl) ? '' : `
     <section class="ft-section">
@@ -299,29 +322,53 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
 
   const sectionsHtml = sections.map((section) => {
     if (section.type === 'heading') {
-      return `<section class="ft-section"><h2>${htmlEscape(section.title || '')}</h2></section>`;
+      return `<section class="ft-section"><h2 class="ft-headline">${htmlEscape(section.title || '')}</h2></section>`;
     }
 
     const titleHtml = section.title ? `<h3>${htmlEscape(section.title)}</h3>` : '';
     const addressHtml = section.address ? `<div class="ft-address">${htmlEscape(section.address)}</div>` : '';
-    const photoGrid = section.photos?.length ? `
-      <div class="ft-photo-grid ${section.photos.length > 1 ? 'has-many' : ''}">
-        ${section.photos.map((src, i) => `<img src="${htmlEscape(src)}" alt="${htmlEscape(section.title || `Tour image ${i + 1}`)}"/>`).join('')}
-      </div>
-    ` : '';
     const paragraphs = section.paragraphs?.length
       ? section.paragraphs.map((p) => `<p>${htmlEscape(p)}</p>`).join('')
       : '';
     const textWrapClass = section.useColumns ? 'ft-text columns' : 'ft-text';
+    const isLocation = section.type === 'location';
+    const locationMetaHtml = isLocation && (section.rating || section.price) ? `
+      <div class="ft-location-meta">
+        ${section.rating ? `<span>★ ${htmlEscape(section.rating)}</span>` : ''}
+        ${section.price ? `<span>${htmlEscape(section.price)}</span>` : ''}
+      </div>
+    ` : '';
+    const recommendationsHtml = isLocation && section.recommendations ? `
+      <div class="ft-recommend-box">
+        <div class="ft-recommend-title">Author also recommends</div>
+        <p>${htmlEscape(section.recommendations)}</p>
+      </div>
+    ` : '';
+    const photoGrid = !section.photos?.length ? '' : (isLocation ? `
+      <div class="ft-location-photos">
+        <img class="ft-location-main-photo" src="${htmlEscape(section.photos[0])}" alt="${htmlEscape(section.title || 'Location photo')}"/>
+        ${section.photos.length > 1 ? `
+          <div class="ft-location-thumbs">
+            ${section.photos.slice(1).map((src, i) => `<img src="${htmlEscape(src)}" alt="${htmlEscape(section.title || `Location photo ${i + 2}`)}"/>`).join('')}
+          </div>
+        ` : ''}
+      </div>
+    ` : `
+      <div class="ft-photo-grid ${section.photos.length > 1 ? 'has-many' : ''}">
+        ${section.photos.map((src, i) => `<img src="${htmlEscape(src)}" alt="${htmlEscape(section.title || `Tour image ${i + 1}`)}"/>`).join('')}
+      </div>
+    `);
 
     return `
-      <section class="ft-section">
+      <section class="ft-section ${isLocation ? 'ft-location-section' : ''}">
         ${titleHtml}
         ${addressHtml}
+        ${locationMetaHtml}
         ${photoGrid}
         <div class="${textWrapClass}">
           ${paragraphs}
         </div>
+        ${recommendationsHtml}
       </section>
     `;
   }).join('');
@@ -342,63 +389,91 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
       }
       .ft-wrap { width: 100%; }
       .ft-header {
-        border-bottom: 1px solid #e5e7eb;
-        padding-bottom: 14px;
-        margin-bottom: 18px;
+        page-break-after: always;
+        min-height: 95vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        padding-bottom: 18px;
       }
       .ft-logo {
         color: ${cfg.accent};
         font-weight: 700;
-        font-size: 16px;
-        letter-spacing: 0.06em;
-        margin-bottom: 8px;
+        font-size: 18px;
+        letter-spacing: 0.08em;
+        margin-bottom: 14px;
       }
       .ft-city {
         color: ${cfg.muted};
-        font-size: 12px;
-        margin-bottom: 4px;
+        font-size: 13px;
+        margin-bottom: 6px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
       }
       h1 {
         margin: 0;
-        font-size: 44px;
-        line-height: 1.08;
+        font-size: 62px;
+        line-height: 1.04;
         font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.01em;
       }
       .ft-subtitle {
-        margin-top: 10px;
+        margin-top: 18px;
         color: ${cfg.muted};
-        font-size: 16px;
-        line-height: 1.35;
+        font-size: 19px;
+        line-height: 1.4;
+        max-width: 92%;
       }
       .ft-hero {
         width: 100%;
-        max-height: 280px;
-        object-fit: cover;
+        max-height: 420px;
+        object-fit: contain;
         display: block;
-        margin-top: 16px;
+        margin-top: 26px;
+        background: #f3f4f6;
       }
       .ft-section {
-        margin-top: 20px;
+        margin-top: 26px;
         break-inside: avoid;
         page-break-inside: avoid;
       }
       h2 {
-        margin: 0 0 10px;
-        font-size: 24px;
+        margin: 0 0 12px;
+        font-size: 27px;
         line-height: 1.2;
+      }
+      .ft-headline {
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
       }
       h3 {
         margin: 0 0 8px;
-        font-size: 20px;
-        line-height: 1.25;
+        font-size: 34px;
+        line-height: 1.08;
+        text-transform: uppercase;
+        letter-spacing: 0.01em;
+        font-weight: 700;
+      }
+      .ft-location-section h3 {
+        font-size: 29px;
       }
       .ft-address {
         color: ${cfg.muted};
-        font-size: 12px;
-        margin-bottom: 10px;
+        font-size: 14px;
+        margin-bottom: 8px;
+      }
+      .ft-location-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 12px;
+        font-size: 13px;
+        color: #4b5563;
+        font-weight: 600;
       }
       .ft-text p {
-        margin: 0 0 10px;
+        margin: 0 0 11px;
         font-size: 14px;
         line-height: 1.55;
         orphans: 3;
@@ -406,16 +481,7 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
       }
       .ft-text.columns {
         column-count: 2;
-        column-gap: 20px;
-      }
-      .ft-highlights {
-        margin: 0;
-        padding-left: 22px;
-      }
-      .ft-highlights li {
-        margin-bottom: 8px;
-        font-size: 14px;
-        line-height: 1.45;
+        column-gap: 24px;
       }
       .ft-locations {
         margin: 0;
@@ -436,29 +502,67 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
       }
       .ft-map {
         width: 100%;
-        max-height: 280px;
-        object-fit: cover;
+        max-height: 340px;
+        object-fit: contain;
         display: block;
+        background: #f3f4f6;
       }
       .ft-photo-grid {
         display: grid;
         grid-template-columns: 2fr 1fr;
-        gap: 8px;
-        margin-bottom: 10px;
+        gap: 10px;
+        margin-bottom: 12px;
       }
       .ft-photo-grid img {
         width: 100%;
-        height: 150px;
-        object-fit: cover;
+        height: auto;
+        object-fit: contain;
         display: block;
+        background: #f3f4f6;
       }
       .ft-photo-grid img:first-child {
         grid-row: span 2;
-        height: 308px;
       }
-      .ft-photo-grid:not(.has-many) img:first-child {
-        grid-row: auto;
-        height: 250px;
+      .ft-location-photos {
+        margin: 12px 0;
+      }
+      .ft-location-main-photo {
+        width: 100%;
+        height: auto;
+        object-fit: contain;
+        display: block;
+        background: #f3f4f6;
+      }
+      .ft-location-thumbs {
+        margin-top: 10px;
+        display: grid;
+        gap: 10px;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .ft-location-thumbs img {
+        width: 100%;
+        height: auto;
+        object-fit: contain;
+        display: block;
+        background: #f3f4f6;
+      }
+      .ft-recommend-box {
+        margin-top: 10px;
+        padding: 14px 16px;
+        border: 1px solid #d9e1d0;
+        background: #f3f7ef;
+      }
+      .ft-recommend-title {
+        margin: 0 0 8px;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+      }
+      .ft-recommend-box p {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.5;
       }
     </style>
   </head>
@@ -471,10 +575,9 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
         ${subtitle ? `<div class="ft-subtitle">${htmlEscape(subtitle)}</div>` : ''}
         ${previewImage ? `<img class="ft-hero" src="${htmlEscape(previewImage)}" alt="${htmlEscape(title)}"/>` : ''}
       </header>
-      ${highlightHtml}
+      ${sectionsHtml}
       ${mapHtml}
       ${locationsHtml}
-      ${sectionsHtml}
     </div>
   </body>
 </html>`;
