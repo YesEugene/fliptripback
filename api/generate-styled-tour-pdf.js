@@ -519,7 +519,7 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
   const logoUrl = 'https://raw.githubusercontent.com/YesEugene/fliptripfront/main/src/assets/FlipTripLogo.svg';
 
   const mapHtml = !mapUrl ? '' : `
-    <section class="ft-section ft-section-block">
+    <section class="ft-section ft-section-block ft-route-map-section" data-page-break-before="true" data-page-break-after="true">
       <h2 class="ft-headline">Route map</h2>
       <img class="ft-map" src="${htmlEscape(mapUrl)}" alt="Tour route map"/>
     </section>
@@ -1047,6 +1047,7 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
           };
 
           const fits = (inner) => inner.scrollHeight <= CONTENT_MAX_HEIGHT;
+          const hasContent = (inner) => inner && inner.children && inner.children.length > 0;
           const tryCropLocationImagesToFit = (inner, block) => {
             if (!block || !block.classList || !block.classList.contains('ft-location-section')) return false;
 
@@ -1054,8 +1055,8 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
             const thumbPhotos = Array.from(block.querySelectorAll('.ft-thumb-photo'));
             if (!mainPhoto && thumbPhotos.length === 0) return false;
 
-            let mainHeight = 320;
-            let thumbHeight = 140;
+            let mainHeight = mainPhoto ? (mainPhoto.clientHeight || 320) : 320;
+            let thumbHeight = thumbPhotos[0] ? (thumbPhotos[0].clientHeight || 140) : 140;
 
             const applyHeights = () => {
               if (mainPhoto) {
@@ -1082,6 +1083,12 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
           for (let i = 0; i < blocks.length; i += 1) {
             const block = blocks[i].cloneNode(true);
             const keepWithNext = block.dataset.keepWithNext === 'true' && i + 1 < blocks.length;
+            const pageBreakBefore = block.dataset.pageBreakBefore === 'true';
+            const pageBreakAfter = block.dataset.pageBreakAfter === 'true';
+
+            if (pageBreakBefore && hasContent(inner)) {
+              inner = createPage();
+            }
 
             if (keepWithNext) {
               const next = blocks[i + 1].cloneNode(true);
@@ -1107,7 +1114,27 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
             if (!fits(inner)) {
               tryCropLocationImagesToFit(inner, block);
             }
+            if (!fits(inner) && hasContent(inner) && inner.children.length > 1) {
+              inner.removeChild(block);
+              inner = createPage();
+              inner.appendChild(block);
+              if (!fits(inner)) {
+                tryCropLocationImagesToFit(inner, block);
+              }
+            }
+            if (pageBreakAfter && hasContent(inner)) {
+              inner = createPage();
+            }
           }
+
+          // Remove accidental trailing/empty pages.
+          const pages = Array.from(pagesRoot.querySelectorAll('.ft-page'));
+          pages.forEach((page) => {
+            const pageInner = page.querySelector('.ft-page-inner');
+            if (!pageInner || pageInner.children.length === 0) {
+              page.remove();
+            }
+          });
 
           document.querySelectorAll('.ft-adaptive-grid').forEach((grid) => {
             const main = grid.querySelector('.ft-main-photo');
