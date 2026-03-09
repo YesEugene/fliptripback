@@ -518,14 +518,27 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
   const sections = extractContentSectionsForHtml(blocks);
   const logoUrl = 'https://raw.githubusercontent.com/YesEugene/fliptripfront/main/src/assets/FlipTripLogo.svg';
 
+  const locationsListHtml = locations.length === 0 ? '' : `
+    <h2 class="ft-headline">Locations</h2>
+    <ol class="ft-locations ft-locations-two-col">
+      ${locations.map((loc) => `
+        <li>
+          <span class="name">${htmlEscape(loc.name || '')}</span>
+          ${loc.address ? `<span class="address">${htmlEscape(loc.address)}</span>` : ''}
+        </li>
+      `).join('')}
+    </ol>
+  `;
+
   const mapHtml = !mapUrl ? '' : `
     <section class="ft-section ft-section-block ft-route-map-section" data-page-break-before="true" data-page-break-after="true">
       <h2 class="ft-headline">Route map</h2>
       <img class="ft-map" src="${htmlEscape(mapUrl)}" alt="Tour route map"/>
+      ${locationsListHtml}
     </section>
   `;
 
-  const locationsHtml = locations.length === 0 ? '' : `
+  const locationsHtml = mapUrl || locations.length === 0 ? '' : `
     <section class="ft-section ft-section-block">
       <h2 class="ft-headline">Locations</h2>
       <ol class="ft-locations">
@@ -681,8 +694,8 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
         min-height: 1273px;
         margin: 0 auto 28px;
         background: #FCFBF9;
-        border: 1px solid #e8e1d7;
-        box-shadow: 0 12px 36px rgba(15, 23, 42, 0.12);
+        border: none;
+        box-shadow: none;
         page-break-after: always;
       }
       .ft-page:last-child {
@@ -799,8 +812,15 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
         margin: 0;
         padding-left: 22px;
       }
+      .ft-locations-two-col {
+        column-count: 2;
+        column-gap: 24px;
+        padding-left: 18px;
+      }
       .ft-locations li {
         margin-bottom: 6px;
+        break-inside: avoid;
+        page-break-inside: avoid;
       }
       .ft-locations .name {
         display: block;
