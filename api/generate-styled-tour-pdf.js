@@ -1023,47 +1023,6 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
         const pagesRoot = document.getElementById('ft-content-pages');
         if (!source || !pagesRoot) return;
 
-        const blocks = Array.from(source.children);
-        const createPage = () => {
-          const page = document.createElement('section');
-          page.className = 'ft-page';
-          const inner = document.createElement('div');
-          inner.className = 'ft-page-inner';
-          page.appendChild(inner);
-          pagesRoot.appendChild(page);
-          return inner;
-        };
-
-        const fits = (inner) => inner.scrollHeight <= CONTENT_MAX_HEIGHT;
-        let inner = createPage();
-
-        for (let i = 0; i < blocks.length; i += 1) {
-          const block = blocks[i].cloneNode(true);
-          const keepWithNext = block.dataset.keepWithNext === 'true' && i + 1 < blocks.length;
-
-          if (keepWithNext) {
-            const next = blocks[i + 1].cloneNode(true);
-            inner.appendChild(block);
-            inner.appendChild(next);
-            if (!fits(inner) && inner.children.length > 2) {
-              inner.removeChild(next);
-              inner.removeChild(block);
-              inner = createPage();
-              inner.appendChild(block);
-              inner.appendChild(next);
-            }
-            i += 1;
-            continue;
-          }
-
-          inner.appendChild(block);
-          if (!fits(inner) && inner.children.length > 1) {
-            inner.removeChild(block);
-            inner = createPage();
-            inner.appendChild(block);
-          }
-        }
-
         const allImages = Array.from(document.querySelectorAll('img'));
         const waiters = allImages.map((img) => {
           if (img.complete) return Promise.resolve();
@@ -1074,6 +1033,49 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
         });
 
         Promise.all(waiters).then(() => {
+          // Build pages only after images are loaded, so heights are stable.
+          pagesRoot.innerHTML = '';
+          const blocks = Array.from(source.children);
+          const createPage = () => {
+            const page = document.createElement('section');
+            page.className = 'ft-page';
+            const inner = document.createElement('div');
+            inner.className = 'ft-page-inner';
+            page.appendChild(inner);
+            pagesRoot.appendChild(page);
+            return inner;
+          };
+
+          const fits = (inner) => inner.scrollHeight <= CONTENT_MAX_HEIGHT;
+          let inner = createPage();
+
+          for (let i = 0; i < blocks.length; i += 1) {
+            const block = blocks[i].cloneNode(true);
+            const keepWithNext = block.dataset.keepWithNext === 'true' && i + 1 < blocks.length;
+
+            if (keepWithNext) {
+              const next = blocks[i + 1].cloneNode(true);
+              inner.appendChild(block);
+              inner.appendChild(next);
+              if (!fits(inner) && inner.children.length > 2) {
+                inner.removeChild(next);
+                inner.removeChild(block);
+                inner = createPage();
+                inner.appendChild(block);
+                inner.appendChild(next);
+              }
+              i += 1;
+              continue;
+            }
+
+            inner.appendChild(block);
+            if (!fits(inner) && inner.children.length > 1) {
+              inner.removeChild(block);
+              inner = createPage();
+              inner.appendChild(block);
+            }
+          }
+
           document.querySelectorAll('.ft-adaptive-grid').forEach((grid) => {
             const main = grid.querySelector('.ft-main-photo');
             if (!main) return;
