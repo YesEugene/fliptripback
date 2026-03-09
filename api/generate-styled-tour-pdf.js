@@ -1107,11 +1107,10 @@ async function renderStyledPdfViaHtml({ tour, blocks, template = 'classic', layo
 
   const executablePath = await chromium.executablePath();
   const browser = await puppeteer.launch({
-    args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'],
+    args: chromium.args,
     executablePath,
-    headless: true,
-    defaultViewport: { width: 1240, height: 1754 },
-    ignoreHTTPSErrors: true
+    headless: 'shell',
+    defaultViewport: chromium.defaultViewport
   });
 
   try {
