@@ -298,25 +298,36 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
   const subtitle = cleanRichText(layout?.subtitle || draft.shortDescription || tour?.description || '');
   const previewImage = String(draft.previewOriginal || draft.preview || tour?.preview_media_url || '').trim();
   const sections = extractContentSectionsForHtml(blocks);
+  const coverPillsHtml = city
+    ? `<div class="ft-pill-row"><span class="ft-pill">${htmlEscape(city)}</span></div>`
+    : '';
 
   const mapHtml = (layout?.includeMap === false || !mapUrl) ? '' : `
-    <section class="ft-section">
-      <h2>Route map</h2>
-      <img class="ft-map" src="${htmlEscape(mapUrl)}" alt="Tour route map"/>
+    <section class="ft-page">
+      <div class="ft-page-inner">
+        <section class="ft-section">
+          <h2 class="ft-headline">Route map</h2>
+          <img class="ft-map" src="${htmlEscape(mapUrl)}" alt="Tour route map"/>
+        </section>
+      </div>
     </section>
   `;
 
   const locationsHtml = locations.length === 0 ? '' : `
-    <section class="ft-section">
-      <h2>Locations</h2>
-      <ol class="ft-locations">
-        ${locations.map((loc) => `
-          <li>
-            <span class="name">${htmlEscape(loc.name || '')}</span>
-            ${loc.address ? `<span class="address">${htmlEscape(loc.address)}</span>` : ''}
-          </li>
-        `).join('')}
-      </ol>
+    <section class="ft-page">
+      <div class="ft-page-inner">
+        <section class="ft-section">
+          <h2 class="ft-headline">Locations</h2>
+          <ol class="ft-locations">
+            ${locations.map((loc) => `
+              <li>
+                <span class="name">${htmlEscape(loc.name || '')}</span>
+                ${loc.address ? `<span class="address">${htmlEscape(loc.address)}</span>` : ''}
+              </li>
+            `).join('')}
+          </ol>
+        </section>
+      </div>
     </section>
   `;
 
@@ -360,15 +371,19 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
     `);
 
     return `
-      <section class="ft-section ${isLocation ? 'ft-location-section' : ''}">
-        ${titleHtml}
-        ${addressHtml}
-        ${locationMetaHtml}
-        ${photoGrid}
-        <div class="${textWrapClass}">
-          ${paragraphs}
+      <section class="ft-page">
+        <div class="ft-page-inner">
+          <section class="ft-section ${isLocation ? 'ft-location-section' : ''}">
+            ${titleHtml}
+            ${addressHtml}
+            ${locationMetaHtml}
+            ${photoGrid}
+            <div class="${textWrapClass}">
+              ${paragraphs}
+            </div>
+            ${recommendationsHtml}
+          </section>
         </div>
-        ${recommendationsHtml}
       </section>
     `;
   }).join('');
@@ -379,22 +394,41 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
-      @page { size: A4; margin: 12mm; }
+      @page { size: A4; margin: 0; }
       * { box-sizing: border-box; }
       body {
         margin: 0;
         font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         color: #111827;
-        background: #fff;
+        background: #FCFBF9;
+        padding: 24px 0 48px;
       }
-      .ft-wrap { width: 100%; }
-      .ft-header {
+      .ft-book {
+        width: 900px;
+        margin: 0 auto;
+      }
+      .ft-page {
+        width: 900px;
+        min-height: 1273px;
+        margin: 0 auto 28px;
+        background: #FCFBF9;
+        border: 1px solid #e8e1d7;
+        box-shadow: 0 12px 36px rgba(15, 23, 42, 0.12);
         page-break-after: always;
-        min-height: 95vh;
+      }
+      .ft-page:last-child {
+        page-break-after: auto;
+      }
+      .ft-page-inner {
+        width: 100%;
+        padding: 28px 58px 50px;
+      }
+      .ft-cover .ft-page-inner {
         display: flex;
         flex-direction: column;
-        justify-content: flex-start;
-        padding-bottom: 18px;
+        align-items: center;
+        text-align: center;
+        padding-top: 30px;
       }
       .ft-logo {
         color: ${cfg.accent};
@@ -412,21 +446,41 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
       }
       h1 {
         margin: 0;
-        font-size: 62px;
+        font-size: 60px;
         line-height: 1.04;
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.01em;
+        max-width: 760px;
       }
       .ft-subtitle {
         margin-top: 18px;
         color: ${cfg.muted};
         font-size: 19px;
         line-height: 1.4;
-        max-width: 92%;
+        max-width: 640px;
+      }
+      .ft-pill-row {
+        margin-top: 20px;
+        display: flex;
+        justify-content: center;
+      }
+      .ft-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 4px 10px;
+        height: 24px;
+        border-radius: 12px;
+        border: 1px solid #e2ddd5;
+        background: #f4f2ee;
+        font-size: 12px;
+        line-height: 1;
+        color: #1f2937;
       }
       .ft-hero {
         width: 100%;
+        max-width: 760px;
         max-height: 420px;
         object-fit: contain;
         display: block;
@@ -434,7 +488,7 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
         background: #f3f4f6;
       }
       .ft-section {
-        margin-top: 26px;
+        margin-top: 12px;
         break-inside: avoid;
         page-break-inside: avoid;
       }
@@ -564,17 +618,39 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
         font-size: 13px;
         line-height: 1.5;
       }
+      @media print {
+        body {
+          padding: 0;
+          background: #fff;
+        }
+        .ft-book {
+          width: auto;
+        }
+        .ft-page {
+          width: auto;
+          min-height: auto;
+          margin: 0;
+          border: none;
+          box-shadow: none;
+        }
+        .ft-page-inner {
+          padding: 12mm;
+        }
+      }
     </style>
   </head>
   <body>
-    <div class="ft-wrap">
-      <header class="ft-header">
-        <div class="ft-logo">FLIPTRIP</div>
-        ${city ? `<div class="ft-city">${htmlEscape(city)}</div>` : ''}
-        <h1>${htmlEscape(title)}</h1>
-        ${subtitle ? `<div class="ft-subtitle">${htmlEscape(subtitle)}</div>` : ''}
-        ${previewImage ? `<img class="ft-hero" src="${htmlEscape(previewImage)}" alt="${htmlEscape(title)}"/>` : ''}
-      </header>
+    <div class="ft-book">
+      <section class="ft-page ft-cover">
+        <div class="ft-page-inner">
+          <div class="ft-logo">FLIPTRIP</div>
+          ${city ? `<div class="ft-city">${htmlEscape(city)}</div>` : ''}
+          <h1>${htmlEscape(title)}</h1>
+          ${subtitle ? `<div class="ft-subtitle">${htmlEscape(subtitle)}</div>` : ''}
+          ${coverPillsHtml}
+          ${previewImage ? `<img class="ft-hero" src="${htmlEscape(previewImage)}" alt="${htmlEscape(title)}"/>` : ''}
+        </div>
+      </section>
       ${sectionsHtml}
       ${mapHtml}
       ${locationsHtml}
