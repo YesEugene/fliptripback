@@ -1328,7 +1328,7 @@ export default async function handler(req, res) {
   try {
     if (!supabase) return res.status(500).json({ success: false, error: 'Database not configured' });
 
-    const { tourId, template = 'classic', layout = {}, previewHtml = false } = req.body || {};
+    const { tourId, template = 'classic', layout = {}, previewHtml = false, allowFallback = true } = req.body || {};
     if (!tourId) return res.status(400).json({ success: false, error: 'tourId is required' });
 
     const { userId, isAdmin } = await getUserFromToken(req.headers.authorization);
@@ -1396,6 +1396,13 @@ export default async function handler(req, res) {
     try {
       pdfBuffer = await renderStyledPdfViaHtml({ tour, blocks: blocks || [], template, layout });
     } catch (htmlRenderError) {
+      if (!allowFallback) {
+        console.error('❌ HTML PDF render failed and fallback is disabled:', htmlRenderError?.message || htmlRenderError);
+        return res.status(500).json({
+          success: false,
+          error: `HTML PDF render failed: ${htmlRenderError?.message || 'Unknown render error'}`
+        });
+      }
       console.warn('⚠️ HTML PDF render failed, fallback to PDFKit:', htmlRenderError?.message || htmlRenderError);
       renderMode = 'pdfkit-fallback';
       pdfBuffer = await renderStyledPdf({ tour, blocks: blocks || [], template, layout });
