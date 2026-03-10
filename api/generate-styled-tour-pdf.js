@@ -260,8 +260,8 @@ async function buildMapboxStaticUrl(locations = [], template = 'classic', option
   const withoutCoords = locations.filter((loc) => !Number.isFinite(loc.lat) || !Number.isFinite(loc.lng));
   let resolved = [...withCoords];
 
-  if (resolved.length < 3 && withoutCoords.length > 0) {
-    const geocodeCandidates = withoutCoords.slice(0, 20);
+  if (withoutCoords.length > 0 && resolved.length < 20) {
+    const geocodeCandidates = withoutCoords.slice(0, Math.max(0, 20 - resolved.length));
     for (const candidate of geocodeCandidates) {
       let geocoded = await geocodeLocationWithMapbox(candidate, token);
       if (!geocoded && googleMapsKey) {
