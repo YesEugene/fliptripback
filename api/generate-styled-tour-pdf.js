@@ -890,6 +890,13 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
         grid-column: 1 / -1;
         grid-template-columns: repeat(4, minmax(0, 1fr));
       }
+      .ft-location-section.ft-overflow-compact .ft-adaptive-grid .ft-main-photo {
+        grid-column: span 2 !important;
+      }
+      .ft-location-section.ft-overflow-compact .ft-adaptive-grid .ft-thumb-stack {
+        grid-column: span 2 !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      }
       .ft-recommend-box {
         margin-top: 10px;
         padding: 14px 16px;
@@ -1127,6 +1134,7 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
             // If a location block still overflows A4, normalize the main photo
             // to thumbnail-like height so text can stay on the same page.
             if (!fits(inner)) {
+              block.classList.add('ft-overflow-compact');
               const normalizedHeight = Math.max(100, Math.min(thumbHeight, 140));
               mainHeight = normalizedHeight;
               thumbHeight = normalizedHeight;
@@ -1135,6 +1143,11 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
             while (!fits(inner) && (mainHeight > 170 || thumbHeight > 80)) {
               if (mainHeight > 170) mainHeight -= 24;
               if (thumbHeight > 80) thumbHeight -= 12;
+              applyHeights();
+            }
+            while (!fits(inner) && (mainHeight > 92 || thumbHeight > 92)) {
+              if (mainHeight > 92) mainHeight -= 10;
+              if (thumbHeight > 92) thumbHeight -= 10;
               applyHeights();
             }
 
