@@ -1108,6 +1108,32 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
           };
 
           const fits = (inner) => inner.scrollHeight <= CONTENT_MAX_HEIGHT;
+          const applyAdaptiveLayoutClasses = (root) => {
+            if (!root) return;
+            root.querySelectorAll('.ft-adaptive-grid').forEach((grid) => {
+              const main = grid.querySelector('.ft-main-photo');
+              if (!main) return;
+              const w = main.naturalWidth || 0;
+              const h = main.naturalHeight || 0;
+              if (w >= h && w > 0) {
+                grid.classList.add('is-landscape');
+              } else {
+                grid.classList.remove('is-landscape');
+              }
+            });
+            root.querySelectorAll('.ft-photo-text-block').forEach((block) => {
+              const img = block.querySelector('.ft-photo-text-image');
+              if (!img) return;
+              const w = img.naturalWidth || 0;
+              const h = img.naturalHeight || 0;
+              block.classList.remove('ft-photo-text-landscape', 'ft-photo-text-portrait');
+              if (w > h && h > 0) {
+                block.classList.add('ft-photo-text-landscape');
+              } else {
+                block.classList.add('ft-photo-text-portrait');
+              }
+            });
+          };
           const hasContent = (inner) => inner && inner.children && inner.children.length > 0;
           const tryCropLocationImagesToFit = (inner, block) => {
             if (!block || !block.classList || !block.classList.contains('ft-location-section')) return false;
@@ -1150,6 +1176,10 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
               if (thumbHeight > 92) thumbHeight -= 10;
               applyHeights();
             }
+            while (!fits(inner) && mainHeight > 64) {
+              mainHeight -= 8;
+              applyHeights();
+            }
 
             return fits(inner);
           };
@@ -1157,6 +1187,7 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
 
           for (let i = 0; i < blocks.length; i += 1) {
             const block = blocks[i].cloneNode(true);
+            applyAdaptiveLayoutClasses(block);
             const keepWithNext = block.dataset.keepWithNext === 'true' && i + 1 < blocks.length;
             const pageBreakBefore = block.dataset.pageBreakBefore === 'true';
             const pageBreakAfter = block.dataset.pageBreakAfter === 'true';
@@ -1167,6 +1198,7 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
 
             if (keepWithNext) {
               const next = blocks[i + 1].cloneNode(true);
+              applyAdaptiveLayoutClasses(next);
               inner.appendChild(block);
               inner.appendChild(next);
               if (!fits(inner) && inner.children.length > 2) {
@@ -1211,26 +1243,7 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
             }
           });
 
-          document.querySelectorAll('.ft-adaptive-grid').forEach((grid) => {
-            const main = grid.querySelector('.ft-main-photo');
-            if (!main) return;
-            const w = main.naturalWidth || 0;
-            const h = main.naturalHeight || 0;
-            if (w >= h && w > 0) {
-              grid.classList.add('is-landscape');
-            }
-          });
-          document.querySelectorAll('.ft-photo-text-block').forEach((block) => {
-            const img = block.querySelector('.ft-photo-text-image');
-            if (!img) return;
-            const w = img.naturalWidth || 0;
-            const h = img.naturalHeight || 0;
-            if (w > h && h > 0) {
-              block.classList.add('ft-photo-text-landscape');
-            } else {
-              block.classList.add('ft-photo-text-portrait');
-            }
-          });
+          applyAdaptiveLayoutClasses(pagesRoot);
           window.__FT_PDF_LAYOUT_READY = true;
         });
       })();
