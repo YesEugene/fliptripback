@@ -280,7 +280,7 @@ async function buildMapboxStaticUrl(locations = [], template = 'classic', option
     if (cityQuery) {
       const cityGeocoded = await geocodeLocationWithMapbox({ name: cityQuery }, token);
       if (cityGeocoded && Number.isFinite(cityGeocoded.lat) && Number.isFinite(cityGeocoded.lng)) {
-        return `https://api.mapbox.com/styles/v1/${style}/static/pin-l+${pinColor}(${cityGeocoded.lng},${cityGeocoded.lat})/${cityGeocoded.lng},${cityGeocoded.lat},11/1200x620?access_token=${token}`;
+    return `https://api.mapbox.com/styles/v1/${style}/static/pin-m+${pinColor}(${cityGeocoded.lng},${cityGeocoded.lat})/${cityGeocoded.lng},${cityGeocoded.lat},11/1200x620?access_token=${token}`;
       }
     }
 
@@ -293,13 +293,13 @@ async function buildMapboxStaticUrl(locations = [], template = 'classic', option
     ].join(' ');
     const preset = fallbackCityCenter(citySignal);
     if (!preset) return null;
-    return `https://api.mapbox.com/styles/v1/${style}/static/pin-l+${pinColor}(${preset.lng},${preset.lat})/${preset.lng},${preset.lat},${preset.zoom}/1200x620?access_token=${token}`;
+    return `https://api.mapbox.com/styles/v1/${style}/static/pin-m+${pinColor}(${preset.lng},${preset.lat})/${preset.lng},${preset.lat},${preset.zoom}/1200x620?access_token=${token}`;
   }
 
   const pins = finalCoords
     .map((loc, index) => {
       const markerNumber = String(index + 1);
-      return `pin-s-${markerNumber}+${pinColor}(${loc.lng},${loc.lat})`;
+      return `pin-m-${markerNumber}+${pinColor}(${loc.lng},${loc.lat})`;
     })
     .join(',');
 
@@ -838,6 +838,9 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
         display: block;
         background: transparent;
       }
+      .ft-route-map-section .ft-locations {
+        margin-top: 30px;
+      }
       .ft-photo-grid,
       .ft-location-photo-layout {
         display: grid;
@@ -905,8 +908,8 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
       }
       .ft-photo-text-image {
         width: 100%;
-        aspect-ratio: 1 / 1;
-        object-fit: cover;
+        height: auto;
+        object-fit: contain;
         display: block;
         background: #f3f4f6;
       }
@@ -924,6 +927,23 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
       }
       .ft-photo-text-block.photo-on-left .ft-photo-text-layout .ft-text {
         order: 2;
+      }
+      .ft-photo-text-block.ft-photo-text-landscape .ft-photo-text-layout {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+      .ft-photo-text-block.ft-photo-text-landscape .ft-photo-text-image-wrap {
+        grid-column: 1 / -1;
+        order: 1 !important;
+      }
+      .ft-photo-text-block.ft-photo-text-landscape .ft-photo-text-layout .ft-text {
+        grid-column: 1 / -1;
+        order: 2 !important;
+      }
+      .ft-photo-text-block.ft-photo-text-portrait .ft-photo-text-image-wrap {
+        grid-column: span 2;
+      }
+      .ft-photo-text-block.ft-photo-text-portrait .ft-photo-text-layout .ft-text {
+        grid-column: span 2;
       }
       .ft-three-columns-grid {
         display: grid;
@@ -1163,6 +1183,17 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
             const h = main.naturalHeight || 0;
             if (w >= h && w > 0) {
               grid.classList.add('is-landscape');
+            }
+          });
+          document.querySelectorAll('.ft-photo-text-block').forEach((block) => {
+            const img = block.querySelector('.ft-photo-text-image');
+            if (!img) return;
+            const w = img.naturalWidth || 0;
+            const h = img.naturalHeight || 0;
+            if (w > h && h > 0) {
+              block.classList.add('ft-photo-text-landscape');
+            } else {
+              block.classList.add('ft-photo-text-portrait');
             }
           });
           window.__FT_PDF_LAYOUT_READY = true;
