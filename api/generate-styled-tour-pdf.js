@@ -1152,42 +1152,40 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
             const thumbPhotos = Array.from(block.querySelectorAll('.ft-thumb-photo'));
             if (!mainPhoto && thumbPhotos.length === 0) return false;
 
-            let mainHeight = mainPhoto ? (mainPhoto.clientHeight || 320) : 320;
-            let thumbHeight = thumbPhotos[0] ? (thumbPhotos[0].clientHeight || 140) : 140;
+            let mainMaxHeight = mainPhoto ? (mainPhoto.clientHeight || 320) : 320;
+            let thumbMaxHeight = thumbPhotos[0] ? (thumbPhotos[0].clientHeight || 140) : 140;
 
             const applyHeights = () => {
               if (mainPhoto) {
-                mainPhoto.style.height = String(mainHeight) + 'px';
+                mainPhoto.style.height = 'auto';
+                mainPhoto.style.maxHeight = String(mainMaxHeight) + 'px';
                 mainPhoto.style.objectFit = 'contain';
               }
               thumbPhotos.forEach((img) => {
-                img.style.height = String(thumbHeight) + 'px';
+                img.style.height = 'auto';
+                img.style.maxHeight = String(thumbMaxHeight) + 'px';
                 img.style.objectFit = 'contain';
               });
             };
 
             applyHeights();
-            // If a location block still overflows A4, normalize the main photo
-            // to thumbnail-like height so text can stay on the same page.
+            // If still over A4, switch to compact 2+2 layout, but keep
+            // first image in original ratio (do not force it to thumb height).
             if (!fits(inner)) {
               block.classList.add('ft-overflow-compact');
-              const normalizedHeight = Math.max(100, Math.min(thumbHeight, 140));
-              mainHeight = normalizedHeight;
-              thumbHeight = normalizedHeight;
               applyHeights();
             }
-            while (!fits(inner) && (mainHeight > 170 || thumbHeight > 80)) {
-              if (mainHeight > 170) mainHeight -= 24;
-              if (thumbHeight > 80) thumbHeight -= 12;
+            while (!fits(inner) && (thumbMaxHeight > 88 || mainMaxHeight > 180)) {
+              if (thumbMaxHeight > 88) thumbMaxHeight -= 12;
+              if (mainMaxHeight > 180) mainMaxHeight -= 16;
               applyHeights();
             }
-            while (!fits(inner) && (mainHeight > 92 || thumbHeight > 92)) {
-              if (mainHeight > 92) mainHeight -= 10;
-              if (thumbHeight > 92) thumbHeight -= 10;
+            while (!fits(inner) && thumbMaxHeight > 70) {
+              thumbMaxHeight -= 8;
               applyHeights();
             }
-            while (!fits(inner) && mainHeight > 64) {
-              mainHeight -= 8;
+            while (!fits(inner) && mainMaxHeight > 128) {
+              mainMaxHeight -= 8;
               applyHeights();
             }
 
