@@ -557,7 +557,12 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
       return `<section class="ft-section ft-section-block ft-heading-block" data-keep-with-next="true"><h2 class="ft-headline">${htmlEscape(section.title || '')}</h2></section>`;
     }
 
-    const titleHtml = section.title ? `<h3>${htmlEscape(section.title)}</h3>` : '';
+    const isLocation = section.type === 'location';
+    const titleHtml = section.title
+      ? (isLocation
+          ? `<h3><span class="ft-location-title-pin" aria-hidden="true">📍</span>${htmlEscape(section.title)}</h3>`
+          : `<h3>${htmlEscape(section.title)}</h3>`)
+      : '';
     const addressHtml = section.address ? `<div class="ft-address">${htmlEscape(section.address)}</div>` : '';
     const paragraphs = section.paragraphs?.length
       ? section.paragraphs.map((p) => `<p>${htmlEscape(p)}</p>`).join('')
@@ -566,7 +571,6 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
     const isThreeColumns = section.type === 'three_columns';
     const isPhotoBlock = section.type === 'photo';
     const textWrapClass = section.useColumns && !isPhotoText ? 'ft-text columns' : 'ft-text';
-    const isLocation = section.type === 'location';
 
     if (isThreeColumns) {
       return `
@@ -782,6 +786,13 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
       .ft-location-section h3 {
         font-size: 30px;
       }
+      .ft-location-title-pin {
+        display: inline-block;
+        margin-right: 8px;
+        font-size: 0.8em;
+        line-height: 1;
+        transform: translateY(-1px);
+      }
       .ft-address {
         color: #3E85FC;
         font-size: 14px;
@@ -838,8 +849,11 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
         display: block;
         background: transparent;
       }
-      .ft-route-map-section .ft-locations {
+      .ft-route-map-section h2 + .ft-map + h2 {
         margin-top: 30px;
+      }
+      .ft-route-map-section .ft-locations {
+        margin-top: 15px;
       }
       .ft-photo-grid,
       .ft-location-photo-layout {
@@ -1110,6 +1124,14 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
             };
 
             applyHeights();
+            // If a location block still overflows A4, normalize the main photo
+            // to thumbnail-like height so text can stay on the same page.
+            if (!fits(inner)) {
+              const normalizedHeight = Math.max(100, Math.min(thumbHeight, 140));
+              mainHeight = normalizedHeight;
+              thumbHeight = normalizedHeight;
+              applyHeights();
+            }
             while (!fits(inner) && (mainHeight > 170 || thumbHeight > 80)) {
               if (mainHeight > 170) mainHeight -= 24;
               if (thumbHeight > 80) thumbHeight -= 12;
