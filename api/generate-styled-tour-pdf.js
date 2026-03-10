@@ -879,23 +879,33 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
       }
       .ft-adaptive-grid .ft-thumb-stack {
         grid-column: span 2;
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 10px;
+        column-count: 2;
+        column-gap: 10px;
+      }
+      .ft-adaptive-grid .ft-thumb-stack .ft-thumb-photo {
+        width: 100%;
+        height: auto;
+        object-fit: contain;
+        display: block;
+        break-inside: avoid;
+        margin: 0 0 10px;
+      }
+      .ft-adaptive-grid .ft-thumb-stack .ft-thumb-photo:last-child {
+        margin-bottom: 0;
       }
       .ft-adaptive-grid.is-landscape .ft-main-photo {
         grid-column: 1 / -1;
       }
       .ft-adaptive-grid.is-landscape .ft-thumb-stack {
         grid-column: 1 / -1;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        column-count: 4;
       }
       .ft-location-section.ft-overflow-compact .ft-adaptive-grid .ft-main-photo {
         grid-column: span 2 !important;
       }
       .ft-location-section.ft-overflow-compact .ft-adaptive-grid .ft-thumb-stack {
         grid-column: span 2 !important;
-        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        column-count: 2 !important;
       }
       .ft-recommend-box {
         margin-top: 10px;
@@ -1148,11 +1158,11 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
             const applyHeights = () => {
               if (mainPhoto) {
                 mainPhoto.style.height = String(mainHeight) + 'px';
-                mainPhoto.style.objectFit = 'cover';
+                mainPhoto.style.objectFit = 'contain';
               }
               thumbPhotos.forEach((img) => {
                 img.style.height = String(thumbHeight) + 'px';
-                img.style.objectFit = 'cover';
+                img.style.objectFit = 'contain';
               });
             };
 
