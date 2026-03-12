@@ -532,6 +532,7 @@ export default async function handler(req, res) {
       format, 
       interests, 
       summary,
+      fast,
       audience,
       duration,
       languages,
@@ -547,8 +548,25 @@ export default async function handler(req, res) {
     // CRITICAL: Explicitly include preview_media_url and preview_media_type
     // When using * with nested queries, Supabase may not return all fields
     const summaryMode = summary === '1' || summary === 'true';
+    const fastMode = fast === '1' || fast === 'true';
 
-    const baseSelect = summaryMode
+    const baseSelect = (summaryMode && fastMode)
+      ? `
+      id,
+      guide_id,
+      city_id,
+      title,
+      description,
+      source,
+      default_format,
+      status,
+      created_at,
+      updated_at,
+      preview_media_url,
+      preview_media_type,
+      city:cities(name)
+    `
+      : summaryMode
       ? `
       id,
       guide_id,
@@ -783,9 +801,12 @@ export default async function handler(req, res) {
     const guideIds = Array.from(new Set((filteredTours || []).map(t => t.guide_id).filter(Boolean)));
     let guidesById = new Map();
     if (guideIds.length > 0) {
+      const guideSelect = fastMode
+        ? 'id, name, avatar_url'
+        : 'id, name, avatar_url, city, interests';
       const { data: guidesData, error: guidesError } = await supabase
         .from('guides')
-        .select('id, name, avatar_url, city, interests')
+        .select(guideSelect)
         .in('id', guideIds);
       if (guidesError) {
         console.warn('⚠️ Failed to batch load guides:', guidesError.message);
