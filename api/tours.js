@@ -561,6 +561,7 @@ export default async function handler(req, res) {
       explore_wide_card:draft_data->>exploreWideCard,
       short_description:draft_data->>shortDescription,
       preview_original:draft_data->>previewOriginal,
+      draft_tags:draft_data->tags,
       source,
       default_format,
       status,
@@ -839,7 +840,8 @@ export default async function handler(req, res) {
               ? { exploreWideCard: String(tour.explore_wide_card) === 'true' }
               : {}),
             ...(tour.short_description ? { shortDescription: tour.short_description } : {}),
-            ...(tour.preview_original ? { previewOriginal: tour.preview_original } : {})
+            ...(tour.preview_original ? { previewOriginal: tour.preview_original } : {}),
+            ...(Array.isArray(tour.draft_tags) ? { tags: tour.draft_tags } : {})
           }
         : (tour.draft_data || null);
 
