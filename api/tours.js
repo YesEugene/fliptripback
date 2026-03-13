@@ -557,6 +557,10 @@ export default async function handler(req, res) {
       city_id,
       title,
       description,
+      explore_order:draft_data->>exploreOrder,
+      explore_wide_card:draft_data->>exploreWideCard,
+      short_description:draft_data->>shortDescription,
+      preview_original:draft_data->>previewOriginal,
       source,
       default_format,
       status,
@@ -824,8 +828,20 @@ export default async function handler(req, res) {
           ? tour.preview_media_url
           : null;
 
+      const draftData = fastMode
+        ? {
+            ...(tour.explore_order ? { exploreOrder: Number(tour.explore_order) || tour.explore_order } : {}),
+            ...(tour.explore_wide_card !== undefined && tour.explore_wide_card !== null
+              ? { exploreWideCard: String(tour.explore_wide_card) === 'true' }
+              : {}),
+            ...(tour.short_description ? { shortDescription: tour.short_description } : {}),
+            ...(tour.preview_original ? { previewOriginal: tour.preview_original } : {})
+          }
+        : (tour.draft_data || null);
+
       return {
         ...tour,
+        draft_data: draftData,
         guide: guideInfo,
         daily_plan: [], // Kept empty for list endpoint
         preview: previewMediaUrl,
