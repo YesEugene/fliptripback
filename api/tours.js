@@ -116,7 +116,8 @@ export default async function handler(req, res) {
       });
     }
 
-    const { id } = req.query;
+    const { id, preview: previewMode } = req.query;
+    const isPreviewMode = previewMode === '1' || previewMode === 'true';
 
     // If ID is provided, return single tour from PostgreSQL
     if (id) {
@@ -130,7 +131,7 @@ export default async function handler(req, res) {
         });
       }
       
-      console.log(`🔍 Fetching tour with ID: ${id}`);
+      console.log(`🔍 Fetching tour with ID: ${id}${isPreviewMode ? ' (PREVIEW MODE — lightweight)' : ''}`);
       
       let tour, error;
       
@@ -159,47 +160,52 @@ export default async function handler(req, res) {
         }
         
         // Fetch tour_days separately to avoid complex join issues
-        try {
-          const { data: tourDays } = await supabase
-            .from('tour_days')
-            .select(`
-              id,
-              day_number,
-              title,
-              date_hint,
-              tour_blocks(
+        // SKIP in preview mode — this is the heaviest query and not needed for header rendering
+        if (!isPreviewMode) {
+          try {
+            const { data: tourDays } = await supabase
+              .from('tour_days')
+              .select(`
                 id,
-                start_time,
-                end_time,
+                day_number,
                 title,
-                tour_items(
+                date_hint,
+                tour_blocks(
                   id,
-                  location_id,
-                  custom_title,
-                  custom_description,
-                  custom_recommendations,
-                  order_index,
-                  duration_minutes,
-                  approx_cost,
-                  location:locations(
-                    *,
-                    location_interests(
-                      interest:interests(id, name, category_id)
-                    ),
-                    location_photos(
-                      id,
-                      url
+                  start_time,
+                  end_time,
+                  title,
+                  tour_items(
+                    id,
+                    location_id,
+                    custom_title,
+                    custom_description,
+                    custom_recommendations,
+                    order_index,
+                    duration_minutes,
+                    approx_cost,
+                    location:locations(
+                      *,
+                      location_interests(
+                        interest:interests(id, name, category_id)
+                      ),
+                      location_photos(
+                        id,
+                        url
+                      )
                     )
                   )
                 )
-              )
-            `)
-            .eq('tour_id', id)
-            .order('day_number', { ascending: true });
-          
-          tour.tour_days = tourDays || [];
-        } catch (daysError) {
-          console.warn('⚠️ Could not fetch tour_days:', daysError);
+              `)
+              .eq('tour_id', id)
+              .order('day_number', { ascending: true });
+            
+            tour.tour_days = tourDays || [];
+          } catch (daysError) {
+            console.warn('⚠️ Could not fetch tour_days:', daysError);
+            tour.tour_days = [];
+          }
+        } else {
           tour.tour_days = [];
         }
         
@@ -388,13 +394,17 @@ export default async function handler(req, res) {
       }
 
       // Load guide info separately if guide_id exists
+      // In preview mode: load only guide (name + avatar) — skip other tours, availability
       let guideInfo = null;
       let authorOtherTours = [];
       if (tour.guide_id) {
         // Note: guides.id = users.id (not user_id)
+        const guideSelect = isPreviewMode
+          ? 'id, name, avatar_url'
+          : 'id, name, avatar_url, bio, city, interests';
         const { data: guide } = await supabase
           .from('guides')
-          .select('id, name, avatar_url, bio, city, interests')
+          .select(guideSelect)
           .eq('id', tour.guide_id)
           .maybeSingle();
         if (guide) {
@@ -402,24 +412,27 @@ export default async function handler(req, res) {
         }
 
         // Load other published tours by the same guide (for "All trips from this author")
-        try {
-          const { data: otherTours } = await supabase
-            .from('tours')
-            .select('id, title, preview_media_url, draft_data')
-            .eq('guide_id', tour.guide_id)
-            .neq('id', tour.id)
-            .in('status', ['approved', 'published', 'active'])
-            .order('created_at', { ascending: false })
-            .limit(10);
-          if (otherTours) {
-            authorOtherTours = otherTours.map(t => ({
-              id: t.id,
-              title: t.draft_data?.title || t.title,
-              preview: t.draft_data?.preview || t.preview_media_url
-            }));
+        // SKIP in preview mode — not needed for initial header render
+        if (!isPreviewMode) {
+          try {
+            const { data: otherTours } = await supabase
+              .from('tours')
+              .select('id, title, preview_media_url, draft_data')
+              .eq('guide_id', tour.guide_id)
+              .neq('id', tour.id)
+              .in('status', ['approved', 'published', 'active'])
+              .order('created_at', { ascending: false })
+              .limit(10);
+            if (otherTours) {
+              authorOtherTours = otherTours.map(t => ({
+                id: t.id,
+                title: t.draft_data?.title || t.title,
+                preview: t.draft_data?.preview || t.preview_media_url
+              }));
+            }
+          } catch (e) {
+            console.warn('⚠️ Could not load other tours by author:', e.message);
           }
-        } catch (e) {
-          console.warn('⚠️ Could not load other tours by author:', e.message);
         }
       }
 
@@ -431,8 +444,9 @@ export default async function handler(req, res) {
       const additionalOptions = meta.additional_options || null;
       
       // Get availability information from new system (if tour has guide)
+      // SKIP in preview mode — not needed for initial render
       let availabilityInfo = null;
-      if (tour.default_format === 'with_guide') {
+      if (!isPreviewMode && tour.default_format === 'with_guide') {
         // Get next available date and available spots
         const { data: nextAvailableSlot } = await supabase
           .from('tour_availability_slots')
