@@ -569,6 +569,10 @@ export default async function handler(req, res) {
       preview_media_url,
       preview_media_type,
       city:cities(name)
+      ,
+      tour_tags(
+        tag:tags(id, name)
+      )
     `
       : summaryMode
       ? `
@@ -806,7 +810,7 @@ export default async function handler(req, res) {
     let guidesById = new Map();
     if (guideIds.length > 0) {
       const guideSelect = fastMode
-        ? 'id, name, avatar_url'
+        ? 'id, name, avatar_url, interests'
         : 'id, name, avatar_url, city, interests';
       const { data: guidesData, error: guidesError } = await supabase
         .from('guides')
