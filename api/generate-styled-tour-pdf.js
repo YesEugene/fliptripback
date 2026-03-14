@@ -449,7 +449,7 @@ function extractContentSectionsForHtml(blocks = []) {
               description: cleanRichText(alt.description || ''),
               rating: String(alt.rating ?? '').trim(),
               price: cleanRichText(alt.priceLevel || alt.price_level || alt.price || ''),
-              photos: normalizePhotoList(alt.photos || alt.photo).slice(0, 1)
+              photos: normalizePhotoList(alt.photos || alt.photo).slice(0, 3)
             }))
             .filter((alt) => alt.title || alt.description || alt.address)
         : [];
@@ -609,20 +609,31 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
         <p>${htmlEscape(section.recommendations)}</p>
       </div>
     ` : '';
-    const alternativesHtml = isLocation && Array.isArray(section.alternatives) && section.alternatives.length > 0 ? `
-      <div class="ft-alt-locations-block">
+    // Alternatives are rendered as a SEPARATE section for pagination (can move to next page)
+    const isSingleAlt = isLocation && Array.isArray(section.alternatives) && section.alternatives.length === 1;
+    const hasAlternatives = isLocation && Array.isArray(section.alternatives) && section.alternatives.length > 0;
+    const alternativesSectionHtml = hasAlternatives ? `
+      <section class="ft-section ft-section-block ft-alt-locations-block ${isSingleAlt ? 'ft-alt-single' : ''}">
         <div class="ft-alt-locations-title">Author also recommends</div>
-        <div class="ft-alt-locations-grid">
-          ${section.alternatives.map((alt) => `
+        <div class="ft-alt-locations-grid${isSingleAlt ? ' ft-alt-single-grid' : ''}">
+          ${section.alternatives.map((alt) => {
+            const altPhotosHtml = alt.photos && alt.photos.length > 0 ? `
+              <div class="ft-alt-photos${alt.photos.length === 1 ? ' ft-alt-photos-single' : ''}">
+                ${alt.photos.map((src) => `<img class="ft-alt-photo" src="${htmlEscape(src)}" alt="${htmlEscape(alt.title || 'Alt photo')}"/>`).join('')}
+              </div>
+            ` : '';
+            return `
             <article class="ft-alt-location-card">
+              ${isSingleAlt ? altPhotosHtml : ''}
               <h4>${htmlEscape(alt.title || '')}</h4>
               ${alt.address ? `<div class="ft-alt-location-address">📍 ${htmlEscape(alt.address)}</div>` : ''}
               ${(alt.rating || alt.price) ? `<div class="ft-alt-location-meta">${alt.rating ? `⭐ ${htmlEscape(alt.rating)}` : ''}${alt.rating && alt.price ? '   ' : ''}${alt.price ? `💰 ${htmlEscape(alt.price)}` : ''}</div>` : ''}
-              ${alt.description ? `<p>${htmlEscape(alt.description)}</p>` : ''}
+              ${alt.description ? `<div class="ft-alt-description${isSingleAlt ? ' ft-alt-description-full' : ''}">${htmlEscape(alt.description)}</div>` : ''}
             </article>
-          `).join('')}
+          `;
+          }).join('')}
         </div>
-      </div>
+      </section>
     ` : '';
     const photoGrid = !section.photos?.length ? '' : (isLocation ? `
       <div class="ft-location-photos">
@@ -669,8 +680,8 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
           ${paragraphs}
         </div>
         ${recommendationsHtml}
-        ${alternativesHtml}
       </section>
+      ${alternativesSectionHtml}
     `;
   }).join('');
 
@@ -1020,7 +1031,7 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
         line-height: 1.45;
       }
       .ft-alt-locations-block {
-        margin-top: 16px;
+        margin-top: 0;
       }
       .ft-alt-locations-title {
         margin-bottom: 10px;
@@ -1036,17 +1047,51 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
         border-radius: 10px;
         padding: 12px;
       }
+      /* Single alternative — full width, no 2-column grid */
+      .ft-alt-single-grid {
+        grid-template-columns: 1fr;
+      }
       .ft-alt-location-card h4 {
         margin: 0 0 6px;
         font-size: 16px;
         text-transform: uppercase;
       }
       .ft-alt-location-address,
-      .ft-alt-location-meta,
-      .ft-alt-location-card p {
+      .ft-alt-location-meta {
         margin: 0 0 6px;
         font-size: 12px;
         line-height: 1.4;
+      }
+      .ft-alt-description {
+        margin: 0 0 6px;
+        font-size: 12px;
+        line-height: 1.4;
+      }
+      /* Single alt — full-width description in columns */
+      .ft-alt-description-full {
+        column-count: 2;
+        column-gap: 20px;
+        font-size: 12px;
+        line-height: 1.5;
+      }
+      /* Alternative location photos */
+      .ft-alt-photos {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+      .ft-alt-photo {
+        width: 100%;
+        max-height: 200px;
+        object-fit: cover;
+        border-radius: 4px;
+      }
+      .ft-alt-photos-single .ft-alt-photo {
+        max-height: 240px;
+      }
+      .ft-alt-photos:not(.ft-alt-photos-single) .ft-alt-photo {
+        flex: 1 1 0;
+        max-height: 160px;
       }
       @media print {
         body {
@@ -1145,8 +1190,28 @@ function buildStyledPdfHtml({ tour, blocks, template = 'classic', layout = {}, m
             });
           };
           const hasContent = (inner) => inner && inner.children && inner.children.length > 0;
+          const tryCropAltPhotosToFit = (inner, block) => {
+            if (!block || !block.classList || !block.classList.contains('ft-alt-locations-block')) return false;
+            const altPhotos = Array.from(block.querySelectorAll('.ft-alt-photo'));
+            if (altPhotos.length === 0) return false;
+            let altMaxH = altPhotos[0] ? (altPhotos[0].clientHeight || 200) : 200;
+            const apply = () => {
+              altPhotos.forEach((img) => {
+                img.style.maxHeight = String(altMaxH) + 'px';
+                img.style.objectFit = 'cover';
+              });
+            };
+            while (!fits(inner) && altMaxH > 80) {
+              altMaxH -= 16;
+              apply();
+            }
+            return fits(inner);
+          };
           const tryCropLocationImagesToFit = (inner, block) => {
-            if (!block || !block.classList || !block.classList.contains('ft-location-section')) return false;
+            if (!block || !block.classList) return false;
+            // Handle alternative locations block
+            if (block.classList.contains('ft-alt-locations-block')) return tryCropAltPhotosToFit(inner, block);
+            if (!block.classList.contains('ft-location-section')) return false;
 
             const mainPhoto = block.querySelector('.ft-main-photo');
             const thumbPhotos = Array.from(block.querySelectorAll('.ft-thumb-photo'));
