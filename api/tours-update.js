@@ -9,6 +9,68 @@
 
 import { supabase } from '../database/db.js';
 
+/**
+ * Replace tour_tags rows that represent interests (interest_id set).
+ * Used for draft saves so the visualizer does not need a destructive full update.
+ */
+async function syncTourInterestTags(supabase, tourId, tags) {
+  if (tags === undefined || !Array.isArray(tags)) {
+    return { ok: true };
+  }
+
+  const { error: delError } = await supabase
+    .from('tour_tags')
+    .delete()
+    .eq('tour_id', tourId)
+    .not('interest_id', 'is', null);
+
+  if (delError) {
+    console.warn('⚠️ tour_tags delete (interests) before insert:', delError);
+  }
+
+  if (tags.length === 0) {
+    return { ok: true };
+  }
+
+  if (!tourId || typeof tourId !== 'string') {
+    return { ok: false, status: 400, body: { success: false, error: 'Invalid tour ID' } };
+  }
+
+  const tourTagInserts = tags.map((interestId) => ({
+    tour_id: tourId,
+    tag_id: null,
+    interest_id: typeof interestId === 'string' && /^\d+$/.test(interestId) ? parseInt(interestId, 10) : interestId
+  }));
+
+  const { data: insertedTags, error: insertError } = await supabase
+    .from('tour_tags')
+    .insert(tourTagInserts)
+    .select('tour_id, interest_id');
+
+  if (insertError) {
+    console.error('❌ syncTourInterestTags insert error:', insertError);
+    return {
+      ok: false,
+      status: 500,
+      body: {
+        success: false,
+        error: 'Failed to save interests',
+        message: insertError.message || 'Database error'
+      }
+    };
+  }
+
+  if (!insertedTags || insertedTags.length === 0) {
+    return {
+      ok: false,
+      status: 500,
+      body: { success: false, error: 'Failed to save interests - no data returned from insert' }
+    };
+  }
+
+  return { ok: true };
+}
+
 // Fallback function for getOrCreateCity (in case import fails)
 async function getOrCreateCityFallback(cityName, countryName) {
   if (!supabase || !cityName) return null;
@@ -613,7 +675,35 @@ export default async function handler(req, res) {
       const mergedDraftData = {
         ...existingDraft,
         ...draftData,
-        // Preserve highlights: use sent value if defined, otherwise keep existing
+        // Partial PUTs (e.g. modal close) must not wipe fields omitted from the request
+        description: description !== undefined ? description : existingDraft.description,
+        daily_plan: daily_plan !== undefined ? daily_plan : existingDraft.daily_plan,
+        meta: meta !== undefined ? meta : existingDraft.meta,
+        country: country !== undefined ? country : existingDraft.country,
+        city: city !== undefined ? city : existingDraft.city,
+        title: title !== undefined ? title : existingDraft.title,
+        tags: tags !== undefined ? tags : existingDraft.tags,
+        format:
+          tourData.format !== undefined ||
+          tourData.withGuide !== undefined ||
+          tourData.selfGuided !== undefined
+            ? format
+            : existingDraft.format,
+        tourSettings:
+          tourData.selfGuided !== undefined ||
+          tourData.withGuide !== undefined ||
+          tourData.price !== undefined ||
+          tourData.additionalOptions !== undefined
+            ? tourSettings
+            : (existingDraft.tourSettings || tourSettings),
+        price: tourData.price !== undefined ? draftData.price : (existingDraft.price || draftData.price),
+        additionalOptions:
+          tourData.additionalOptions !== undefined ? additionalOptions : existingDraft.additionalOptions,
+        preview: previewCroppedUrl !== undefined ? previewCroppedUrl : existingDraft.preview,
+        previewOriginal:
+          previewOriginalUrl !== undefined
+            ? previewOriginalUrl
+            : (existingDraft.previewOriginal ?? existingDraft.preview),
         highlights: highlights !== undefined ? highlights : (existingDraft.highlights || {}),
         previewImages: previewImages !== undefined ? previewImages : (existingDraft.previewImages || []),
         tourPdfUrl: tourPdfUrl !== undefined ? tourPdfUrl : (existingDraft.tourPdfUrl || ''),
@@ -652,11 +742,43 @@ export default async function handler(req, res) {
           details: tourError.message
         });
       }
-      
+
+      const tagSync = await syncTourInterestTags(supabase, id, tags);
+      if (!tagSync.ok) {
+        return res.status(tagSync.status).json(tagSync.body);
+      }
+
+      let tourOut = tour;
+      try {
+        const { data: allTourTags } = await supabase
+          .from('tour_tags')
+          .select('interest_id, tag_id, tour_id')
+          .eq('tour_id', id);
+        const interestRows = allTourTags?.filter((tt) => tt.interest_id != null) || [];
+        if (interestRows.length > 0) {
+          const interestIds = interestRows.map((tt) => tt.interest_id).filter(Boolean);
+          const { data: interestsData } = await supabase
+            .from('interests')
+            .select('id, name, category_id')
+            .in('id', interestIds);
+          tourOut = {
+            ...tour,
+            tour_tags: interestRows.map((tt) => ({
+              interest_id: tt.interest_id,
+              interest: interestsData?.find((i) => String(i.id) === String(tt.interest_id)) || null
+            }))
+          };
+        } else {
+          tourOut = { ...tour, tour_tags: [] };
+        }
+      } catch (e) {
+        console.warn('⚠️ Could not attach tour_tags to draft response:', e?.message || e);
+      }
+
       console.log('✅ Draft saved successfully');
       return res.status(200).json({
         success: true,
-        tour: tour,
+        tour: tourOut,
         message: 'Draft saved successfully',
         isDraft: true
       });
