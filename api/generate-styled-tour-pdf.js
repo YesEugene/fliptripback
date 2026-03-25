@@ -49,6 +49,31 @@ async function canEditTour(tourId, userId, isAdmin) {
   return String(ownerId || '') === String(userId || '');
 }
 
+/** Same rule as check-payment: paid self-guided / tour purchase for this user + tour */
+async function hasPaidForTourByUserId(tourId, userId) {
+  if (!tourId || !userId) return false;
+  const { data: booking } = await supabase
+    .from('tour_bookings')
+    .select('id')
+    .eq('tour_id', tourId)
+    .eq('user_id', userId)
+    .eq('payment_status', 'paid')
+    .limit(1)
+    .maybeSingle();
+  return !!booking;
+}
+
+async function hasPaidForTour(tourId, email) {
+  if (!tourId || !email) return false;
+  const { data: user } = await supabase
+    .from('users')
+    .select('id')
+    .eq('email', email.toLowerCase().trim())
+    .maybeSingle();
+  if (!user) return false;
+  return hasPaidForTourByUserId(tourId, user.id);
+}
+
 async function ensureBucketAllowsPdf() {
   try {
     const { data: bucket, error: bucketError } = await supabase.storage.getBucket('tour-assets');
@@ -1563,14 +1588,46 @@ export default async function handler(req, res) {
   try {
     if (!supabase) return res.status(500).json({ success: false, error: 'Database not configured' });
 
-    const { tourId, template = 'classic', layout = {}, previewHtml = false, allowFallback = true } = req.body || {};
+    const {
+      tourId,
+      template: templateFromBody,
+      layout: layoutFromBody = {},
+      previewHtml = false,
+      allowFallback = true,
+      travelerDownload = false,
+      email: travelerEmailRaw
+    } = req.body || {};
     if (!tourId) return res.status(400).json({ success: false, error: 'tourId is required' });
 
     const { userId, isAdmin } = await getUserFromToken(req.headers.authorization);
-    if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    const travelerEmail = (travelerEmailRaw || '').toString().trim().toLowerCase();
 
-    const allowed = await canEditTour(tourId, userId, isAdmin);
-    if (!allowed) return res.status(403).json({ success: false, error: 'You can only edit your own tours' });
+    if (previewHtml) {
+      if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+      const allowedPreview = await canEditTour(tourId, userId, isAdmin);
+      if (!allowedPreview) {
+        return res.status(403).json({ success: false, error: 'You can only edit your own tours' });
+      }
+    } else if (travelerDownload) {
+      let allowedTraveler = false;
+      if (userId) {
+        if (await canEditTour(tourId, userId, isAdmin)) allowedTraveler = true;
+        else if (await hasPaidForTourByUserId(tourId, userId)) allowedTraveler = true;
+      }
+      if (!allowedTraveler && travelerEmail) {
+        if (await hasPaidForTour(tourId, travelerEmail)) allowedTraveler = true;
+      }
+      if (!allowedTraveler) {
+        return res.status(403).json({
+          success: false,
+          error: 'You do not have access to download this PDF. Sign in with the account you used to purchase, or open the link from your confirmation email.'
+        });
+      }
+    } else {
+      if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+      const allowed = await canEditTour(tourId, userId, isAdmin);
+      if (!allowed) return res.status(403).json({ success: false, error: 'You can only edit your own tours' });
+    }
 
     const { data: tour, error: tourErr } = await supabase
       .from('tours')
@@ -1587,6 +1644,16 @@ export default async function handler(req, res) {
     if (blocksErr) {
       return res.status(500).json({ success: false, error: 'Failed to load tour blocks' });
     }
+
+    const draft = (tour.draft_data && typeof tour.draft_data === 'object') ? tour.draft_data : {};
+    const template =
+      templateFromBody !== undefined && templateFromBody !== null && templateFromBody !== ''
+        ? templateFromBody
+        : (draft.pdfTemplate || 'classic');
+    const layout = {
+      ...(draft.pdfLayout && typeof draft.pdfLayout === 'object' ? draft.pdfLayout : {}),
+      ...(layoutFromBody && typeof layoutFromBody === 'object' ? layoutFromBody : {})
+    };
 
     if (previewHtml) {
       const locations = extractLocationsFromBlocks(blocks || []);
