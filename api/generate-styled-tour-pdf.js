@@ -1602,13 +1602,8 @@ export default async function handler(req, res) {
     const { userId, isAdmin } = await getUserFromToken(req.headers.authorization);
     const travelerEmail = (travelerEmailRaw || '').toString().trim().toLowerCase();
 
-    if (previewHtml) {
-      if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' });
-      const allowedPreview = await canEditTour(tourId, userId, isAdmin);
-      if (!allowedPreview) {
-        return res.status(403).json({ success: false, error: 'You can only edit your own tours' });
-      }
-    } else if (travelerDownload) {
+    // Travelers (paid / same checks as download): can request previewHtml to mirror guide client-side PDF pipeline.
+    if (travelerDownload) {
       let allowedTraveler = false;
       if (userId) {
         if (await canEditTour(tourId, userId, isAdmin)) allowedTraveler = true;
