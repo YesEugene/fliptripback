@@ -110,18 +110,18 @@ export default async function handler(req, res) {
         .single();
       
       if (!tourError && tour) {
-        currency = tour.currency || 'USD';
+        currency = tour.currency || 'EUR';
         if (finalTourType === 'with-guide') {
           tourPrice = tour.price_guided;
         } else {
-          tourPrice = tour.price_pdf || 16;
+          tourPrice = tour.price_pdf || 12;
         }
       }
     }
     
-    // Fallback to default price if not found in DB
+    // Fallback to default price if not found in DB (self-guided matches Stripe catalog €12)
     if (!tourPrice) {
-      tourPrice = finalTourType === 'with-guide' ? 150 : 16; // Default prices
+      tourPrice = finalTourType === 'with-guide' ? 150 : 12;
     }
 
     // Build success URL with itineraryId and tourId if present

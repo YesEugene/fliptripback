@@ -300,9 +300,9 @@ export default async function handler(req, res) {
         withGuide: tour.default_format === 'with_guide',
         // Add price structure with With Guide data
         price: {
-          pdfPrice: tour.price_pdf || 16,
+          pdfPrice: tour.price_pdf || 12,
           guidedPrice: tour.price_guided || null,
-          currency: tour.currency || 'USD',
+          currency: tour.currency || 'EUR',
           meetingPoint: meetingPoint,
           meetingTime: meetingTime,
           availableDates: availableDates

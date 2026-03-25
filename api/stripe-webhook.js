@@ -243,7 +243,7 @@ export default async function handler(req, res) {
       } else {
         // Self-guided tour
         finalQuantity = 1; // Always 1 for self-guided
-        basePrice = parseFloat(tour?.price_pdf || session.amount_total / 100 || 16);
+        basePrice = parseFloat(tour?.price_pdf || session.amount_total / 100 || 12);
         totalPrice = basePrice; // Single purchase
         currency = tour?.currency || 'USD';
         // Use date from metadata or current date for self-guided

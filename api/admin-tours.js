@@ -117,7 +117,7 @@ export default async function handler(req, res) {
           },
           format: tour.default_format || 'self_guided',
           price: {
-            pdf: tour.price_pdf || 16,
+            pdf: tour.price_pdf || 12,
             guided: tour.price_guided || null,
             currency: tour.currency || 'USD'
           },
@@ -247,7 +247,7 @@ export default async function handler(req, res) {
         },
         format: tour.default_format || 'self_guided',
         price: {
-          pdf: tour.price_pdf || 16,
+          pdf: tour.price_pdf || 12,
           guided: tour.price_guided || null,
           currency: tour.currency || 'USD'
         },
